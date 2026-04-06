@@ -356,3 +356,102 @@ exports.testBildirimiGonder = onCall(async (request) => {
     throw new HttpsError("internal", err.message);
   }
 });
+exports.nobetTelegramGonder = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Giris yapilmamis.");
+
+  const db = admin.firestore();
+  const nobetDoc = await db.collection("nobet_ayarlar").doc("mevcut").get();
+  if (!nobetDoc.exists) throw new HttpsError("not-found", "Nobet verisi bulunamadi.");
+
+  const veri = nobetDoc.data();
+  const noktalar = [
+    "On Bahce 1", "On Bahce 2", "Arka Bahce", "Zemin Kat",
+    "1. Kat Sag", "1. Kat Sol", "2. Kat Sag", "2. Kat Sol",
+    "3. Kat Sag", "3. Kat Sol"
+  ];
+
+  const baslangic = new Date(veri.hafta_baslangic + 'T12:00:00');
+
+  const formatTarih = (d) => {
+    const gun = String(d.getDate()).padStart(2, '0');
+    const ay = String(d.getMonth() + 1).padStart(2, '0');
+    const yil = d.getFullYear();
+    return `${gun}.${ay}.${yil}`;
+  };
+
+  let mesaj = `📋 *HAFTALIK NÖBET ÇİZELGESİ*\n`;
+  mesaj += `------------------------------------------\n\n`;
+
+  veri.gunler.forEach((g, gunIdx) => {
+    const gunTarihi = new Date(baslangic);
+    gunTarihi.setDate(baslangic.getDate() + gunIdx);
+    mesaj += `🗓 *${formatTarih(gunTarihi)} ${g.gun}*\n`;
+    mesaj += '`\n';
+    noktalar.forEach((nokta, i) => {
+      const noktaPad = nokta.padEnd(12, ' ');
+      mesaj += `${noktaPad}: ${g.nobetciler[i] || '-'}\n`;
+    });
+    mesaj += '`\n\n';
+  });
+
+  await telegramMesajGonder(mesaj);
+  return { success: true };
+});
+exports.haftalikNobetGonder = onSchedule("0 13 * * 5", async (event) => {
+  const db = admin.firestore();
+  const nobetDoc = await db.collection("nobet_ayarlar").doc("mevcut").get();
+  if (!nobetDoc.exists) return;
+
+  const veri = nobetDoc.data();
+  const noktalar = [
+    "On Bahce 1", "On Bahce 2", "Arka Bahce", "Zemin Kat",
+    "1. Kat Sag", "1. Kat Sol", "2. Kat Sag", "2. Kat Sol",
+    "3. Kat Sag", "3. Kat Sol"
+  ];
+
+  const baslangic = new Date(veri.hafta_baslangic + 'T12:00:00');
+  const formatTarih = (d) => {
+    const gun = String(d.getDate()).padStart(2, '0');
+    const ay = String(d.getMonth() + 1).padStart(2, '0');
+    return `${gun}.${ay}.${d.getFullYear()}`;
+  };
+
+  // Bir sonraki haftanın verilerini hesapla
+  const sonrakiBaslangic = new Date(baslangic);
+  sonrakiBaslangic.setDate(baslangic.getDate() + 7);
+
+  let sonrakiGunler;
+  if (veri.rotasyon_aktif) {
+    sonrakiGunler = veri.gunler.map(gun => {
+      const nobetciler = [...gun.nobetciler];
+      const hareketli = nobetciler.filter(n => !n.includes('(S)'));
+      if (hareketli.length > 1) hareketli.unshift(hareketli.pop());
+      let idx = 0;
+      const yeni = nobetciler.map(n => n.includes('(S)') ? n : hareketli[idx++]);
+      return { ...gun, nobetciler: yeni };
+    });
+  } else {
+    sonrakiGunler = veri.gunler;
+  }
+
+  const sonrakiBitis = new Date(sonrakiBaslangic);
+  sonrakiBitis.setDate(sonrakiBaslangic.getDate() + 4);
+
+  let mesaj = `📋 *HAFTALIK NÖBET ÇİZELGESİ*\n`;
+  mesaj += `${formatTarih(sonrakiBaslangic)} - ${formatTarih(sonrakiBitis)}\n`;
+  mesaj += `------------------------------------------\n\n`;
+
+  sonrakiGunler.forEach((g, gunIdx) => {
+    const gunTarihi = new Date(sonrakiBaslangic);
+    gunTarihi.setDate(sonrakiBaslangic.getDate() + gunIdx);
+    mesaj += `🗓 *${formatTarih(gunTarihi)} ${g.gun}*\n`;
+    mesaj += '`\n';
+    noktalar.forEach((nokta, i) => {
+      const noktaPad = nokta.padEnd(12, ' ');
+      mesaj += `${noktaPad}: ${g.nobetciler[i] || '-'}\n`;
+    });
+    mesaj += '`\n\n';
+  });
+
+  await telegramMesajGonder(mesaj);
+});

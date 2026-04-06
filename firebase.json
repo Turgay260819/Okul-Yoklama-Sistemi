@@ -26,6 +26,10 @@
     ],
     "rewrites": [
       {
+        "source": "/nobet.html",
+        "destination": "/nobet.html"
+      },
+      {
         "source": "/import.html",
         "destination": "/import.html"
       },

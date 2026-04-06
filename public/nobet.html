@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nöbet Yönetimi</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f0f4f8; }
+
+    .topbar {
+      background: #1a73e8; color: white;
+      padding: 14px 24px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .topbar h1 { font-size: 18px; font-weight: 600; }
+    .btn-geri {
+      background: rgba(255,255,255,0.2); border: none; color: white;
+      padding: 7px 14px; border-radius: 6px; cursor: pointer;
+      font-size: 13px; text-decoration: none;
+    }
+
+    .icerik { padding: 24px; max-width: 1100px; margin: 0 auto; }
+
+    .kontrol-bar {
+      background: white; border-radius: 10px;
+      padding: 16px 20px; margin-bottom: 20px;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+      display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+    }
+
+    .hafta-bilgi {
+      flex: 1; font-size: 15px; font-weight: 600; color: #333;
+    }
+
+    .hafta-bilgi span {
+      font-size: 13px; font-weight: 400; color: #666; margin-left: 8px;
+    }
+
+    .btn {
+      padding: 9px 18px; border: none; border-radius: 8px;
+      font-size: 13px; font-weight: 600; cursor: pointer;
+    }
+    .btn-mavi { background: #1a73e8; color: white; }
+    .btn-mavi:hover { background: #1557b0; }
+    .btn-yesil { background: #34a853; color: white; }
+    .btn-yesil:hover { background: #2d8f47; }
+    .btn-turuncu { background: #f9ab00; color: white; }
+    .btn-turuncu:hover { background: #e37400; }
+    .btn-kirmizi { background: #ea4335; color: white; }
+    .btn-kirmizi:hover { background: #c5221f; }
+    .btn-gri { background: #666; color: white; }
+    .btn-gri:hover { background: #444; }
+    .btn:disabled { background: #ccc; cursor: not-allowed; }
+
+    .durum-rozet {
+      padding: 5px 12px; border-radius: 12px; font-size: 12px; font-weight: 600;
+    }
+    .durum-aktif { background: #e6f4ea; color: #1e7e34; }
+    .durum-durduruldu { background: #fce8e6; color: #c5221f; }
+
+    .nobet-tablo {
+      background: white; border-radius: 10px;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+      overflow: hidden; margin-bottom: 20px;
+    }
+
+    .nobet-tablo table {
+      width: 100%; border-collapse: collapse; font-size: 13px;
+    }
+
+    .nobet-tablo th {
+      background: #1a73e8; color: white;
+      padding: 12px 14px; text-align: center; font-weight: 600;
+    }
+
+    .nobet-tablo th:first-child { text-align: left; width: 130px; }
+
+    .nobet-tablo td {
+      padding: 10px 14px; border-bottom: 1px solid #f0f0f0;
+      text-align: center; color: #333;
+    }
+
+    .nobet-tablo td:first-child {
+      text-align: left; font-weight: 600;
+      background: #f8f9fa; color: #555;
+      border-right: 2px solid #e0e0e0;
+    }
+
+    .nobet-tablo tr:last-child td { border-bottom: none; }
+    .nobet-tablo tr:hover td { background: #f8fbff; }
+    .nobet-tablo tr:hover td:first-child { background: #f0f4f8; }
+
+    .sabit-isim { color: #1a73e8; font-weight: 600; }
+
+    .admin-panel {
+      background: white; border-radius: 10px;
+      padding: 20px; box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+      margin-bottom: 20px;
+    }
+
+    .admin-panel h3 {
+      font-size: 15px; color: #333; margin-bottom: 14px;
+      padding-bottom: 10px; border-bottom: 1px solid #f0f0f0;
+    }
+
+    .admin-butonlar {
+      display: flex; gap: 10px; flex-wrap: wrap;
+    }
+
+    .mesaj-kutusu {
+      margin-top: 12px; padding: 10px 14px;
+      border-radius: 8px; font-size: 13px; display: none;
+    }
+    .mesaj-basari { background: #e6f4ea; color: #1e7e34; }
+    .mesaj-hata { background: #fce8e6; color: #c5221f; }
+    .mesaj-bilgi { background: #e8f0fe; color: #1a73e8; }
+
+    .yukleniyor { text-align: center; padding: 40px; color: #666; }
+
+    .benim-nobetim {
+      background: #e8f0fe; border: 2px solid #1a73e8;
+      border-radius: 8px; padding: 16px 20px; margin-bottom: 20px;
+    }
+    .benim-nobetim h3 { font-size: 15px; color: #1a73e8; margin-bottom: 10px; }
+    .nobet-satir {
+      display: flex; gap: 12px; align-items: center;
+      padding: 6px 0; border-bottom: 1px solid #c5d8ff; font-size: 14px;
+    }
+    .nobet-satir:last-child { border-bottom: none; }
+    .nobet-gun { font-weight: 600; min-width: 100px; color: #333; }
+    .nobet-nokta { color: #1a73e8; font-weight: 500; }
+  </style>
+</head>
+<body>
+
+  <div class="topbar">
+    <h1>Nobet Yonetimi</h1>
+    <a href="/admin.html" class="btn-geri">Admin Paneline Don</a>
+  </div>
+
+  <div class="icerik">
+    <div id="yukleniyor" class="yukleniyor">Yukleniyor...</div>
+    <div id="anaIcerik" style="display:none;">
+
+      <!-- KENDİ NÖBETİM (öğretmen için) -->
+      <div id="benimNobetimKarti" style="display:none;">
+        <div class="benim-nobetim">
+          <h3>Bu Haftaki Nobetiniz</h3>
+          <div id="benimNobetim"></div>
+        </div>
+      </div>
+
+      <!-- KONTROL BARI -->
+      <div class="kontrol-bar">
+        <div class="hafta-bilgi">
+          <span id="haftaBaslangicMetin">-</span>
+          <span id="durumRozet" class="durum-rozet durum-aktif">Aktif</span>
+        </div>
+        <button class="btn btn-gri" onclick="nobetGeriAl()" id="btnGeri">Geri Al</button>
+        <button class="btn btn-mavi" onclick="nobetIleri()" id="btnIleri">Ileri Al</button>
+        <button class="btn btn-turuncu" onclick="rotasyonDurdur()" id="btnDurdur">Rotasyonu Durdur</button>
+        <button class="btn btn-yesil" onclick="telegramGonder()" id="btnTelegram">Telegrama Gonder</button>
+      </div>
+
+      <!-- NÖBET TABLOSU -->
+      <div class="nobet-tablo">
+        <div id="nobetTablosu"><div class="yukleniyor">Yukleniyor...</div></div>
+      </div>
+
+      <!-- ADMIN PANELİ -->
+      <div class="admin-panel" id="adminPanel" style="display:none;">
+        <h3>Nobet Yonetimi</h3>
+        <div class="admin-butonlar">
+          <button class="btn btn-mavi" onclick="nobetDuzenle()">Nobetcileri Duzenle</button>
+          <button class="btn btn-kirmizi" onclick="nobetSifirla()">Haftayi Sifirla</button>
+        </div>
+        <div class="mesaj-kutusu" id="adminMesaj"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
+    import {
+      getFirestore, doc, getDoc, setDoc, getDocs,
+      collection, serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyAHTCiicd4b94rG1-jN0STRbwcrLmkYudo",
+      authDomain: "okul-yoklama-sistemi-8081f.firebaseapp.com",
+      projectId: "okul-yoklama-sistemi-8081f",
+      storageBucket: "okul-yoklama-sistemi-8081f.firebasestorage.app",
+      messagingSenderId: "38230047763",
+      appId: "1:38230047763:web:dfab058df8928b66be13e6"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const functions = getFunctions(app, 'us-central1');
+
+    const NOKTALAR = [
+      "On Bahce 1", "On Bahce 2", "Arka Bahce", "Zemin Kat",
+      "1. Kat Sag", "1. Kat Sol", "2. Kat Sag", "2. Kat Sol",
+      "3. Kat Sag", "3. Kat Sol"
+    ];
+
+    const GUNLER = ["Pazartesi", "Sali", "Carsamba", "Persembe", "Cuma"];
+
+    // Mevcut nöbet verisi (06.04.2026 haftası)
+    const BASLANGIC_VERISI = {
+      hafta_baslangic: "2026-04-06",
+      rotasyon_aktif: true,
+      rotasyon_sayaci: 0,
+      gunler: [
+        {
+          gun: "Pazartesi",
+          nobetciler: ["G.ENGİN", "Ö.KESKİN (S)", "N.ŞAHİN", "A.ÇETİN_",
+            "M.KAHRAMAN (S)", "R.KORKMAZ", "T.DEMİR", "A.YÜCEL", "O.KESKİN", "R.ÇITAK"]
+        },
+        {
+          gun: "Sali",
+          nobetciler: ["R.KETENCİLER", "E.DAĞHAN", "Ç.SALMAZ", "E.KANDEMİR",
+            "G.ENGİN_ (S)", "B.GARİPOLAN", "H.BİLGİÇ", "Ş.KÖSE", "M.DEMİR", "S.KALKAN"]
+        },
+        {
+          gun: "Carsamba",
+          nobetciler: ["Y.GÜRSES", "B.BEYCE", "İ.YALI", "N.SERÇE",
+            "H.AKKUŞ", "E.ÖZDEMİR", "S.PAZARLI", "Ü.YILMAZ", "R.GÖKÇEN", "S.KESKİN"]
+        },
+        {
+          gun: "Persembe",
+          nobetciler: ["H.DEMİR", "A.KÜTÜKLÜLÜ", "T.BAŞ", "H.BOZ",
+            "K.İMAMOĞLU", "G.KOCA ÖZEK", "F.ELEGEÇMEZ", "A.ARABACI", "S.ÜRÜN", "E.YILDIRIM"]
+        },
+        {
+          gun: "Cuma",
+          nobetciler: ["Ö.KALKAN", "A.ÇETİN", "B.BALCI", "E.CANAY",
+            "E.GEZGİN (S)", "G.YEL", "O.YERGÖK", "K.GÜL", "S.DEMİRKOL", "Z.FENER"]
+        }
+      ]
+    };
+
+    let aktifKullanici = null;
+    let aktifRol = null;
+    let nobetVerisi = null;
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) { window.location.href = '/index.html'; return; }
+
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (!userDoc.exists()) { window.location.href = '/index.html'; return; }
+
+      aktifKullanici = userDoc.data();
+      aktifRol = aktifKullanici.rol;
+
+      // Admin panelini göster
+      if (aktifRol === 'admin' || aktifRol === 'mudur_yardimcisi') {
+        document.getElementById('adminPanel').style.display = 'block';
+        document.getElementById('btnGeri').style.display = 'inline-block';
+        document.getElementById('btnIleri').style.display = 'inline-block';
+        document.getElementById('btnDurdur').style.display = 'inline-block';
+        document.getElementById('btnTelegram').style.display = 'inline-block';
+      } else {
+        document.getElementById('btnGeri').style.display = 'none';
+        document.getElementById('btnIleri').style.display = 'none';
+        document.getElementById('btnDurdur').style.display = 'none';
+        document.getElementById('btnTelegram').style.display = 'none';
+      }
+
+      await nobetYukle();
+    });
+
+    async function nobetYukle() {
+      try {
+        const nobetDoc = await getDoc(doc(db, 'nobet_ayarlar', 'mevcut'));
+
+        if (!nobetDoc.exists()) {
+          // İlk kurulum - mevcut veriyi kaydet
+          await setDoc(doc(db, 'nobet_ayarlar', 'mevcut'), {
+            ...BASLANGIC_VERISI,
+            olusturulma: serverTimestamp()
+          });
+          nobetVerisi = BASLANGIC_VERISI;
+        } else {
+          nobetVerisi = nobetDoc.data();
+        }
+
+        tabloGoster();
+        benimNobetimGoster();
+
+        document.getElementById('yukleniyor').style.display = 'none';
+        document.getElementById('anaIcerik').style.display = 'block';
+
+      } catch (err) {
+        console.error(err);
+        document.getElementById('yukleniyor').textContent = 'Hata: ' + err.message;
+      }
+    }
+
+    function tabloGoster() {
+      // Hafta başlangıç metni
+      const baslangic = new Date(nobetVerisi.hafta_baslangic + 'T12:00:00');
+      const bitis = new Date(baslangic);
+      bitis.setDate(baslangic.getDate() + 4);
+
+      const formatTarih = (d) => d.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      document.getElementById('haftaBaslangicMetin').textContent =
+        `${formatTarih(baslangic)} - ${formatTarih(bitis)}`;
+
+      // Durum rozeti
+      const rozet = document.getElementById('durumRozet');
+      if (nobetVerisi.rotasyon_aktif) {
+        rozet.textContent = 'Rotasyon Aktif';
+        rozet.className = 'durum-rozet durum-aktif';
+        document.getElementById('btnDurdur').textContent = 'Rotasyonu Durdur';
+      } else {
+        rozet.textContent = 'Rotasyon Durduruldu';
+        rozet.className = 'durum-rozet durum-durduruldu';
+        document.getElementById('btnDurdur').textContent = 'Rotasyonu Baslat';
+      }
+
+      // Tablo
+      let html = '<table><thead><tr><th>Nobet Noktasi</th>';
+      nobetVerisi.gunler.forEach(g => {
+        const gunTarihi = new Date(nobetVerisi.hafta_baslangic + 'T12:00:00');
+        const gunIndex = ['Pazartesi', 'Sali', 'Carsamba', 'Persembe', 'Cuma'].indexOf(g.gun);
+        gunTarihi.setDate(gunTarihi.getDate() + gunIndex);
+        const tarihStr = gunTarihi.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit' });
+        html += `<th>${g.gun}<br><small>${tarihStr}</small></th>`;
+      });
+      html += '</tr></thead><tbody>';
+
+      for (let i = 0; i < NOKTALAR.length; i++) {
+        html += `<tr><td>${NOKTALAR[i]}</td>`;
+        nobetVerisi.gunler.forEach(g => {
+          const isim = g.nobetciler[i] || '-';
+          const sabit = isim.includes('(S)');
+          html += `<td class="${sabit ? 'sabit-isim' : ''}">${isim}</td>`;
+        });
+        html += '</tr>';
+      }
+
+      html += '</tbody></table>';
+      document.getElementById('nobetTablosu').innerHTML = html;
+    }
+
+    function benimNobetimGoster() {
+      if (aktifRol !== 'ogretmen') return;
+
+      const adSoyad = aktifKullanici.ad || '';
+      const kisimlar = adSoyad.trim().split(' ');
+      let kisaltma = '';
+      if (kisimlar.length >= 2) {
+        kisaltma = kisimlar[0].charAt(0) + '.' + kisimlar[kisimlar.length - 1];
+      }
+
+      const benimNobetlerim = [];
+      nobetVerisi.gunler.forEach((g, gunIdx) => {
+        g.nobetciler.forEach((nobetci, noktaIdx) => {
+          const temizIsim = nobetci.replace(' (S)', '').replace('_', '').trim();
+          if (temizIsim.toUpperCase().includes(kisaltma.toUpperCase()) ||
+              temizIsim.toUpperCase().includes(adSoyad.toUpperCase())) {
+            benimNobetlerim.push({ gun: g.gun, nokta: NOKTALAR[noktaIdx] });
+          }
+        });
+      });
+
+      if (benimNobetlerim.length > 0) {
+        document.getElementById('benimNobetimKarti').style.display = 'block';
+        let html = '';
+        benimNobetlerim.forEach(n => {
+          html += `<div class="nobet-satir">
+            <span class="nobet-gun">${n.gun}</span>
+            <span class="nobet-nokta">${n.nokta}</span>
+          </div>`;
+        });
+        document.getElementById('benimNobetim').innerHTML = html;
+      }
+    }
+
+    // ROTASYON UYGULA
+    function rotasyonUygula(gunler) {
+      return gunler.map(gun => {
+        const nobetciler = [...gun.nobetciler];
+        const hareketli = nobetciler.filter(n => !n.includes('(S)'));
+        if (hareketli.length > 1) {
+          hareketli.unshift(hareketli.pop());
+        }
+        let hareketliIdx = 0;
+        const yeni = nobetciler.map(n => {
+          if (n.includes('(S)')) return n;
+          return hareketli[hareketliIdx++];
+        });
+        return { ...gun, nobetciler: yeni };
+      });
+    }
+
+    // ROTASYON GERİ AL
+    function rotasyonGeriAl(gunler) {
+      return gunler.map(gun => {
+        const nobetciler = [...gun.nobetciler];
+        const hareketli = nobetciler.filter(n => !n.includes('(S)'));
+        if (hareketli.length > 1) {
+          hareketli.push(hareketli.shift());
+        }
+        let hareketliIdx = 0;
+        const yeni = nobetciler.map(n => {
+          if (n.includes('(S)')) return n;
+          return hareketli[hareketliIdx++];
+        });
+        return { ...gun, nobetciler: yeni };
+      });
+    }
+
+    // İLERİ AL
+    window.nobetIleri = async () => {
+      if (!nobetVerisi) return;
+      const yeniGunler = nobetVerisi.rotasyon_aktif
+        ? rotasyonUygula(nobetVerisi.gunler)
+        : nobetVerisi.gunler;
+
+      // Hafta tarihini güncelle
+      const mevcutBaslangic = new Date(nobetVerisi.hafta_baslangic + 'T12:00:00');
+      mevcutBaslangic.setDate(mevcutBaslangic.getDate() + 7);
+      const yeniBaslangic = mevcutBaslangic.toISOString().split('T')[0];
+
+      const yeniVeri = {
+        ...nobetVerisi,
+        hafta_baslangic: yeniBaslangic,
+        gunler: yeniGunler,
+        rotasyon_sayaci: (nobetVerisi.rotasyon_sayaci || 0) + 1,
+        son_guncelleme: serverTimestamp()
+      };
+
+      await setDoc(doc(db, 'nobet_ayarlar', 'mevcut'), yeniVeri);
+      nobetVerisi = yeniVeri;
+      tabloGoster();
+      mesajGoster('adminMesaj', 'Nobet bir hafta ileri alindi.', 'basari');
+    };
+
+    // GERİ AL
+    window.nobetGeriAl = async () => {
+      if (!nobetVerisi) return;
+      const yeniGunler = nobetVerisi.rotasyon_aktif
+        ? rotasyonGeriAl(nobetVerisi.gunler)
+        : nobetVerisi.gunler;
+
+      const mevcutBaslangic = new Date(nobetVerisi.hafta_baslangic + 'T12:00:00');
+      mevcutBaslangic.setDate(mevcutBaslangic.getDate() - 7);
+      const yeniBaslangic = mevcutBaslangic.toISOString().split('T')[0];
+
+      const yeniVeri = {
+        ...nobetVerisi,
+        hafta_baslangic: yeniBaslangic,
+        gunler: yeniGunler,
+        rotasyon_sayaci: (nobetVerisi.rotasyon_sayaci || 0) - 1,
+        son_guncelleme: serverTimestamp()
+      };
+
+      await setDoc(doc(db, 'nobet_ayarlar', 'mevcut'), yeniVeri);
+      nobetVerisi = yeniVeri;
+      tabloGoster();
+      mesajGoster('adminMesaj', 'Nobet bir hafta geri alindi.', 'basari');
+    };
+
+    // ROTASYON DURDUR/BASLAT
+    window.rotasyonDurdur = async () => {
+      if (!nobetVerisi) return;
+      const yeniDurum = !nobetVerisi.rotasyon_aktif;
+      const yeniVeri = {
+        ...nobetVerisi,
+        rotasyon_aktif: yeniDurum,
+        son_guncelleme: serverTimestamp()
+      };
+      await setDoc(doc(db, 'nobet_ayarlar', 'mevcut'), yeniVeri);
+      nobetVerisi = yeniVeri;
+      tabloGoster();
+      mesajGoster('adminMesaj',
+        yeniDurum ? 'Rotasyon baslatildi.' : 'Rotasyon durduruldu.',
+        yeniDurum ? 'basari' : 'hata'
+      );
+    };
+
+    // TELEGRAM GÖNDER
+    window.telegramGonder = async () => {
+      if (!nobetVerisi) return;
+      document.getElementById('btnTelegram').disabled = true;
+
+      try {
+        await auth.currentUser.getIdToken(true);
+        const nobetGonder = httpsCallable(functions, 'nobetTelegramGonder');
+        await nobetGonder({});
+        mesajGoster('adminMesaj', 'Nobet listesi Telegrama gonderildi!', 'basari');
+      } catch (err) {
+        mesajGoster('adminMesaj', 'Hata: ' + err.message, 'hata');
+      }
+
+      document.getElementById('btnTelegram').disabled = false;
+    };
+
+    window.nobetDuzenle = () => {
+      mesajGoster('adminMesaj', 'Bu ozellik yakin zamanda eklenecek.', 'bilgi');
+    };
+
+    window.nobetSifirla = async () => {
+      if (!confirm('Nobeti baslangic verisine sifirlamak istediginize emin misiniz?')) return;
+      await setDoc(doc(db, 'nobet_ayarlar', 'mevcut'), {
+        ...BASLANGIC_VERISI,
+        olusturulma: serverTimestamp()
+      });
+      nobetVerisi = BASLANGIC_VERISI;
+      tabloGoster();
+      mesajGoster('adminMesaj', 'Nobet baslangic verisine sifirlandı.', 'basari');
+    };
+
+    function mesajGoster(id, metin, tip) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = metin;
+      el.className = 'mesaj-kutusu mesaj-' + tip;
+      el.style.display = 'block';
+      setTimeout(() => el.style.display = 'none', 4000);
+    }
+
+  </script>
+</body>
+</html>
