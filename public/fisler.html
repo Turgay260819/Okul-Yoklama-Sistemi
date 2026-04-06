@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Yoklama Fişleri</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; background: #f0f4f8; }
+
+    .kontrol-panel {
+      background: white;
+      padding: 20px 24px;
+      border-bottom: 2px solid #e0e0e0;
+      display: flex;
+      gap: 16px;
+      align-items: flex-end;
+      flex-wrap: wrap;
+    }
+
+    .kontrol-panel h1 { width: 100%; font-size: 18px; color: #333; margin-bottom: 8px; }
+    .form-group { display: flex; flex-direction: column; gap: 4px; }
+    .form-group label { font-size: 12px; color: #666; font-weight: 600; }
+    .form-group input, .form-group select {
+      padding: 8px 12px; border: 1px solid #ddd;
+      border-radius: 6px; font-size: 14px; outline: none;
+    }
+
+    .btn { padding: 9px 20px; border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; }
+    .btn-mavi { background: #1a73e8; color: white; }
+    .btn-yesil { background: #34a853; color: white; }
+    .btn-gri { background: #666; color: white; }
+
+    .yukleniyor { text-align: center; padding: 40px; color: #666; font-size: 16px; }
+
+    #yazdir-alani { padding: 20px; background: #f0f4f8; }
+
+    .a4-sayfa {
+      width: 210mm;
+      height: 297mm;
+      background: white;
+      margin: 0 auto 20px auto;
+      padding: 4mm;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: repeat(4, 1fr);
+      gap: 2mm;
+    }
+
+    .fis {
+      border: 1.5px solid #000;
+      padding: 1.5mm;
+      font-size: 6.5pt;
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .fis-bos {
+      border: 1px dashed #ccc;
+      opacity: 0.2;
+    }
+
+    .fis-baslik {
+      text-align: center;
+      font-weight: bold;
+      font-size: 7pt;
+      line-height: 1.3;
+    }
+
+    .fis-alt-baslik {
+      text-align: center;
+      font-size: 6pt;
+      border-bottom: 0.5px solid #000;
+      padding-bottom: 0.5mm;
+      margin-bottom: 0.5mm;
+    }
+
+    .fis-bilgi {
+      display: flex;
+      justify-content: space-between;
+      font-weight: bold;
+      font-size: 6.5pt;
+      border-bottom: 0.5px solid #000;
+      padding-bottom: 0.5mm;
+      margin-bottom: 0.5mm;
+    }
+
+    .fis-tablo {
+      width: 100%;
+      border-collapse: collapse;
+      flex: 1;
+      table-layout: fixed;
+    }
+
+    .fis-tablo td, .fis-tablo th {
+      border: 0.5px solid #000;
+      text-align: center;
+      font-size: 5.5pt;
+      padding: 0.3mm 0.2mm;
+      overflow: hidden;
+    }
+
+    .fis-tablo .etiket {
+      text-align: left;
+      padding-left: 0.5mm;
+      font-weight: bold;
+      background: #efefef;
+      font-size: 5pt;
+      width: 9mm;
+    }
+
+    .fis-tablo .ders-adi {
+      font-weight: bold;
+      background: #efefef;
+      font-size: 4.5pt;
+    }
+
+    .fis-tablo .ogret-satir {
+      font-weight: bold;
+      background: #efefef;
+      font-size: 4.5pt;
+      height: 4mm;
+      line-height: 1;
+    }
+
+    .fis-tablo .yoklama-hucresi {
+      min-height: 10mm;
+      height: auto;
+      vertical-align: top;
+      font-size: 5pt;
+      padding: 0.3mm;
+      line-height: 1.4;
+      word-break: break-all;
+    }
+
+    .fis-tablo .imza-hucresi {
+      height: 5mm;
+      vertical-align: top;
+    }
+
+    .fis-alt {
+      margin-top: 1mm;
+      border-top: 0.5px solid #000;
+      padding-top: 0.5mm;
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .fis-incelendi {
+      border: 0.5px solid #000;
+      padding: 0.3mm 0.5mm;
+      font-size: 4pt;
+      text-align: center;
+      min-width: 16mm;
+    }
+
+    .fis-incelendi .ad {
+      font-weight: bold;
+      font-size: 4pt;
+    }
+
+    .fis-incelendi .imza {
+      border-top: 0.5px dotted #666;
+      margin-top: 1.5mm;
+      height: 2mm;
+    }
+
+    @media print {
+      body { background: white; }
+      .kontrol-panel { display: none !important; }
+      #yazdir-alani { padding: 0; background: white; }
+
+      .a4-sayfa {
+        width: 210mm;
+        height: 297mm;
+        margin: 0;
+        padding: 4mm;
+        box-shadow: none;
+        page-break-after: always;
+        break-after: page;
+      }
+
+      .a4-sayfa:last-child {
+        page-break-after: auto;
+        break-after: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="kontrol-panel">
+    <h1>Yoklama Fisleri</h1>
+    <div class="form-group">
+      <label>Hafta Baslangic Tarihi (Pazartesi)</label>
+      <input type="date" id="haftaBaslangic">
+    </div>
+    <div class="form-group">
+      <label>Gun Sec</label>
+      <select id="gunSec">
+        <option value="0">Pazartesi</option>
+        <option value="1">Sali</option>
+        <option value="2">Carsamba</option>
+        <option value="3">Persembe</option>
+        <option value="4">Cuma</option>
+        <option value="hafta">Tum Hafta (5 gun)</option>
+      </select>
+    </div>
+    <button class="btn btn-mavi" onclick="fisleriOlustur()">Fisleri Olustur</button>
+    <button class="btn btn-yesil" onclick="window.print()">Yazdir</button>
+    <a href="/admin.html" style="text-decoration:none;">
+      <button class="btn btn-gri">Admin Paneline Don</button>
+    </a>
+    <div id="durum" style="width:100%; font-size:13px; color:#666; margin-top:4px;"></div>
+  </div>
+
+  <div id="yazdir-alani">
+    <div class="yukleniyor">Tarih secip "Fisleri Olustur" butonuna tiklayin.</div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    import { getFirestore, getDocs, collection, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyAHTCiicd4b94rG1-jN0STRbwcrLmkYudo",
+      authDomain: "okul-yoklama-sistemi-8081f.firebaseapp.com",
+      projectId: "okul-yoklama-sistemi-8081f",
+      storageBucket: "okul-yoklama-sistemi-8081f.firebasestorage.app",
+      messagingSenderId: "38230047763",
+      appId: "1:38230047763:web:dfab058df8928b66be13e6"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    const OKUL_ADI = "AHMET YENİCE ORTAOKULU";
+    const MUDUR_YARDIMCISI = "Turgay YIKILMAZ";
+    const GUNLER_TR = ["pazartesi", "sali", "carsamba", "persembe", "cuma"];
+
+    const bugun = new Date();
+    const gun = bugun.getDay();
+    const fark = gun === 0 ? -6 : 1 - gun;
+    const pazartesi = new Date(bugun);
+    pazartesi.setDate(bugun.getDate() + fark);
+    document.getElementById('haftaBaslangic').value = pazartesi.toISOString().split('T')[0];
+
+    onAuthStateChanged(auth, (user) => {
+      if (!user) window.location.href = '/index.html';
+    });
+
+    function kisaltma(adSoyad) {
+      if (!adSoyad) return '---';
+      const p = adSoyad.trim().split(' ');
+      if (p.length === 1) return p[0].substring(0, 5).toUpperCase();
+      const soyad = p[p.length - 1].toUpperCase();
+      const ad = p[0].toUpperCase();
+      return ad.charAt(0) + '.' + soyad.substring(0, 3);
+    }
+
+    function formatTarih(t) {
+      const d = new Date(t + 'T12:00:00');
+      const g = String(d.getDate()).padStart(2, '0');
+      const a = String(d.getMonth() + 1).padStart(2, '0');
+      const y = d.getFullYear();
+      return `${g}.${a}.${y}`;
+    }
+
+    function gunEkle(tarih, n) {
+      const d = new Date(tarih + 'T12:00:00');
+      d.setDate(d.getDate() + n);
+      return d.toISOString().split('T')[0];
+    }
+
+    function bosFis() {
+      return '<div class="fis fis-bos"></div>';
+    }
+
+    function fisolustur(sinifAdi, tarih, dersler, yoklamalar, ogretmenler) {
+      const sirali = [...dersler].sort((a, b) => a.lesson_number - b.lesson_number);
+      const n = sirali.length;
+
+      if (n === 0) {
+        return `
+          <div class="fis">
+            <div class="fis-baslik">${OKUL_ADI}</div>
+            <div class="fis-alt-baslik">OGRENCI GUNLUK YOKLAMA FISI</div>
+            <div class="fis-bilgi">
+              <span>SINIF/SUBE: ${sinifAdi}</span>
+              <span>TARIH: ${formatTarih(tarih)}</span>
+            </div>
+            <div style="text-align:center; padding:4mm; font-size:6pt; color:#999;">Bu gun ders yok</div>
+          </div>`;
+      }
+
+      const etiketW = '9mm';
+      const dersW = `${Math.floor((100 - 9) / n)}%`;
+
+      // DERS ADI satiri
+      let dersAdiRow = `<tr style="height:4mm;"><td class="etiket" style="height:4mm;">DERS</td>`;
+      sirali.forEach(d => {
+        const kisaAd = d.lesson_name.length > 4
+          ? d.lesson_name.substring(0, 4).toUpperCase()
+          : d.lesson_name.toUpperCase();
+        dersAdiRow += `<td class="ders-adi" style="font-size:4.5pt; height:4mm; padding:0;">${kisaAd}</td>`;
+      });
+      dersAdiRow += '</tr>';
+
+      // SAAT satiri
+      let saatRow = `<tr style="height:4mm;"><td class="etiket" style="height:4mm;">SAAT</td>`;
+      sirali.forEach(d => {
+        saatRow += `<td class="ders-adi" style="font-size:4.5pt; height:4mm; padding:0;">${d.lesson_number}</td>`;
+      });
+      saatRow += '</tr>';
+
+      // GELMEYEN satiri
+      let gelmeRow = `<tr><td class="etiket">GELMEYEN</td>`;
+      sirali.forEach(d => {
+        const yoklar = yoklamalar[d.lesson_number] || [];
+        const fontKucuk = yoklar.length > 5 ? 'style="font-size:4pt;"' : '';
+        gelmeRow += `<td class="yoklama-hucresi" ${fontKucuk}>${yoklar.join(', ')}</td>`;
+      });
+      gelmeRow += '</tr>';
+
+      // OGRETMEN satiri
+      let ogretRow = `<tr style="height:4mm;"><td class="etiket" style="height:4mm;">OGRET.</td>`;
+      sirali.forEach(d => {
+        const og = ogretmenler[d.teacher_id];
+        ogretRow += `<td class="ders-adi" style="font-size:4.5pt; height:4mm; padding:0;">${og ? kisaltma(og.ad) : '---'}</td>`;
+      });
+      ogretRow += '</tr>';
+
+      // IMZA satiri
+      let imzaRow = `<tr><td class="etiket">IMZA</td>`;
+      sirali.forEach(() => {
+        imzaRow += `<td class="imza-hucresi"></td>`;
+      });
+      imzaRow += '</tr>';
+
+      return `
+        <div class="fis">
+          <div class="fis-baslik">${OKUL_ADI}</div>
+          <div class="fis-alt-baslik">OGRENCI GUNLUK YOKLAMA FISI</div>
+          <div class="fis-bilgi">
+            <span>SINIF/SUBE: ${sinifAdi}</span>
+            <span>TARIH: ${formatTarih(tarih)}</span>
+          </div>
+          <table class="fis-tablo">
+            <colgroup>
+              <col style="width:${etiketW}">
+              ${sirali.map(() => `<col style="width:${dersW}">`).join('')}
+            </colgroup>
+            ${dersAdiRow}
+            ${saatRow}
+            ${gelmeRow}
+            ${ogretRow}
+            ${imzaRow}
+          </table>
+          <div class="fis-alt">
+            <div class="fis-incelendi">
+              <div>INCELENDI</div>
+              <div>MUDUR YARDIMCISI</div>
+              <div class="ad">${MUDUR_YARDIMCISI}</div>
+              <div class="imza"></div>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    window.fisleriOlustur = async () => {
+      const baslangic = document.getElementById('haftaBaslangic').value;
+      const gunSec = document.getElementById('gunSec').value;
+      const durum = document.getElementById('durum');
+
+      if (!baslangic) {
+        durum.textContent = 'Lutfen tarih secin.';
+        return;
+      }
+
+      durum.textContent = 'Veriler yukleniyor...';
+      document.getElementById('yazdir-alani').innerHTML = '<div class="yukleniyor">Fisler hazirlaniyor...</div>';
+
+      try {
+        const sinifSnap = await getDocs(collection(db, 'classes'));
+        let siniflar = [];
+        sinifSnap.forEach(d => siniflar.push(d.data()));
+        siniflar.sort((a, b) => {
+          if (a.grade !== b.grade) return a.grade - b.grade;
+          return a.class_name.localeCompare(b.class_name);
+        });
+
+        const ogSnap = await getDocs(collection(db, 'teachers'));
+        const ogretmenler = {};
+        ogSnap.forEach(d => ogretmenler[d.id] = d.data());
+
+        const gunler = gunSec === 'hafta' ? [0,1,2,3,4] : [parseInt(gunSec)];
+
+        let tumSayfaHTML = '';
+        let toplamSayfa = 0;
+
+        for (const gi of gunler) {
+          const tarih = gunEkle(baslangic, gi);
+          const gunAdi = GUNLER_TR[gi];
+
+          const progSnap = await getDocs(query(
+            collection(db, 'schedule'),
+            where('day', '==', gunAdi)
+          ));
+          const program = {};
+          progSnap.forEach(d => {
+            const data = d.data();
+            if (!program[data.class_id]) program[data.class_id] = [];
+            program[data.class_id].push(data);
+          });
+
+          const yokSnap = await getDocs(query(
+            collection(db, 'attendance'),
+            where('date', '==', tarih)
+          ));
+          const yoklamalar = {};
+          yokSnap.forEach(d => {
+            const data = d.data();
+            if (!yoklamalar[data.class_id]) yoklamalar[data.class_id] = {};
+            yoklamalar[data.class_id][data.lesson_number] = data.absent_students || [];
+          });
+
+          const fisler = siniflar.map(s =>
+            fisolustur(s.class_name, tarih, program[s.class_name] || [], yoklamalar[s.class_name] || {}, ogretmenler)
+          );
+
+          for (let i = 0; i < fisler.length; i += 8) {
+            const sayfaFisler = fisler.slice(i, i + 8);
+            while (sayfaFisler.length < 8) sayfaFisler.push(bosFis());
+            tumSayfaHTML += `<div class="a4-sayfa">${sayfaFisler.join('')}</div>`;
+            toplamSayfa++;
+          }
+        }
+
+        document.getElementById('yazdir-alani').innerHTML = tumSayfaHTML || '<div class="yukleniyor">Sinif bulunamadi.</div>';
+        durum.textContent = `${toplamSayfa} sayfa olusturuldu. Yazdirmak icin butona tiklayin.`;
+
+      } catch (err) {
+        console.error(err);
+        durum.textContent = 'Hata: ' + err.message;
+      }
+    };
+  </script>
+</body>
+</html>

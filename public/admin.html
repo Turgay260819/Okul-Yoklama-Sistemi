@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Panel — Yoklama Sistemi</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f0f4f8; }
+    .topbar { background: #1a73e8; color: white; padding: 14px 24px; display: flex; justify-content: space-between; align-items: center; }
+    .topbar h1 { font-size: 18px; font-weight: 600; }
+    .topbar-sag { display: flex; align-items: center; gap: 16px; font-size: 14px; }
+    .btn-cikis { background: rgba(255,255,255,0.2); border: none; color: white; padding: 7px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+    .btn-cikis:hover { background: rgba(255,255,255,0.3); }
+    .layout { display: flex; min-height: calc(100vh - 50px); }
+    .sidebar { width: 220px; background: white; border-right: 1px solid #e0e0e0; padding: 20px 0; }
+    .menu-item { padding: 12px 24px; cursor: pointer; font-size: 14px; color: #444; display: flex; align-items: center; gap: 10px; transition: background 0.2s; }
+    .menu-item:hover { background: #f0f4f8; }
+    .menu-item.aktif { background: #e8f0fe; color: #1a73e8; font-weight: 600; border-right: 3px solid #1a73e8; }
+    .icerik { flex: 1; padding: 24px; }
+    .sayfa { display: none; }
+    .sayfa.aktif { display: block; }
+    .sayfa-baslik { font-size: 20px; font-weight: 600; color: #333; margin-bottom: 20px; }
+    .kart { background: white; border-radius: 10px; padding: 20px; box-shadow: 0 1px 6px rgba(0,0,0,0.08); margin-bottom: 20px; }
+    .kart h3 { font-size: 15px; color: #333; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid #f0f0f0; }
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .stat-kart { background: white; border-radius: 10px; padding: 20px; box-shadow: 0 1px 6px rgba(0,0,0,0.08); text-align: center; }
+    .stat-kart .sayi { font-size: 32px; font-weight: 700; color: #1a73e8; }
+    .stat-kart .etiket { font-size: 12px; color: #666; margin-top: 4px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th { background: #f8f9fa; padding: 10px 14px; text-align: left; font-weight: 600; color: #555; border-bottom: 2px solid #e0e0e0; }
+    td { padding: 10px 14px; border-bottom: 1px solid #f0f0f0; color: #333; }
+    tr:hover td { background: #fafafa; }
+    .rozet { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 500; }
+    .rozet-giren { background: #e6f4ea; color: #1e7e34; }
+    .rozet-eksik { background: #fce8e6; color: #c5221f; }
+    .rozet-tam { background: #fce8e6; color: #c5221f; }
+    .rozet-yarim { background: #f1f3f4; color: #555; }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 13px; color: #444; margin-bottom: 6px; font-weight: 500; }
+    .form-group input, .form-group select { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; outline: none; }
+    .form-group input:focus, .form-group select:focus { border-color: #1a73e8; }
+    .btn { padding: 10px 20px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+    .btn-mavi { background: #1a73e8; color: white; }
+    .btn-mavi:hover { background: #1557b0; }
+    .btn-yesil { background: #34a853; color: white; }
+    .btn-yesil:hover { background: #2d8f47; }
+    .btn-kirmizi { background: #ea4335; color: white; }
+    .btn-kirmizi:hover { background: #c5221f; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .yukleniyor-mesaj { text-align: center; color: #666; padding: 30px; font-size: 14px; }
+    .bos-mesaj { text-align: center; color: #999; padding: 30px; font-size: 14px; }
+    .dyk-ogrenci-satir { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 6px; margin-bottom: 4px; background: #f8f9fa; }
+    .dyk-ogrenci-satir input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
+    .dyk-ogrenci-satir label { font-size: 14px; cursor: pointer; flex: 1; }
+    .dyk-ogrenci-no { font-size: 12px; color: #888; min-width: 50px; }
+  </style>
+</head>
+<body>
+
+  <div class="topbar">
+    <h1>Yoklama Sistemi - Yonetim Paneli</h1>
+    <div class="topbar-sag">
+      <span id="kullaniciAdi">Yukleniyor...</span>
+      <button class="btn-cikis" onclick="cikisYap()">Cikis Yap</button>
+    </div>
+  </div>
+
+  <div class="layout">
+    <div class="sidebar">
+      <div class="menu-item aktif" onclick="sayfaGoster('anasayfa', this)">Genel Durum</div>
+      <div class="menu-item" onclick="sayfaGoster('yoklamalar', this)">Gunluk Yoklamalar</div>
+      <div class="menu-item" onclick="window.open('/rapor.html', '_blank')">Raporlar</div>
+      <div class="menu-item" onclick="sayfaGoster('ogretmenler', this)">Ogretmenler</div>
+      <div class="menu-item" onclick="sayfaGoster('siniflar', this)">Siniflar</div>
+      <div class="menu-item" onclick="sayfaGoster('ogrenciler', this)">Ogrenciler</div>
+      <div class="menu-item" onclick="sayfaGoster('program', this)">Ders Programi</div>
+      <div class="menu-item" onclick="window.open('/fisler.html', '_blank')">Yoklama Fisleri</div>
+      <div class="menu-item" onclick="sayfaGoster('dyk', this)">DYK Yoklamalari</div>
+      <div class="menu-item" onclick="window.open('/import.html', '_blank')">📥 Veri Import</div>
+      <div class="menu-item" onclick="sayfaGoster('ayarlar', this)">Ayarlar</div>
+    </div>
+
+    <div class="icerik">
+
+      <!-- GENEL DURUM -->
+      <div class="sayfa aktif" id="sayfa-anasayfa">
+        <div class="sayfa-baslik">Genel Durum</div>
+        <div class="stat-grid">
+          <div class="stat-kart"><div class="sayi" id="statToplamDers">-</div><div class="etiket">Bugun Toplam Ders</div></div>
+          <div class="stat-kart"><div class="sayi" id="statGirilenYoklama">-</div><div class="etiket">Girilen Yoklama</div></div>
+          <div class="stat-kart"><div class="sayi" id="statEksikYoklama" style="color:#ea4335">-</div><div class="etiket">Eksik Yoklama</div></div>
+          <div class="stat-kart"><div class="sayi" id="statTamGun" style="color:#ea4335">-</div><div class="etiket">Tam Gun Devamsiz</div></div>
+          <div class="stat-kart"><div class="sayi" id="statYarimGun" style="color:#666">-</div><div class="etiket">Yarim Gun Devamsiz</div></div>
+        </div>
+        <div class="kart">
+          <h3>Gunluk Ders Tablosu</h3>
+          <p style="font-size:13px; color:#666; margin-bottom:12px;">Bugunun ders tablosu her sabah 06:00 da otomatik olusturulur. Manuel olusturmak icin butona tiklayin.</p>
+          <button class="btn btn-mavi" onclick="manuelDersOlustur()">Bugunun Derslerini Olustur</button>
+          <div id="dersOlusturMesaj" style="margin-top:10px; font-size:13px;"></div>
+        </div>
+        <div class="kart">
+          <h3>Bugunun Yoklama Durumu</h3>
+          <div id="bugunYoklamaDurum"><div class="yukleniyor-mesaj">Yukleniyor...</div></div>
+        </div>
+      </div>
+
+      <!-- GUNLUK YOKLAMALAR -->
+      <div class="sayfa" id="sayfa-yoklamalar">
+        <div class="sayfa-baslik">Gunluk Yoklamalar</div>
+        <div class="kart">
+          <h3>Tarih Sec</h3>
+          <div style="display:flex; gap:12px; align-items:center;">
+            <input type="date" id="yoklamaTarih" style="padding:8px 12px; border:1px solid #ddd; border-radius:8px; font-size:14px;">
+            <button class="btn btn-mavi" onclick="yoklamalariGetir()">Getir</button>
+          </div>
+        </div>
+        <div class="kart">
+          <h3>Yoklama Kayitlari</h3>
+          <div id="yoklamaListesi"><div class="bos-mesaj">Tarih secin</div></div>
+        </div>
+      </div>
+
+      <!-- OGRETMENLER -->
+      <div class="sayfa" id="sayfa-ogretmenler">
+        <div class="sayfa-baslik">Ogretmen Yonetimi</div>
+        <div class="kart">
+          <h3>Yeni Ogretmen Ekle</h3>
+          <div class="form-grid">
+            <div class="form-group"><label>Ad Soyad</label><input type="text" id="ogretmenAd" placeholder="Ad Soyad"></div>
+            <div class="form-group"><label>Brans</label><input type="text" id="ogretmenBrans" placeholder="Matematik"></div>
+            <div class="form-group"><label>E-posta</label><input type="email" id="ogretmenEmail" placeholder="ogretmen@okul.com"></div>
+            <div class="form-group"><label>Sifre</label><input type="password" id="ogretmenSifre" placeholder="........"></div>
+          </div>
+          <button class="btn btn-yesil" onclick="ogretmenEkle()">+ Ogretmen Ekle</button>
+          <div id="ogretmenMesaj" style="margin-top:10px; font-size:13px;"></div>
+        </div>
+        <div class="kart">
+          <h3>Ogretmen Listesi</h3>
+          <div id="ogretmenListesi"><div class="yukleniyor-mesaj">Yukleniyor...</div></div>
+        </div>
+      </div>
+
+      <!-- SINIFLAR -->
+      <div class="sayfa" id="sayfa-siniflar">
+        <div class="sayfa-baslik">Sinif Yonetimi</div>
+        <div class="kart">
+          <h3>Yeni Sinif Ekle</h3>
+          <div class="form-grid">
+            <div class="form-group"><label>Sinif Adi</label><input type="text" id="sinifAd" placeholder="7A"></div>
+            <div class="form-group">
+              <label>Kademe</label>
+              <select id="sinifKademe">
+                <option value="5">5. Sinif</option>
+                <option value="6">6. Sinif</option>
+                <option value="7">7. Sinif</option>
+                <option value="8">8. Sinif</option>
+              </select>
+            </div>
+          </div>
+          <button class="btn btn-yesil" onclick="sinifEkle()">+ Sinif Ekle</button>
+          <div id="sinifMesaj" style="margin-top:10px; font-size:13px;"></div>
+        </div>
+        <div class="kart">
+          <h3>Sinif Listesi</h3>
+          <div id="sinifListesi"><div class="yukleniyor-mesaj">Yukleniyor...</div></div>
+        </div>
+      </div>
+
+      <!-- OGRENCILER -->
+      <div class="sayfa" id="sayfa-ogrenciler">
+        <div class="sayfa-baslik">Ogrenci Yonetimi</div>
+        <div class="kart">
+          <h3>Yeni Ogrenci Ekle</h3>
+          <div class="form-grid">
+            <div class="form-group"><label>Ogrenci No</label><input type="text" id="ogrenciNo" placeholder="1234"></div>
+            <div class="form-group"><label>Ad Soyad</label><input type="text" id="ogrenciAd" placeholder="Ad Soyad"></div>
+            <div class="form-group">
+              <label>Sinif</label>
+              <select id="ogrenciSinif"><option value="">Sinif secin</option></select>
+            </div>
+          </div>
+          <button class="btn btn-yesil" onclick="ogrenciEkle()">+ Ogrenci Ekle</button>
+          <div id="ogrenciMesaj" style="margin-top:10px; font-size:13px;"></div>
+        </div>
+        <div class="kart">
+          <h3>Ogrenci Listesi</h3>
+          <div style="margin-bottom:12px;">
+            <select id="ogrenciSinifFiltre" onchange="ogrencileriGetir()" style="padding:8px 12px; border:1px solid #ddd; border-radius:8px; font-size:14px;">
+              <option value="">Tum Siniflar</option>
+            </select>
+          </div>
+          <div id="ogrenciListesi"><div class="yukleniyor-mesaj">Yukleniyor...</div></div>
+        </div>
+      </div>
+
+      <!-- DERS PROGRAMI -->
+      <div class="sayfa" id="sayfa-program">
+        <div class="sayfa-baslik">Ders Programi</div>
+        <div class="kart">
+          <h3>Yeni Ders Ekle</h3>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Gun</label>
+              <select id="programGun">
+                <option value="pazartesi">Pazartesi</option>
+                <option value="sali">Sali</option>
+                <option value="carsamba">Carsamba</option>
+                <option value="persembe">Persembe</option>
+                <option value="cuma">Cuma</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Ders Numarasi</label>
+              <select id="programDersNo">
+                <option value="1">1. Ders</option>
+                <option value="2">2. Ders</option>
+                <option value="3">3. Ders</option>
+                <option value="4">4. Ders</option>
+                <option value="5">5. Ders</option>
+                <option value="6">6. Ders</option>
+                <option value="7">7. Ders</option>
+                <option value="8">8. Ders</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Sinif</label>
+              <select id="programSinif"><option value="">Sinif secin</option></select>
+            </div>
+            <div class="form-group">
+              <label>Ogretmen</label>
+              <select id="programOgretmen"><option value="">Ogretmen secin</option></select>
+            </div>
+            <div class="form-group">
+              <label>Ders Adi</label>
+              <input type="text" id="programDersAdi" placeholder="Matematik">
+            </div>
+          </div>
+          <button class="btn btn-yesil" onclick="programEkle()">+ Ders Ekle</button>
+          <div id="programMesaj" style="margin-top:10px; font-size:13px;"></div>
+        </div>
+        <div class="kart">
+          <h3>Haftalik Program</h3>
+          <div style="margin-bottom:12px;">
+            <select id="programGunFiltre" onchange="programiGetir()" style="padding:8px 12px; border:1px solid #ddd; border-radius:8px; font-size:14px;">
+              <option value="pazartesi">Pazartesi</option>
+              <option value="sali">Sali</option>
+              <option value="carsamba">Carsamba</option>
+              <option value="persembe">Persembe</option>
+              <option value="cuma">Cuma</option>
+            </select>
+          </div>
+          <div id="programListesi"><div class="yukleniyor-mesaj">Yukleniyor...</div></div>
+        </div>
+      </div>
+
+      <!-- DYK -->
+      <div class="sayfa" id="sayfa-dyk">
+        <div class="sayfa-baslik">DYK Kurs Yonetimi</div>
+
+        <div class="kart">
+          <h3>Yeni Kurs Tanimla</h3>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Kurs Adi</label>
+              <input type="text" id="dykKursAdi" placeholder="8A Matematik">
+            </div>
+            <div class="form-group">
+              <label>Sinif</label>
+              <select id="dykKursSinif"><option value="">Sinif secin</option></select>
+            </div>
+            <div class="form-group">
+              <label>Ogretmen</label>
+              <select id="dykKursOgretmen"><option value="">Ogretmen secin</option></select>
+            </div>
+            <div class="form-group">
+              <label>Gun</label>
+              <select id="dykKursGun">
+                <option value="pazartesi">Pazartesi</option>
+                <option value="sali">Sali</option>
+                <option value="carsamba">Carsamba</option>
+                <option value="persembe">Persembe</option>
+                <option value="cuma">Cuma</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Saat</label>
+              <input type="text" id="dykKursSaat" placeholder="14:00 - 14:45">
+            </div>
+          </div>
+          <button class="btn btn-yesil" onclick="dykKursEkle()">+ Kurs Ekle</button>
+          <div id="dykKursMesaj" style="margin-top:10px; font-size:13px;"></div>
+        </div>
+
+        <div class="kart">
+          <h3>Kurs Listesi</h3>
+          <div id="dykKursListesi"><div class="yukleniyor-mesaj">Yukleniyor...</div></div>
+        </div>
+
+        <div class="kart" id="dykOgrenciKarti" style="display:none;">
+          <h3 id="dykOgrenciBaslik">Kursa Ogrenci Ekle</h3>
+          <div style="margin-bottom:12px; font-size:13px; color:#666;">Kursa katilacak ogrencileri isaretleyin</div>
+          <div id="dykOgrenciSecim"></div>
+          <button class="btn btn-mavi" style="margin-top:12px;" onclick="dykOgrencileriKaydet()">Ogrencileri Kaydet</button>
+          <div id="dykOgrenciMesaj" style="margin-top:10px; font-size:13px;"></div>
+        </div>
+
+        <div class="kart">
+          <h3>DYK Yoklama Kayitlari</h3>
+          <div id="dykYoklamaListesi"><div class="bos-mesaj">Henuz DYK yoklamasi girilmemis</div></div>
+        </div>
+      </div>
+
+      <!-- AYARLAR -->
+      <div class="sayfa" id="sayfa-ayarlar">
+        <div class="sayfa-baslik">Sistem Ayarlari</div>
+        <div class="kart">
+          <h3>Genel Ayarlar</h3>
+          <div class="form-group"><label>Ders Suresi (dakika)</label><input type="number" id="ayarDersSuresi" placeholder="40"></div>
+          <div class="form-group"><label>Telegram Bot Token</label><input type="text" id="ayarTelegram" placeholder="bot token"></div>
+          <button class="btn btn-mavi" onclick="ayarlariKaydet()">Kaydet</button>
+          <div style="margin-top:20px; padding-top:20px; border-top:1px solid #f0f0f0;">
+            <h3 style="font-size:15px; color:#333; margin-bottom:10px;">Telegram Testi</h3>
+            <button class="btn btn-mavi" onclick="telegramTest()">Test Bildirimi Gonder</button>
+            <div id="telegramTestMesaj" style="margin-top:10px; font-size:13px;"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getAuth, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
+    import { getFirestore, doc, getDoc, getDocs, addDoc, setDoc, deleteDoc, updateDoc, collection, query, where, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyAHTCiicd4b94rG1-jN0STRbwcrLmkYudo",
+      authDomain: "okul-yoklama-sistemi-8081f.firebaseapp.com",
+      projectId: "okul-yoklama-sistemi-8081f",
+      storageBucket: "okul-yoklama-sistemi-8081f.firebasestorage.app",
+      messagingSenderId: "38230047763",
+      appId: "1:38230047763:web:dfab058df8928b66be13e6"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const functions = getFunctions(app, 'us-central1');
+
+    const bugun = new Date().toISOString().split('T')[0];
+    document.getElementById('yoklamaTarih').value = bugun;
+
+    let tumOgretmenler = [];
+    let tumSiniflar = [];
+    let aktifDykKursId = null;
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) { window.location.href = '/index.html'; return; }
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (!userDoc.exists()) { window.location.href = '/index.html'; return; }
+      const data = userDoc.data();
+      if (data.rol !== 'admin' && data.rol !== 'mudur_yardimcisi') { window.location.href = '/index.html'; return; }
+      document.getElementById('kullaniciAdi').textContent = data.ad + ' ' + (data.soyad || '');
+      await siniflariGetir();
+      await ogretmenleriGetir();
+      programSinifOgretmenDoldur();
+      dykSinifOgretmenDoldur();
+      anasayfaYukle();
+      ogrencileriGetir();
+      programiGetir();
+      dykKurslariGetir();
+    });
+
+    window.cikisYap = async () => { await signOut(auth); window.location.href = '/index.html'; };
+
+    window.sayfaGoster = (sayfaId, menuItem) => {
+      document.querySelectorAll('.sayfa').forEach(s => s.classList.remove('aktif'));
+      document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('aktif'));
+      document.getElementById('sayfa-' + sayfaId).classList.add('aktif');
+      menuItem.classList.add('aktif');
+    };
+
+    async function anasayfaYukle() {
+      try {
+        const lessonsSnap = await getDocs(query(collection(db, 'today_lessons'), where('date', '==', bugun)));
+        let girilenYoklama = 0, eksikYoklama = 0;
+        const durumlar = [];
+        lessonsSnap.forEach(doc => {
+          const d = doc.data();
+          if (d.status === 'filled') girilenYoklama++; else eksikYoklama++;
+          durumlar.push(d);
+        });
+        document.getElementById('statToplamDers').textContent = lessonsSnap.size;
+        document.getElementById('statGirilenYoklama').textContent = girilenYoklama;
+        document.getElementById('statEksikYoklama').textContent = eksikYoklama;
+        const summarySnap = await getDocs(query(collection(db, 'daily_summary'), where('date', '==', bugun)));
+        let tamGun = 0, yarimGun = 0;
+        summarySnap.forEach(doc => {
+          const d = doc.data();
+          if (d.status === 'full_day_absent') tamGun++;
+          else if (d.status === 'half_day_absent') yarimGun++;
+        });
+        document.getElementById('statTamGun').textContent = tamGun;
+        document.getElementById('statYarimGun').textContent = yarimGun;
+        if (durumlar.length === 0) {
+          document.getElementById('bugunYoklamaDurum').innerHTML = '<div class="bos-mesaj">Bugun icin ders programi olusturulmamis</div>';
+          return;
+        }
+        let html = '<table><thead><tr><th>Sinif</th><th>Ders No</th><th>Durum</th></tr></thead><tbody>';
+        durumlar.sort((a, b) => a.lesson_number - b.lesson_number);
+        durumlar.forEach(d => {
+          const rozet = d.status === 'filled'
+            ? '<span class="rozet rozet-giren">Girildi</span>'
+            : '<span class="rozet rozet-eksik">Eksik</span>';
+          html += `<tr><td>${d.class_id}</td><td>${d.lesson_number}. Ders</td><td>${rozet}</td></tr>`;
+        });
+        html += '</tbody></table>';
+        document.getElementById('bugunYoklamaDurum').innerHTML = html;
+      } catch (err) { console.error(err); }
+    }
+
+    window.yoklamalariGetir = async () => {
+      const tarih = document.getElementById('yoklamaTarih').value;
+      document.getElementById('yoklamaListesi').innerHTML = '<div class="yukleniyor-mesaj">Yukleniyor...</div>';
+      const snap = await getDocs(query(collection(db, 'attendance'), where('date', '==', tarih)));
+      if (snap.empty) { document.getElementById('yoklamaListesi').innerHTML = '<div class="bos-mesaj">Bu tarihte yoklama kaydi yok</div>'; return; }
+      let html = '<table><thead><tr><th>Sinif</th><th>Ders</th><th>Ders Adi</th><th>Ogretmen</th><th>Eksik</th><th>Durum</th></tr></thead><tbody>';
+      snap.forEach(doc => {
+        const d = doc.data();
+        const eksik = d.absent_students ? d.absent_students.length : 0;
+        const kilit = d.locked ? 'Kilitli' : 'Acik';
+        const gec = d.is_late_entry ? '<span class="rozet rozet-eksik">Gec</span>' : '';
+        html += `<tr><td>${d.class_id}</td><td>${d.lesson_number}. Ders</td><td>${d.lesson_name || '-'}</td><td>${d.actual_teacher || d.teacher_id}</td><td>${eksik}</td><td>${kilit} ${gec}</td></tr>`;
+      });
+      html += '</tbody></table>';
+      document.getElementById('yoklamaListesi').innerHTML = html;
+    };
+
+    async function ogretmenleriGetir() {
+      const snap = await getDocs(collection(db, 'teachers'));
+      tumOgretmenler = [];
+      snap.forEach(doc => tumOgretmenler.push({ id: doc.id, ...doc.data() }));
+      if (snap.empty) {
+        document.getElementById('ogretmenListesi').innerHTML = '<div class="bos-mesaj">Henuz ogretmen eklenmemis</div>';
+        return;
+      }
+      let html = '<table><thead><tr><th>Ad Soyad</th><th>Brans</th><th>E-posta</th></tr></thead><tbody>';
+      tumOgretmenler.forEach(o => {
+        html += `<tr><td>${o.ad}</td><td>${o.brans}</td><td>${o.email}</td></tr>`;
+      });
+      html += '</tbody></table>';
+      document.getElementById('ogretmenListesi').innerHTML = html;
+    }
+
+    window.ogretmenEkle = async () => {
+      const ad = document.getElementById('ogretmenAd').value.trim();
+      const brans = document.getElementById('ogretmenBrans').value.trim();
+      const email = document.getElementById('ogretmenEmail').value.trim();
+      const sifre = document.getElementById('ogretmenSifre').value;
+      const mesaj = document.getElementById('ogretmenMesaj');
+      if (!ad || !brans || !email || !sifre) { mesaj.style.color = '#c5221f'; mesaj.textContent = 'Tum alanlari doldurun.'; return; }
+      mesaj.style.color = '#666'; mesaj.textContent = 'Ekleniyor...';
+      try {
+        await auth.currentUser.getIdToken(true);
+        const ogretmenOlustur = httpsCallable(functions, 'ogretmenOlustur');
+        await ogretmenOlustur({ ad, brans, email, sifre });
+        mesaj.style.color = '#1e7e34'; mesaj.textContent = 'Ogretmen basariyla eklendi.';
+        document.getElementById('ogretmenAd').value = '';
+        document.getElementById('ogretmenBrans').value = '';
+        document.getElementById('ogretmenEmail').value = '';
+        document.getElementById('ogretmenSifre').value = '';
+        await ogretmenleriGetir();
+        programSinifOgretmenDoldur();
+        dykSinifOgretmenDoldur();
+      } catch (err) {
+        mesaj.style.color = '#c5221f'; mesaj.textContent = 'Hata: ' + err.message;
+      }
+    };
+
+    async function siniflariGetir() {
+      const snap = await getDocs(collection(db, 'classes'));
+      tumSiniflar = [];
+      const sinifSecim = document.getElementById('ogrenciSinif');
+      const sinifFiltre = document.getElementById('ogrenciSinifFiltre');
+      sinifSecim.innerHTML = '<option value="">Sinif secin</option>';
+      sinifFiltre.innerHTML = '<option value="">Tum Siniflar</option>';
+      if (snap.empty) {
+        document.getElementById('sinifListesi').innerHTML = '<div class="bos-mesaj">Henuz sinif eklenmemis</div>';
+        return;
+      }
+      let html = '<table><thead><tr><th>Sinif Adi</th><th>Kademe</th></tr></thead><tbody>';
+      snap.forEach(d => {
+        const data = d.data();
+        tumSiniflar.push({ id: d.id, ...data });
+        html += `<tr><td>${data.class_name}</td><td>${data.grade}. Sinif</td></tr>`;
+        sinifSecim.innerHTML += `<option value="${data.class_name}">${data.class_name}</option>`;
+        sinifFiltre.innerHTML += `<option value="${data.class_name}">${data.class_name}</option>`;
+      });
+      html += '</tbody></table>';
+      document.getElementById('sinifListesi').innerHTML = html;
+    }
+
+    window.sinifEkle = async () => {
+      const ad = document.getElementById('sinifAd').value.trim().toUpperCase();
+      const kademe = document.getElementById('sinifKademe').value;
+      const mesaj = document.getElementById('sinifMesaj');
+      if (!ad) { mesaj.style.color = '#c5221f'; mesaj.textContent = 'Sinif adi girin.'; return; }
+      await addDoc(collection(db, 'classes'), { class_name: ad, grade: parseInt(kademe), created_at: serverTimestamp() });
+      mesaj.style.color = '#1e7e34'; mesaj.textContent = 'Sinif eklendi.';
+      document.getElementById('sinifAd').value = '';
+      await siniflariGetir();
+      programSinifOgretmenDoldur();
+      dykSinifOgretmenDoldur();
+    };
+
+    window.ogrencileriGetir = async () => {
+      const filtre = document.getElementById('ogrenciSinifFiltre').value;
+      let q = filtre ? query(collection(db, 'students'), where('class_id', '==', filtre)) : collection(db, 'students');
+      const snap = await getDocs(q);
+      if (snap.empty) { document.getElementById('ogrenciListesi').innerHTML = '<div class="bos-mesaj">Ogrenci bulunamadi</div>'; return; }
+      let html = '<table><thead><tr><th>Ogrenci No</th><th>Ad Soyad</th><th>Sinif</th></tr></thead><tbody>';
+      snap.forEach(doc => {
+        const d = doc.data();
+        html += `<tr><td>${d.student_number}</td><td>${d.name}</td><td>${d.class_id}</td></tr>`;
+      });
+      html += '</tbody></table>';
+      document.getElementById('ogrenciListesi').innerHTML = html;
+    };
+
+    window.ogrenciEkle = async () => {
+      const no = document.getElementById('ogrenciNo').value.trim();
+      const ad = document.getElementById('ogrenciAd').value.trim();
+      const sinif = document.getElementById('ogrenciSinif').value;
+      const mesaj = document.getElementById('ogrenciMesaj');
+      if (!no || !ad || !sinif) { mesaj.style.color = '#c5221f'; mesaj.textContent = 'Tum alanlari doldurun.'; return; }
+      await addDoc(collection(db, 'students'), { student_number: no, name: ad, class_id: sinif, status: 'active', created_at: serverTimestamp() });
+      mesaj.style.color = '#1e7e34'; mesaj.textContent = 'Ogrenci eklendi.';
+      document.getElementById('ogrenciNo').value = '';
+      document.getElementById('ogrenciAd').value = '';
+      ogrencileriGetir();
+    };
+
+    function programSinifOgretmenDoldur() {
+      const sinifSelect = document.getElementById('programSinif');
+      const ogretmenSelect = document.getElementById('programOgretmen');
+      sinifSelect.innerHTML = '<option value="">Sinif secin</option>';
+      ogretmenSelect.innerHTML = '<option value="">Ogretmen secin</option>';
+      tumSiniflar.forEach(s => {
+        sinifSelect.innerHTML += `<option value="${s.class_name}">${s.class_name}</option>`;
+      });
+      tumOgretmenler.forEach(o => {
+        ogretmenSelect.innerHTML += `<option value="${o.id}">${o.ad}</option>`;
+      });
+    }
+
+    window.programEkle = async () => {
+      const gun = document.getElementById('programGun').value;
+      const dersNo = parseInt(document.getElementById('programDersNo').value);
+      const sinif = document.getElementById('programSinif').value;
+      const ogretmen = document.getElementById('programOgretmen').value;
+      const dersAdi = document.getElementById('programDersAdi').value.trim();
+      const mesaj = document.getElementById('programMesaj');
+      if (!sinif || !ogretmen || !dersAdi) { mesaj.style.color = '#c5221f'; mesaj.textContent = 'Tum alanlari doldurun.'; return; }
+      await addDoc(collection(db, 'schedule'), { day: gun, lesson_number: dersNo, class_id: sinif, teacher_id: ogretmen, lesson_name: dersAdi, created_at: serverTimestamp() });
+      mesaj.style.color = '#1e7e34'; mesaj.textContent = 'Ders eklendi.';
+      document.getElementById('programDersAdi').value = '';
+      programiGetir();
+    };
+
+    window.programiGetir = async () => {
+      const gun = document.getElementById('programGunFiltre').value;
+      const container = document.getElementById('programListesi');
+      container.innerHTML = '<div class="yukleniyor-mesaj">Yukleniyor...</div>';
+      const snap = await getDocs(query(collection(db, 'schedule'), where('day', '==', gun), orderBy('lesson_number')));
+      if (snap.empty) { container.innerHTML = '<div class="bos-mesaj">Bu gun icin ders eklenmemis.</div>'; return; }
+      let html = '<table><thead><tr><th>Ders</th><th>Sinif</th><th>Ders Adi</th><th>Ogretmen</th><th></th></tr></thead><tbody>';
+      snap.forEach(d => {
+        const data = d.data();
+        const ogretmen = tumOgretmenler.find(o => o.id === data.teacher_id);
+        html += `<tr><td>${data.lesson_number}. Ders</td><td>${data.class_id}</td><td>${data.lesson_name}</td><td>${ogretmen?.ad || data.teacher_id}</td><td><button class="btn btn-kirmizi" style="padding:4px 10px; font-size:12px;" onclick="programSil('${d.id}')">Sil</button></td></tr>`;
+      });
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    };
+
+    window.programSil = async (id) => {
+      if (!confirm('Bu dersi silmek istediginize emin misiniz?')) return;
+      await deleteDoc(doc(db, 'schedule', id));
+      programiGetir();
+    };
+
+    window.manuelDersOlustur = async () => {
+      const mesaj = document.getElementById('dersOlusturMesaj');
+      mesaj.style.color = '#666'; mesaj.textContent = 'Olusturuluyor...';
+      try {
+        await auth.currentUser.getIdToken(true);
+        const manuelDersOlusturFn = httpsCallable(functions, 'manuelDersOlustur');
+        const result = await manuelDersOlusturFn({ tarih: bugun });
+        mesaj.style.color = '#1e7e34'; mesaj.textContent = result.data.message;
+        anasayfaYukle();
+      } catch (err) {
+        mesaj.style.color = '#c5221f'; mesaj.textContent = 'Hata: ' + err.message;
+      }
+    };
+
+    // ===========================
+    // DYK MODULU
+    // ===========================
+    function dykSinifOgretmenDoldur() {
+      const sinifSelect = document.getElementById('dykKursSinif');
+      const ogretmenSelect = document.getElementById('dykKursOgretmen');
+      sinifSelect.innerHTML = '<option value="">Sinif secin</option>';
+      ogretmenSelect.innerHTML = '<option value="">Ogretmen secin</option>';
+      tumSiniflar.forEach(s => {
+        sinifSelect.innerHTML += `<option value="${s.class_name}">${s.class_name}</option>`;
+      });
+      tumOgretmenler.forEach(o => {
+        ogretmenSelect.innerHTML += `<option value="${o.id}">${o.ad}</option>`;
+      });
+    }
+
+    window.dykKursEkle = async () => {
+      const ad = document.getElementById('dykKursAdi').value.trim();
+      const sinif = document.getElementById('dykKursSinif').value;
+      const ogretmen = document.getElementById('dykKursOgretmen').value;
+      const gun = document.getElementById('dykKursGun').value;
+      const saat = document.getElementById('dykKursSaat').value.trim();
+      const mesaj = document.getElementById('dykKursMesaj');
+      if (!ad || !sinif || !ogretmen || !saat) {
+        mesaj.style.color = '#c5221f'; mesaj.textContent = 'Tum alanlari doldurun.'; return;
+      }
+      await addDoc(collection(db, 'dyk_courses'), {
+        course_name: ad, class_id: sinif, teacher_id: ogretmen,
+        day: gun, time: saat, students: [], created_at: serverTimestamp()
+      });
+      mesaj.style.color = '#1e7e34'; mesaj.textContent = 'Kurs eklendi.';
+      document.getElementById('dykKursAdi').value = '';
+      document.getElementById('dykKursSaat').value = '';
+      dykKurslariGetir();
+    };
+
+    async function dykKurslariGetir() {
+      const snap = await getDocs(collection(db, 'dyk_courses'));
+      const container = document.getElementById('dykKursListesi');
+      if (snap.empty) {
+        container.innerHTML = '<div class="bos-mesaj">Henuz kurs eklenmemis</div>';
+        dykYoklamalariGetir();
+        return;
+      }
+      const gunler = { pazartesi: 'Pazartesi', sali: 'Sali', carsamba: 'Carsamba', persembe: 'Persembe', cuma: 'Cuma' };
+      let html = '<table><thead><tr><th>Kurs Adi</th><th>Sinif</th><th>Ogretmen</th><th>Gun / Saat</th><th>Ogrenci</th><th></th></tr></thead><tbody>';
+      snap.forEach(d => {
+        const data = d.data();
+        const og = tumOgretmenler.find(o => o.id === data.teacher_id);
+        const ogrenciSayisi = data.students ? data.students.length : 0;
+        html += `<tr>
+          <td><strong>${data.course_name}</strong></td>
+          <td>${data.class_id}</td>
+          <td>${og ? og.ad : '-'}</td>
+          <td>${gunler[data.day] || data.day} ${data.time}</td>
+          <td>${ogrenciSayisi} ogrenci</td>
+          <td>
+            <button class="btn btn-mavi" style="padding:4px 10px; font-size:12px; margin-right:4px;"
+              onclick="dykOgrenciDuzenle('${d.id}', '${data.class_id}', '${data.course_name}')">Ogrenci Duzenle</button>
+            <button class="btn btn-kirmizi" style="padding:4px 10px; font-size:12px;"
+              onclick="dykKursSil('${d.id}')">Sil</button>
+          </td>
+        </tr>`;
+      });
+      html += '</tbody></table>';
+      container.innerHTML = html;
+      dykYoklamalariGetir();
+    }
+
+    window.dykOgrenciDuzenle = async (kursId, sinifId, kursAdi) => {
+      aktifDykKursId = kursId;
+      document.getElementById('dykOgrenciBaslik').textContent = kursAdi + ' - Ogrenci Listesi';
+      document.getElementById('dykOgrenciKarti').style.display = 'block';
+      document.getElementById('dykOgrenciSecim').innerHTML = '<div class="yukleniyor-mesaj">Yukleniyor...</div>';
+
+      const ogrenciSnap = await getDocs(query(
+        collection(db, 'students'),
+        where('class_id', '==', sinifId),
+        where('status', '==', 'active')
+      ));
+
+      const kursDoc = await getDoc(doc(db, 'dyk_courses', kursId));
+      const kayitliOgrenciler = kursDoc.data()?.students || [];
+
+      let ogrenciler = [];
+      ogrenciSnap.forEach(d => ogrenciler.push(d.data()));
+      ogrenciler.sort((a, b) => a.student_number.localeCompare(b.student_number));
+
+      if (ogrenciler.length === 0) {
+        document.getElementById('dykOgrenciSecim').innerHTML = '<div class="bos-mesaj">Bu sinifta ogrenci bulunamadi.</div>';
+        return;
+      }
+
+      let html = '';
+      ogrenciler.forEach(o => {
+        const isaretli = kayitliOgrenciler.includes(o.student_number);
+        html += `<div class="dyk-ogrenci-satir">
+          <input type="checkbox" id="dyk-ogr-${o.student_number}" ${isaretli ? 'checked' : ''}>
+          <span class="dyk-ogrenci-no">${o.student_number}</span>
+          <label for="dyk-ogr-${o.student_number}">${o.name}</label>
+        </div>`;
+      });
+
+      document.getElementById('dykOgrenciSecim').innerHTML = html;
+      document.getElementById('dykOgrenciKarti').scrollIntoView({ behavior: 'smooth' });
+    };
+
+    window.dykOgrencileriKaydet = async () => {
+      if (!aktifDykKursId) return;
+      const mesaj = document.getElementById('dykOgrenciMesaj');
+      const seciliOgrenciler = [];
+      document.querySelectorAll('#dykOgrenciSecim input[type="checkbox"]').forEach(chk => {
+        if (chk.checked) seciliOgrenciler.push(chk.id.replace('dyk-ogr-', ''));
+      });
+      await updateDoc(doc(db, 'dyk_courses', aktifDykKursId), { students: seciliOgrenciler });
+      mesaj.style.color = '#1e7e34';
+      mesaj.textContent = seciliOgrenciler.length + ' ogrenci kaydedildi.';
+      dykKurslariGetir();
+    };
+
+    window.dykKursSil = async (id) => {
+      if (!confirm('Bu kursu silmek istediginize emin misiniz?')) return;
+      await deleteDoc(doc(db, 'dyk_courses', id));
+      dykKurslariGetir();
+    };
+
+    async function dykYoklamalariGetir() {
+      try {
+        const snap = await getDocs(query(
+          collection(db, 'dyk_attendance'),
+          orderBy('date', 'desc')
+        ));
+        const container = document.getElementById('dykYoklamaListesi');
+        if (snap.empty) {
+          container.innerHTML = '<div class="bos-mesaj">Henuz DYK yoklamasi girilmemis</div>';
+          return;
+        }
+        const kursSnap = await getDocs(collection(db, 'dyk_courses'));
+        const kurslar = {};
+        kursSnap.forEach(d => kurslar[d.id] = d.data());
+        let html = '<table><thead><tr><th>Tarih</th><th>Kurs</th><th>Ogretmen</th><th>Eksik</th><th>Durum</th></tr></thead><tbody>';
+        snap.forEach(d => {
+          const data = d.data();
+          const kurs = kurslar[data.course_id];
+          const og = tumOgretmenler.find(o => o.id === data.teacher_id);
+          const durum = data.status === 'completed'
+            ? '<span class="rozet rozet-giren">Yapildi</span>'
+            : '<span class="rozet rozet-eksik">Yapilmadi</span>';
+          html += `<tr>
+            <td>${data.date}</td>
+            <td>${kurs ? kurs.course_name : '-'}</td>
+            <td>${og ? og.ad : '-'}</td>
+            <td>${data.absent_students ? data.absent_students.length : 0} ogrenci</td>
+            <td>${durum}</td>
+          </tr>`;
+        });
+        html += '</tbody></table>';
+        container.innerHTML = html;
+      } catch (err) { console.error(err); }
+    }
+
+    window.ayarlariKaydet = async () => {
+      await setDoc(doc(db, 'settings', 'genel'), {
+        lesson_duration: parseInt(document.getElementById('ayarDersSuresi').value) || 40,
+        telegram_token: document.getElementById('ayarTelegram').value,
+        telegram_enabled: false,
+        updated_at: serverTimestamp()
+      });
+      alert('Ayarlar kaydedildi.');
+    };
+
+    window.telegramTest = async () => {
+      const mesaj = document.getElementById('telegramTestMesaj');
+      mesaj.style.color = '#666'; mesaj.textContent = 'Gonderiliyor...';
+      try {
+        await auth.currentUser.getIdToken(true);
+        const testBildirimiGonder = httpsCallable(functions, 'testBildirimiGonder');
+        await testBildirimiGonder({});
+        mesaj.style.color = '#1e7e34'; mesaj.textContent = 'Telegram mesaji gonderildi!';
+      } catch (err) {
+        mesaj.style.color = '#c5221f'; mesaj.textContent = 'Hata: ' + err.message;
+      }
+    };
+
+  </script>
+</body>
+</html>

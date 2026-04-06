@@ -1,0 +1,54 @@
+{
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "functions": {
+    "source": "functions"
+  },
+  "hosting": {
+    "public": "public",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          {
+            "key": "Content-Security-Policy",
+            "value": "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://www.gstatic.com https://*.firebaseapp.com https://cdnjs.cloudflare.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://*.cloudfunctions.net https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+          }
+        ]
+      }
+    ],
+    "rewrites": [
+      {
+        "source": "/import.html",
+        "destination": "/import.html"
+      },
+      {
+        "source": "/rapor.html",
+        "destination": "/rapor.html"
+      },
+      {
+        "source": "/fisler.html",
+        "destination": "/fisler.html"
+      },
+      {
+        "source": "/admin.html",
+        "destination": "/admin.html"
+      },
+      {
+        "source": "/ogretmen.html",
+        "destination": "/ogretmen.html"
+      },
+      {
+        "source": "/",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}

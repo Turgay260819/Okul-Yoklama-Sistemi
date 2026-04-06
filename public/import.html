@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Veri Import — Yoklama Sistemi</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f0f4f8; }
+
+    .topbar {
+      background: #1a73e8; color: white;
+      padding: 14px 24px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .topbar h1 { font-size: 18px; font-weight: 600; }
+    .btn-geri {
+      background: rgba(255,255,255,0.2); border: none; color: white;
+      padding: 7px 14px; border-radius: 6px; cursor: pointer;
+      font-size: 13px; text-decoration: none;
+    }
+
+    .icerik { padding: 24px; max-width: 900px; margin: 0 auto; }
+
+    .kart {
+      background: white; border-radius: 10px;
+      padding: 24px; box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+      margin-bottom: 24px;
+    }
+
+    .kart h2 {
+      font-size: 17px; color: #333; margin-bottom: 6px;
+    }
+
+    .kart p {
+      font-size: 13px; color: #666; margin-bottom: 16px; line-height: 1.6;
+    }
+
+    .sablon-link {
+      display: inline-block;
+      background: #e8f0fe; color: #1a73e8;
+      padding: 6px 14px; border-radius: 6px;
+      font-size: 13px; font-weight: 600;
+      text-decoration: none; margin-bottom: 16px;
+      border: 1px solid #c5d8ff;
+    }
+
+    .upload-alani {
+      border: 2px dashed #ddd; border-radius: 8px;
+      padding: 30px; text-align: center;
+      cursor: pointer; transition: all 0.2s;
+      margin-bottom: 16px;
+    }
+
+    .upload-alani:hover { border-color: #1a73e8; background: #f8fbff; }
+    .upload-alani.surukle { border-color: #1a73e8; background: #e8f0fe; }
+
+    .upload-alani input[type="file"] { display: none; }
+
+    .upload-alani .ikon { font-size: 32px; margin-bottom: 8px; }
+    .upload-alani .metin { font-size: 14px; color: #666; }
+    .upload-alani .metin strong { color: #1a73e8; }
+
+    .btn {
+      padding: 10px 24px; border: none; border-radius: 8px;
+      font-size: 14px; font-weight: 600; cursor: pointer;
+    }
+    .btn-mavi { background: #1a73e8; color: white; }
+    .btn-mavi:hover { background: #1557b0; }
+    .btn-mavi:disabled { background: #ccc; cursor: not-allowed; }
+
+    .onizleme {
+      margin-top: 16px;
+      border: 1px solid #e0e0e0; border-radius: 8px;
+      overflow: hidden; display: none;
+    }
+
+    .onizleme table {
+      width: 100%; border-collapse: collapse; font-size: 13px;
+    }
+
+    .onizleme th {
+      background: #f8f9fa; padding: 8px 12px;
+      text-align: left; font-weight: 600; color: #555;
+      border-bottom: 2px solid #e0e0e0;
+    }
+
+    .onizleme td {
+      padding: 8px 12px; border-bottom: 1px solid #f0f0f0; color: #333;
+    }
+
+    .sonuc {
+      margin-top: 16px; padding: 14px 16px;
+      border-radius: 8px; font-size: 14px;
+      display: none;
+    }
+
+    .sonuc.basari { background: #e6f4ea; color: #1e7e34; border: 1px solid #b7dfb9; }
+    .sonuc.hata { background: #fce8e6; color: #c5221f; border: 1px solid #f5c6c6; }
+    .sonuc.bilgi { background: #e8f0fe; color: #1a73e8; border: 1px solid #c5d8ff; }
+
+    .ilerleme {
+      margin-top: 12px; display: none;
+    }
+
+    .ilerleme-bar {
+      height: 8px; background: #e0e0e0; border-radius: 4px; overflow: hidden;
+    }
+
+    .ilerleme-dolu {
+      height: 100%; background: #1a73e8;
+      border-radius: 4px; transition: width 0.3s;
+      width: 0%;
+    }
+
+    .ilerleme-metin {
+      font-size: 12px; color: #666; margin-top: 6px;
+    }
+
+    .bilgi-kutusu {
+      background: #fff3e0; border: 1px solid #ffe0b2;
+      border-radius: 8px; padding: 12px 16px;
+      font-size: 13px; color: #e65100; margin-bottom: 16px;
+    }
+
+    .adim {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 13px; color: #555; margin-bottom: 6px;
+    }
+
+    .adim-no {
+      background: #1a73e8; color: white;
+      width: 20px; height: 20px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700; flex-shrink: 0;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="topbar">
+    <h1>Veri Import</h1>
+    <a href="/admin.html" class="btn-geri">Admin Paneline Don</a>
+  </div>
+
+  <div class="icerik">
+
+    <div class="bilgi-kutusu">
+      Import sirasi onemli: Once ogretmenleri, sonra ogrencileri, en son ders programini import edin.
+    </div>
+
+    <!-- OGRETMEN IMPORT -->
+    <div class="kart">
+      <h2>1. Ogretmen Import</h2>
+      <p>
+        Ogretmen sablonunu doldurup yukleyin. Her ogretmen icin sistem otomatik hesap olusturur.
+        <br>Sutunlar: <strong>Ad, Soyad, Brans, Email, Sifre</strong>
+      </p>
+      <div class="adim"><div class="adim-no">1</div> Sablonu indir ve doldur</div>
+      <div class="adim"><div class="adim-no">2</div> Dosyayi asagiya yukle</div>
+      <div class="adim"><div class="adim-no">3</div> Onizlemeyi kontrol et ve import et</div>
+
+      <div class="upload-alani" id="ogretmenUpload" onclick="document.getElementById('ogretmenDosya').click()">
+        <input type="file" id="ogretmenDosya" accept=".xlsx,.xls" onchange="dosyaOku('ogretmen', this)">
+        <div class="ikon">📂</div>
+        <div class="metin">Tiklayin veya surukleyin<br><strong>.xlsx dosyasi secin</strong></div>
+      </div>
+
+      <div class="onizleme" id="ogretmenOnizleme"></div>
+      <div class="ilerleme" id="ogretmenIlerleme">
+        <div class="ilerleme-bar"><div class="ilerleme-dolu" id="ogretmenBar"></div></div>
+        <div class="ilerleme-metin" id="ogretmenBarMetin"></div>
+      </div>
+      <div class="sonuc" id="ogretmenSonuc"></div>
+
+      <button class="btn btn-mavi" id="ogretmenBtn" onclick="ogretmenImport()" disabled style="margin-top:12px;">
+        Ogretmenleri Import Et
+      </button>
+    </div>
+
+    <!-- OGRENCI IMPORT -->
+    <div class="kart">
+      <h2>2. Ogrenci Import</h2>
+      <p>
+        Ogrenci sablonunu doldurup yukleyin. Mevcut numaraya sahip ogrenci varsa guncellenir, yoksa eklenir.
+        <br>Sutunlar: <strong>Ogrenci_No, Ad, Soyad, Sinif</strong>
+      </p>
+      <div class="adim"><div class="adim-no">1</div> Sablonu indir ve doldur</div>
+      <div class="adim"><div class="adim-no">2</div> Dosyayi asagiya yukle</div>
+      <div class="adim"><div class="adim-no">3</div> Onizlemeyi kontrol et ve import et</div>
+
+      <div class="upload-alani" id="ogrenciUpload" onclick="document.getElementById('ogrenciDosya').click()">
+        <input type="file" id="ogrenciDosya" accept=".xlsx,.xls" onchange="dosyaOku('ogrenci', this)">
+        <div class="ikon">📂</div>
+        <div class="metin">Tiklayin veya surukleyin<br><strong>.xlsx dosyasi secin</strong></div>
+      </div>
+
+      <div class="onizleme" id="ogrenciOnizleme"></div>
+      <div class="ilerleme" id="ogrenciIlerleme">
+        <div class="ilerleme-bar"><div class="ilerleme-dolu" id="ogrenciBar"></div></div>
+        <div class="ilerleme-metin" id="ogrenciBarMetin"></div>
+      </div>
+      <div class="sonuc" id="ogrenciSonuc"></div>
+
+      <button class="btn btn-mavi" id="ogrenciBtn" onclick="ogrenciImport()" disabled style="margin-top:12px;">
+        Ogrencileri Import Et
+      </button>
+    </div>
+
+    <!-- DERS PROGRAMI IMPORT -->
+    <div class="kart">
+      <h2>3. Ders Programi Import</h2>
+      <p>
+        Ders programi sablonunu doldurup yukleyin. Import sirasinda mevcut program tamamen silinip yenisi yuklenir.
+        <br>Sutunlar: <strong>Gun, Ders_No, Sinif, Ogretmen_Email, Ders_Adi</strong>
+      </p>
+      <div class="bilgi-kutusu" style="margin-bottom:12px;">
+        Dikkat: Import sirasinda mevcut ders programi silinir. Devam etmek istediginizden emin olun.
+      </div>
+      <div class="adim"><div class="adim-no">1</div> Sablonu indir ve doldur</div>
+      <div class="adim"><div class="adim-no">2</div> Dosyayi asagiya yukle</div>
+      <div class="adim"><div class="adim-no">3</div> Onizlemeyi kontrol et ve import et</div>
+
+      <div class="upload-alani" id="programUpload" onclick="document.getElementById('programDosya').click()">
+        <input type="file" id="programDosya" accept=".xlsx,.xls" onchange="dosyaOku('program', this)">
+        <div class="ikon">📂</div>
+        <div class="metin">Tiklayin veya surukleyin<br><strong>.xlsx dosyasi secin</strong></div>
+      </div>
+
+      <div class="onizleme" id="programOnizleme"></div>
+      <div class="ilerleme" id="programIlerleme">
+        <div class="ilerleme-bar"><div class="ilerleme-dolu" id="programBar"></div></div>
+        <div class="ilerleme-metin" id="programBarMetin"></div>
+      </div>
+      <div class="sonuc" id="programSonuc"></div>
+
+      <button class="btn btn-mavi" id="programBtn" onclick="programImport()" disabled style="margin-top:12px;">
+        Ders Programini Import Et
+      </button>
+    </div>
+
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
+    import {
+      getFirestore, collection, getDocs, addDoc, setDoc, deleteDoc,
+      doc, query, where, writeBatch, serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyAHTCiicd4b94rG1-jN0STRbwcrLmkYudo",
+      authDomain: "okul-yoklama-sistemi-8081f.firebaseapp.com",
+      projectId: "okul-yoklama-sistemi-8081f",
+      storageBucket: "okul-yoklama-sistemi-8081f.firebasestorage.app",
+      messagingSenderId: "38230047763",
+      appId: "1:38230047763:web:dfab058df8928b66be13e6"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const functions = getFunctions(app, 'us-central1');
+
+    onAuthStateChanged(auth, (user) => {
+      if (!user) window.location.href = '/index.html';
+    });
+
+    // Okunan veriler
+    let ogretmenVerisi = [];
+    let ogrenciVerisi = [];
+    let programVerisi = [];
+
+    // DOSYA OKU
+    window.dosyaOku = (tip, input) => {
+      const dosya = input.files[0];
+      if (!dosya) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+        // 1. satır başlık, 2. satır not, 3. satırdan veri
+        const veriRows = rows.slice(2).filter(r => r.some(c => c !== undefined && c !== ''));
+
+        if (tip === 'ogretmen') {
+          ogretmenVerisi = veriRows.map(r => ({
+            ad: String(r[0] || '').trim(),
+            soyad: String(r[1] || '').trim(),
+            brans: String(r[2] || '').trim(),
+            email: String(r[3] || '').trim().toLowerCase(),
+            sifre: String(r[4] || '').trim()
+          })).filter(r => r.ad && r.email);
+          onizlemeGoster('ogretmen', ['Ad', 'Soyad', 'Brans', 'Email'], ogretmenVerisi.map(r => [r.ad, r.soyad, r.brans, r.email]));
+          document.getElementById('ogretmenBtn').disabled = ogretmenVerisi.length === 0;
+
+        } else if (tip === 'ogrenci') {
+          ogrenciVerisi = veriRows.map(r => ({
+            student_number: String(r[0] || '').trim(),
+            ad: String(r[1] || '').trim(),
+            soyad: String(r[2] || '').trim(),
+            class_id: String(r[3] || '').trim().toUpperCase()
+          })).filter(r => r.student_number && r.ad && r.class_id);
+          onizlemeGoster('ogrenci', ['No', 'Ad', 'Soyad', 'Sinif'], ogrenciVerisi.map(r => [r.student_number, r.ad, r.soyad, r.class_id]));
+          document.getElementById('ogrenciBtn').disabled = ogrenciVerisi.length === 0;
+
+        } else if (tip === 'program') {
+          programVerisi = veriRows.map(r => ({
+            day: String(r[0] || '').trim().toLowerCase(),
+            lesson_number: parseInt(r[1]) || 0,
+            class_id: String(r[2] || '').trim().toUpperCase(),
+            ogretmen_email: String(r[3] || '').trim().toLowerCase(),
+            lesson_name: String(r[4] || '').trim()
+          })).filter(r => r.day && r.lesson_number && r.class_id && r.lesson_name);
+          onizlemeGoster('program', ['Gun', 'Ders', 'Sinif', 'Ogretmen Email', 'Ders Adi'], programVerisi.map(r => [r.day, r.lesson_number, r.class_id, r.ogretmen_email, r.lesson_name]));
+          document.getElementById('programBtn').disabled = programVerisi.length === 0;
+        }
+      };
+      reader.readAsArrayBuffer(dosya);
+    };
+
+    function onizlemeGoster(tip, basliklar, satirlar) {
+      const container = document.getElementById(tip + 'Onizleme');
+      const max = Math.min(5, satirlar.length);
+      let html = `<div style="padding:10px 12px; background:#f8f9fa; font-size:12px; color:#666; border-bottom:1px solid #e0e0e0;">
+        ${satirlar.length} kayit bulundu — ilk ${max} tanesi gosteriliyor
+      </div><table><thead><tr>`;
+      basliklar.forEach(b => html += `<th>${b}</th>`);
+      html += '</tr></thead><tbody>';
+      for (let i = 0; i < max; i++) {
+        html += '<tr>';
+        satirlar[i].forEach(d => html += `<td>${d || '-'}</td>`);
+        html += '</tr>';
+      }
+      html += '</tbody></table>';
+      container.innerHTML = html;
+      container.style.display = 'block';
+    }
+
+    function ilerlemeGuncelle(tip, yuzde, metin) {
+      document.getElementById(tip + 'Bar').style.width = yuzde + '%';
+      document.getElementById(tip + 'BarMetin').textContent = metin;
+      document.getElementById(tip + 'Ilerleme').style.display = 'block';
+    }
+
+    function sonucGoster(tip, mesaj, tur) {
+      const el = document.getElementById(tip + 'Sonuc');
+      el.textContent = mesaj;
+      el.className = 'sonuc ' + tur;
+      el.style.display = 'block';
+    }
+
+    // ========================
+    // OGRETMEN IMPORT
+    // ========================
+    window.ogretmenImport = async () => {
+      if (ogretmenVerisi.length === 0) return;
+      document.getElementById('ogretmenBtn').disabled = true;
+      sonucGoster('ogretmen', 'Import basliyor...', 'bilgi');
+
+      let basarili = 0, hatali = 0, hatalar = [];
+
+      for (let i = 0; i < ogretmenVerisi.length; i++) {
+        const ogr = ogretmenVerisi[i];
+        ilerlemeGuncelle('ogretmen', Math.round((i / ogretmenVerisi.length) * 100), `${i + 1}/${ogretmenVerisi.length} isleniyor: ${ogr.ad} ${ogr.soyad}`);
+
+        try {
+          await auth.currentUser.getIdToken(true);
+          const ogretmenOlustur = httpsCallable(functions, 'ogretmenOlustur');
+          await ogretmenOlustur({
+            ad: ogr.ad + ' ' + ogr.soyad,
+            brans: ogr.brans,
+            email: ogr.email,
+            sifre: ogr.sifre
+          });
+          basarili++;
+        } catch (err) {
+          if (err.message.includes('email-already-in-use') || err.message.includes('already in use')) {
+            hatalar.push(`${ogr.email}: Zaten kayitli (atlandi)`);
+          } else {
+            hatali++;
+            hatalar.push(`${ogr.email}: ${err.message}`);
+          }
+        }
+      }
+
+      ilerlemeGuncelle('ogretmen', 100, 'Tamamlandi');
+      const mesaj = `Tamamlandi: ${basarili} ogretmen eklendi.${hatali > 0 ? ` ${hatali} hata.` : ''}${hatalar.length > 0 ? '\n' + hatalar.slice(0, 3).join('\n') : ''}`;
+      sonucGoster('ogretmen', mesaj, hatali > 0 ? 'hata' : 'basari');
+      document.getElementById('ogretmenBtn').disabled = false;
+    };
+
+    // ========================
+    // OGRENCI IMPORT
+    // ========================
+    window.ogrenciImport = async () => {
+      if (ogrenciVerisi.length === 0) return;
+      document.getElementById('ogrenciBtn').disabled = true;
+      sonucGoster('ogrenci', 'Import basliyor...', 'bilgi');
+
+      // Mevcut ogrencileri getir
+      const mevcutSnap = await getDocs(collection(db, 'students'));
+      const mevcutOgrenciler = {};
+      mevcutSnap.forEach(d => mevcutOgrenciler[d.data().student_number] = d.id);
+
+      let eklenen = 0, guncellenen = 0, hatali = 0;
+      const BATCH_SIZE = 400;
+
+      for (let i = 0; i < ogrenciVerisi.length; i += BATCH_SIZE) {
+        const grup = ogrenciVerisi.slice(i, i + BATCH_SIZE);
+        const batch = writeBatch(db);
+
+        for (const ogr of grup) {
+          const tamAd = ogr.ad + ' ' + ogr.soyad;
+          if (mevcutOgrenciler[ogr.student_number]) {
+            const ref = doc(db, 'students', mevcutOgrenciler[ogr.student_number]);
+            batch.update(ref, { name: tamAd, class_id: ogr.class_id });
+            guncellenen++;
+          } else {
+            const ref = doc(collection(db, 'students'));
+            batch.set(ref, {
+              student_number: ogr.student_number,
+              name: tamAd,
+              class_id: ogr.class_id,
+              status: 'active',
+              created_at: serverTimestamp()
+            });
+            eklenen++;
+          }
+        }
+
+        await batch.commit();
+        ilerlemeGuncelle('ogrenci',
+          Math.round(((i + grup.length) / ogrenciVerisi.length) * 100),
+          `${i + grup.length}/${ogrenciVerisi.length} islendi`
+        );
+      }
+
+      ilerlemeGuncelle('ogrenci', 100, 'Tamamlandi');
+      sonucGoster('ogrenci', `Tamamlandi: ${eklenen} ogrenci eklendi, ${guncellenen} guncellendi.`, 'basari');
+      document.getElementById('ogrenciBtn').disabled = false;
+    };
+
+    // ========================
+    // DERS PROGRAMI IMPORT
+    // ========================
+    window.programImport = async () => {
+      if (programVerisi.length === 0) return;
+      if (!confirm('Mevcut ders programi silinip yenisi yuklenecek. Devam etmek istiyor musunuz?')) return;
+
+      document.getElementById('programBtn').disabled = true;
+      sonucGoster('program', 'Import basliyor...', 'bilgi');
+
+      // Ogretmenleri email ile eslestir
+      ilerlemeGuncelle('program', 10, 'Ogretmenler yukleniyor...');
+      const ogretmenSnap = await getDocs(collection(db, 'teachers'));
+      const emailToId = {};
+      ogretmenSnap.forEach(d => emailToId[d.data().email] = d.id);
+
+      // Mevcut programi sil
+      ilerlemeGuncelle('program', 20, 'Eski program siliniyor...');
+      const eskiSnap = await getDocs(collection(db, 'schedule'));
+      const BATCH_SIZE = 400;
+
+      for (let i = 0; i < eskiSnap.docs.length; i += BATCH_SIZE) {
+        const batch = writeBatch(db);
+        eskiSnap.docs.slice(i, i + BATCH_SIZE).forEach(d => batch.delete(d.ref));
+        await batch.commit();
+      }
+
+      // Yeni programi yukle
+      ilerlemeGuncelle('program', 50, 'Yeni program yukleniyor...');
+      let eklenen = 0, eslesmeyenEmail = [];
+
+      for (let i = 0; i < programVerisi.length; i += BATCH_SIZE) {
+        const grup = programVerisi.slice(i, i + BATCH_SIZE);
+        const batch = writeBatch(db);
+
+        for (const ders of grup) {
+          const teacherId = emailToId[ders.ogretmen_email];
+          if (!teacherId) {
+            eslesmeyenEmail.push(ders.ogretmen_email);
+            continue;
+          }
+          const ref = doc(collection(db, 'schedule'));
+          batch.set(ref, {
+            day: ders.day,
+            lesson_number: ders.lesson_number,
+            class_id: ders.class_id,
+            teacher_id: teacherId,
+            lesson_name: ders.lesson_name,
+            created_at: serverTimestamp()
+          });
+          eklenen++;
+        }
+
+        await batch.commit();
+        ilerlemeGuncelle('program',
+          50 + Math.round(((i + grup.length) / programVerisi.length) * 50),
+          `${i + grup.length}/${programVerisi.length} ders islendi`
+        );
+      }
+
+      ilerlemeGuncelle('program', 100, 'Tamamlandi');
+
+      let mesaj = `Tamamlandi: ${eklenen} ders eklendi.`;
+      if (eslesmeyenEmail.length > 0) {
+        const benzersiz = [...new Set(eslesmeyenEmail)];
+        mesaj += ` ${benzersiz.length} email eslesmedi: ${benzersiz.slice(0, 3).join(', ')}`;
+      }
+      sonucGoster('program', mesaj, eslesmeyenEmail.length > 0 ? 'hata' : 'basari');
+      document.getElementById('programBtn').disabled = false;
+    };
+
+  </script>
+</body>
+</html>

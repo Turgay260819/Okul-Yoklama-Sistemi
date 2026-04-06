@@ -1,0 +1,50 @@
+const functions = require("firebase-functions");
+const admin = require("firebase-admin");
+
+admin.initializeApp();
+
+exports.ogretmenOlustur = functions.https.onCall(async (data, context) => {
+  
+  // Debug için log ekleyelim
+  console.log("context.auth:", JSON.stringify(context.auth));
+  console.log("data:", JSON.stringify(data));
+
+  if (!context.auth) {
+    console.log("AUTH YOK - kullanıcı giriş yapmamış");
+    throw new functions.https.HttpsError(
+      "unauthenticated", 
+      "Giriş yapılmamış."
+    );
+  }
+
+  const { ad, brans, email, sifre } = data;
+
+  try {
+    const userRecord = await admin.auth().createUser({
+      email,
+      password: sifre,
+      displayName: ad
+    });
+
+    const uid = userRecord.uid;
+
+    await admin.firestore().collection("teachers").add({
+      uid, ad, brans, email,
+      telegram_id: "",
+      notification_enabled: true,
+      created_at: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    await admin.firestore().collection("users").doc(uid).set({
+      ad, email,
+      rol: "ogretmen",
+      bildirim_aktif: false
+    });
+
+    return { success: true, uid };
+
+  } catch (err) {
+    console.error("HATA:", err);
+    throw new functions.https.HttpsError("internal", err.message);
+  }
+});
