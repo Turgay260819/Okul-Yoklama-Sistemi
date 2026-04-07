@@ -505,37 +505,7 @@
     };
 
     window.nobetDuzenle = () => {
-      if (!nobetVerisi) return;
-      const overlay = document.createElement('div');
-      overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;display:flex;justify-content:center;align-items:center;';
-      overlay.id = 'duzenleModal';
-      let html = '<div style="background:white;border-radius:12px;padding:24px;width:90%;max-width:750px;max-height:85vh;overflow-y:auto;">';
-      html += '<div style="font-size:17px;font-weight:600;color:#333;margin-bottom:16px;">Nobetcileri Duzenle</div>';
-      nobetVerisi.gunler.forEach((gun, gunIdx) => {
-        html += '<div style="margin-bottom:16px;"><div style="font-weight:600;color:#1a73e8;margin-bottom:8px;">' + gun.gun + '</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
-        gun.nobetciler.forEach((nobetci, noktaIdx) => {
-          html += '<div style="display:flex;align-items:center;gap:6px;"><span style="font-size:11px;color:#888;min-width:80px;">' + NOKTALAR[noktaIdx] + '</span><input type="text" value="' + nobetci + '" data-gun="' + gunIdx + '" data-nokta="' + noktaIdx + '" style="flex:1;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;"></div>';
-        });
-        html += '</div></div>';
-      });
-      html += '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;padding-top:16px;border-top:1px solid #f0f0f0;"><button onclick="document.getElementById(\'duzenleModal\').remove()" style="padding:9px 18px;border:1px solid #ddd;border-radius:8px;background:white;cursor:pointer;font-size:13px;">Iptal</button><button onclick="nobetDuzenleKaydet()" style="padding:9px 18px;border:none;border-radius:8px;background:#34a853;color:white;cursor:pointer;font-size:13px;font-weight:600;">Kaydet</button></div></div>';
-      overlay.innerHTML = html;
-      document.body.appendChild(overlay);
-    };
-    window.nobetDuzenleKaydet = async () => {
-      const inputs = document.querySelectorAll('#duzenleModal input');
-      const yeniGunler = JSON.parse(JSON.stringify(nobetVerisi.gunler));
-      inputs.forEach(input => {
-        const gunIdx = parseInt(input.dataset.gun);
-        const noktaIdx = parseInt(input.dataset.nokta);
-        yeniGunler[gunIdx].nobetciler[noktaIdx] = input.value.trim();
-      });
-      const yeniVeri = { ...nobetVerisi, gunler: yeniGunler, son_guncelleme: serverTimestamp() };
-      await setDoc(doc(db, 'nobet_ayarlar', 'mevcut'), yeniVeri);
-      nobetVerisi = yeniVeri;
-      document.getElementById('duzenleModal').remove();
-      tabloGoster();
-      mesajGoster('adminMesaj', 'Nobetciler guncellendi.', 'basari');
+      mesajGoster('adminMesaj', 'Bu ozellik yakin zamanda eklenecek.', 'bilgi');
     };
 
     window.nobetSifirla = async () => {
