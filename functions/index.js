@@ -455,3 +455,68 @@ exports.haftalikNobetGonder = onSchedule("0 13 * * 5", async (event) => {
 
   await telegramMesajGonder(mesaj);
 });
+exports.disiplinIlkKurulum = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Giris yapilmamis.");
+  const db = admin.firestore();
+
+  const turler = [
+    { ad: "Derse gec kalma", esik: 3, sira: 1, aktif: true },
+    { ad: "Ders materyallerini getirmeme", esik: 3, sira: 2, aktif: true },
+    { ad: "Kilik kiyafet kuralina uymama", esik: 1, sira: 3, aktif: true },
+    { ad: "Okul esyasina zarar verme", esik: 1, sira: 4, aktif: true },
+    { ad: "Ogretmene saygisizlik", esik: 1, sira: 5, aktif: true },
+    { ad: "Ders akisini bozma", esik: 2, sira: 6, aktif: true },
+    { ad: "Okul kulturune uyumsuzluk", esik: 2, sira: 7, aktif: true }
+  ];
+
+  const batch = db.batch();
+  turler.forEach(tur => {
+    const ref = db.collection("disiplin_turleri").doc();
+    batch.set(ref, { ...tur, olusturulma: admin.firestore.FieldValue.serverTimestamp() });
+  });
+  await batch.commit();
+
+  return { success: true, message: "Disiplin turleri olusturuldu." };
+});
+exports.disiplinEsikKontrol = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Giris yapilmamis.");
+
+  const db = admin.firestore();
+  const { donem } = request.data;
+
+  // Davranış türlerini getir
+  const turSnap = await db.collection("disiplin_turleri").where("aktif", "==", true).get();
+  const turler = {};
+  turSnap.forEach(d => turler[d.data().ad] = d.data().esik);
+
+  // Bu dönemdeki kayıtları getir
+  const kayitSnap = await db.collection("disiplin_kayitlar").where("donem", "==", donem).get();
+  const sayimlar = {};
+  kayitSnap.forEach(d => {
+    const k = d.data();
+    const key = k.ogrenci_no + "|" + k.davranis;
+    if (!sayimlar[key]) sayimlar[key] = { ...k, sayi: 0 };
+    sayimlar[key].sayi++;
+  });
+
+  // Eşik aşılanları bul ve bildir
+  let bildirilenSayisi = 0;
+  for (const [key, veri] of Object.entries(sayimlar)) {
+    const esik = turler[veri.davranis];
+    if (esik && veri.sayi >= esik) {
+      const mesaj = `⚠️ *DİSİPLİN BİLDİRİMİ*\n\n` +
+        `Ogrenci: ${veri.ogrenci_ad}\n` +
+        `Sinif: ${veri.sinif}\n` +
+        `Davranis: ${veri.davranis}\n` +
+        `Tekrar Sayisi: ${veri.sayi} (Esik: ${esik})\n` +
+        `Donem: ${donem}. Donem`;
+      await telegramMesajGonder(mesaj);
+      bildirilenSayisi++;
+    }
+  }
+
+  return {
+    success: true,
+    message: `${bildirilenSayisi} bildirim gonderildi.`
+  };
+});

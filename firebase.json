@@ -26,6 +26,10 @@
     ],
     "rewrites": [
       {
+        "source": "/disiplin.html",
+        "destination": "/disiplin.html"
+      },
+      {
         "source": "/nobet.html",
         "destination": "/nobet.html"
       },

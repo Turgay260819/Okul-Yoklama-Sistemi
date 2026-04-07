@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Disiplin Yonetimi</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f0f4f8; }
+
+    .topbar {
+      background: #1a73e8; color: white;
+      padding: 14px 24px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .topbar h1 { font-size: 18px; font-weight: 600; }
+    .btn-geri {
+      background: rgba(255,255,255,0.2); border: none; color: white;
+      padding: 7px 14px; border-radius: 6px; cursor: pointer;
+      font-size: 13px; text-decoration: none;
+    }
+
+    .layout { display: flex; min-height: calc(100vh - 50px); }
+
+    .sidebar {
+      width: 200px; background: white;
+      border-right: 1px solid #e0e0e0; padding: 20px 0;
+      flex-shrink: 0;
+    }
+    .menu-item {
+      padding: 12px 20px; cursor: pointer; font-size: 14px;
+      color: #444; transition: background 0.2s;
+    }
+    .menu-item:hover { background: #f0f4f8; }
+    .menu-item.aktif {
+      background: #e8f0fe; color: #1a73e8;
+      font-weight: 600; border-right: 3px solid #1a73e8;
+    }
+
+    .icerik { flex: 1; padding: 24px; }
+    .sayfa { display: none; }
+    .sayfa.aktif { display: block; }
+    .sayfa-baslik { font-size: 20px; font-weight: 600; color: #333; margin-bottom: 20px; }
+
+    .kart {
+      background: white; border-radius: 10px;
+      padding: 20px; box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+      margin-bottom: 20px;
+    }
+    .kart h3 {
+      font-size: 15px; color: #333; margin-bottom: 14px;
+      padding-bottom: 10px; border-bottom: 1px solid #f0f0f0;
+    }
+
+    .btn {
+      padding: 10px 20px; border: none; border-radius: 8px;
+      font-size: 14px; font-weight: 600; cursor: pointer;
+    }
+    .btn-mavi { background: #1a73e8; color: white; }
+    .btn-mavi:hover { background: #1557b0; }
+    .btn-yesil { background: #34a853; color: white; }
+    .btn-yesil:hover { background: #2d8f47; }
+    .btn-kirmizi { background: #ea4335; color: white; }
+    .btn-kirmizi:hover { background: #c5221f; }
+    .btn-gri { background: #666; color: white; }
+    .btn-turuncu { background: #f9ab00; color: white; }
+    .btn-turuncu:hover { background: #e37400; }
+    .btn-yazi { background: #25D366; color: white; }
+    .btn-yazdir { background: #555; color: white; }
+
+    .form-group { margin-bottom: 16px; }
+    .form-group label {
+      display: block; font-size: 13px; color: #444;
+      margin-bottom: 6px; font-weight: 500;
+    }
+    .form-group input, .form-group select, .form-group textarea {
+      width: 100%; padding: 10px 12px; border: 1px solid #ddd;
+      border-radius: 8px; font-size: 14px; outline: none;
+      font-family: inherit;
+    }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+      border-color: #1a73e8;
+    }
+    .form-group textarea { resize: vertical; min-height: 80px; }
+
+    .karakter-sayac { font-size: 12px; color: #888; text-align: right; margin-top: 4px; }
+    .karakter-uyari { color: #ea4335; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th {
+      background: #f8f9fa; padding: 10px 14px; text-align: left;
+      font-weight: 600; color: #555; border-bottom: 2px solid #e0e0e0;
+    }
+    td { padding: 10px 14px; border-bottom: 1px solid #f0f0f0; color: #333; }
+    tr:hover td { background: #fafafa; }
+
+    .rozet {
+      display: inline-block; padding: 3px 10px;
+      border-radius: 12px; font-size: 12px; font-weight: 500;
+    }
+    .rozet-kirmizi { background: #fce8e6; color: #c5221f; }
+    .rozet-sari { background: #fef7e0; color: #b06000; }
+    .rozet-yesil { background: #e6f4ea; color: #1e7e34; }
+    .rozet-mavi { background: #e8f0fe; color: #1a73e8; }
+
+    .ogrenci-arama { position: relative; }
+    .ogrenci-sonuclar {
+      position: absolute; top: 100%; left: 0; right: 0;
+      background: white; border: 1px solid #ddd; border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      z-index: 100; max-height: 200px; overflow-y: auto; display: none;
+    }
+    .ogrenci-sonuc-item {
+      padding: 10px 14px; cursor: pointer; font-size: 14px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .ogrenci-sonuc-item:hover { background: #f0f4f8; }
+    .ogrenci-sonuc-item:last-child { border-bottom: none; }
+
+    .secili-ogrenci {
+      background: #e8f0fe; border-radius: 8px;
+      padding: 12px 16px; margin-bottom: 16px;
+      display: none; align-items: center; justify-content: space-between;
+    }
+    .secili-ogrenci-bilgi strong { color: #1a73e8; }
+
+    .davranis-listesi {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+      margin-bottom: 16px;
+    }
+    .davranis-item {
+      border: 2px solid #e0e0e0; border-radius: 8px;
+      padding: 12px; cursor: pointer; transition: all 0.2s;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .davranis-item:hover { border-color: #1a73e8; background: #f8fbff; }
+    .davranis-item.secili { border-color: #1a73e8; background: #e8f0fe; }
+    .davranis-item input[type="checkbox"] { width: 16px; height: 16px; }
+    .davranis-item-esik { font-size: 11px; color: #888; margin-top: 2px; }
+
+    .gecmis-kutu {
+      background: #fff3e0; border: 1px solid #ffe0b2;
+      border-radius: 8px; padding: 12px 16px; margin-bottom: 16px;
+      font-size: 13px; display: none;
+    }
+    .gecmis-kutu h4 { color: #e65100; margin-bottom: 8px; }
+    .gecmis-satir {
+      display: flex; justify-content: space-between;
+      padding: 4px 0; border-bottom: 1px solid #ffe0b2; color: #555;
+    }
+    .gecmis-satir:last-child { border-bottom: none; }
+    .esik-asild { color: #c5221f; font-weight: 600; }
+
+    .mesaj {
+      padding: 12px 16px; border-radius: 8px;
+      font-size: 14px; margin-top: 12px; display: none;
+    }
+    .mesaj-basari { background: #e6f4ea; color: #1e7e34; }
+    .mesaj-hata { background: #fce8e6; color: #c5221f; }
+
+    .yukleniyor-mesaj { text-align: center; color: #666; padding: 30px; }
+    .bos-mesaj { text-align: center; color: #999; padding: 30px; }
+
+    .istatistik-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 16px; margin-bottom: 20px;
+    }
+    .istatistik-kart {
+      background: white; border-radius: 10px; padding: 20px;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.08); text-align: center;
+    }
+    .istatistik-sayi { font-size: 32px; font-weight: 700; color: #1a73e8; }
+    .istatistik-etiket { font-size: 12px; color: #666; margin-top: 4px; }
+
+    .filtre-bar {
+      display: flex; gap: 12px; flex-wrap: wrap;
+      margin-bottom: 16px; align-items: flex-end;
+    }
+    .filtre-bar .form-group { margin-bottom: 0; min-width: 160px; }
+
+    /* HAFTALIK RAPOR */
+    .haftalik-rapor-blok {
+      border: 1px solid #e0e0e0; border-radius: 10px;
+      margin-bottom: 16px; overflow: hidden;
+    }
+    .haftalik-rapor-baslik {
+      background: #1a73e8; color: white;
+      padding: 12px 16px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .haftalik-rapor-baslik h4 { font-size: 15px; }
+    .haftalik-rapor-icerik { padding: 16px; }
+
+    .davranis-grup {
+      margin-bottom: 16px; padding-bottom: 16px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .davranis-grup:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+    .davranis-grup-baslik {
+      font-weight: 600; color: #333; margin-bottom: 10px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .davranis-ogrenci-listesi {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 8px; margin-bottom: 10px;
+    }
+    .davranis-ogrenci-item {
+      background: #f8f9fa; border-radius: 6px; padding: 8px 12px;
+      font-size: 13px; display: flex; justify-content: space-between;
+      align-items: center;
+    }
+    .davranis-ogrenci-item .tekrar {
+      background: #ea4335; color: white; border-radius: 10px;
+      padding: 2px 7px; font-size: 11px; font-weight: 600;
+    }
+    .davranis-ogrenci-item .tekrar-az {
+      background: #f9ab00;
+    }
+
+    .whatsapp-btn {
+      background: #25D366; color: white; border: none;
+      padding: 7px 14px; border-radius: 6px; cursor: pointer;
+      font-size: 12px; font-weight: 600;
+    }
+    .whatsapp-btn:hover { background: #128C7E; }
+
+    .sinif-filtre-row {
+      display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px;
+    }
+    .sinif-filtre-btn {
+      padding: 6px 12px; border: 1px solid #ddd; border-radius: 6px;
+      cursor: pointer; font-size: 12px; background: white;
+    }
+    .sinif-filtre-btn.aktif { background: #1a73e8; color: white; border-color: #1a73e8; }
+
+    /* YAZDIRMA */
+    @media print {
+      .topbar, .sidebar, .filtre-bar, .sinif-filtre-row,
+      .whatsapp-btn, .btn, .mesaj, .kart:not(.yazdir-kart) { display: none !important; }
+      .layout { display: block; }
+      .icerik { padding: 0; }
+      .yazdir-kart { box-shadow: none; border: none; }
+      .haftalik-rapor-baslik { background: #333 !important; -webkit-print-color-adjust: exact; }
+    }
+
+    @media (max-width: 768px) {
+      .layout { flex-direction: column; }
+      .sidebar { width: 100%; display: flex; flex-wrap: wrap; padding: 10px; }
+      .menu-item { padding: 8px 12px; font-size: 13px; }
+      .davranis-listesi { grid-template-columns: 1fr; }
+      .davranis-ogrenci-listesi { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="topbar">
+    <h1>Disiplin Yonetimi</h1>
+    <a href="/admin.html" class="btn-geri">Ana Panele Don</a>
+  </div>
+
+  <div class="layout">
+    <div class="sidebar">
+      <div class="menu-item aktif" onclick="sayfaGoster('kayit', this)">Kayit Ekle</div>
+      <div class="menu-item" onclick="sayfaGoster('kayitlar', this)">Tum Kayitlar</div>
+      <div class="menu-item" onclick="sayfaGoster('raporlar', this)" id="menuRaporlar">Raporlar</div>
+      <div class="menu-item" onclick="sayfaGoster('ayarlar', this)" id="menuAyarlar">Ayarlar</div>
+    </div>
+
+    <div class="icerik">
+
+      <!-- KAYIT EKLE -->
+      <div class="sayfa aktif" id="sayfa-kayit">
+        <div class="sayfa-baslik">Disiplin Kaydi Ekle</div>
+        <div class="kart">
+          <h3>1. Ogrenci Sec</h3>
+          <div class="ogrenci-arama">
+            <div class="form-group" style="margin-bottom:8px;">
+              <input type="text" id="ogrenciArama" placeholder="Ogrenci adi veya numarasi ile ara..."
+                autocomplete="off" oninput="ogrenciAra(this.value)">
+            </div>
+            <div class="ogrenci-sonuclar" id="ogrenciSonuclar"></div>
+          </div>
+          <div class="secili-ogrenci" id="seciliOgrenciDiv">
+            <div class="secili-ogrenci-bilgi">
+              <strong id="seciliOgrenciAd"></strong>
+              <span id="seciliOgrenciDetay" style="color:#666; margin-left:8px;"></span>
+            </div>
+            <button class="btn btn-gri" style="padding:6px 12px; font-size:12px;"
+              onclick="ogrenciTemizle()">Degistir</button>
+          </div>
+          <div class="gecmis-kutu" id="gecmisKutu">
+            <h4>Bu Donem Gecmis Kayitlar</h4>
+            <div id="gecmisIcerik"></div>
+          </div>
+
+          <h3 style="margin-top:20px;">2. Davranis Sec</h3>
+          <div class="davranis-listesi" id="davranisListesi">
+            <div class="yukleniyor-mesaj">Yukleniyor...</div>
+          </div>
+
+          <h3>3. Not Ekle (Zorunlu)</h3>
+          <div class="form-group">
+            <textarea id="kayitNot" placeholder="Aciklama yazin... (en az 10, en fazla 250 karakter)"
+              oninput="karakterSay(this)"></textarea>
+            <div class="karakter-sayac" id="karakterSayac">0 / 250</div>
+          </div>
+
+          <button class="btn btn-yesil" onclick="kayitKaydet()" id="btnKaydet">Kaydi Kaydet</button>
+          <div class="mesaj" id="kayitMesaj"></div>
+        </div>
+      </div>
+
+      <!-- TÜM KAYITLAR -->
+      <div class="sayfa" id="sayfa-kayitlar">
+        <div class="sayfa-baslik">Tum Kayitlar</div>
+        <div class="kart">
+          <div class="filtre-bar">
+            <div class="form-group">
+              <label>Sinif</label>
+              <select id="filtreKayitSinif" onchange="kayitlariGetir()">
+                <option value="">Tum Siniflar</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Davranis</label>
+              <select id="filtreKayitDavranis" onchange="kayitlariGetir()">
+                <option value="">Tum Davranislar</option>
+              </select>
+            </div>
+            <button class="btn btn-mavi" onclick="kayitlariGetir()">Filtrele</button>
+          </div>
+          <div id="kayitlarListesi"><div class="yukleniyor-mesaj">Yukleniyor...</div></div>
+        </div>
+      </div>
+
+      <!-- RAPORLAR -->
+      <div class="sayfa" id="sayfa-raporlar">
+        <div class="sayfa-baslik">Raporlar</div>
+
+        <div class="istatistik-grid">
+          <div class="istatistik-kart"><div class="istatistik-sayi" id="statToplamKayit">-</div><div class="istatistik-etiket">Toplam Kayit (Donem)</div></div>
+          <div class="istatistik-kart"><div class="istatistik-sayi" id="statFarkliOgrenci">-</div><div class="istatistik-etiket">Farkli Ogrenci</div></div>
+          <div class="istatistik-kart"><div class="istatistik-sayi" id="statEsikAsilan" style="color:#ea4335">-</div><div class="istatistik-etiket">Esik Asildi</div></div>
+        </div>
+
+        <!-- HAFTALIK RAPOR -->
+        <div class="kart yazdir-kart">
+          <h3>Haftalik Disiplin Raporu</h3>
+          <div class="filtre-bar">
+            <div class="form-group">
+              <label>Baslangic Tarihi</label>
+              <input type="date" id="haftaBaslangic">
+            </div>
+            <div class="form-group">
+              <label>Bitis Tarihi</label>
+              <input type="date" id="haftaBitis">
+            </div>
+            <div class="form-group">
+              <label>Sinif Filtresi</label>
+              <select id="haftaSinifFiltre">
+                <option value="">Tum Siniflar</option>
+              </select>
+            </div>
+            <button class="btn btn-mavi" onclick="haftalikRaporGetir()">Raporu Getir</button>
+            <button class="btn btn-yazdir" onclick="window.print()">Yazdir</button>
+          </div>
+          <div id="haftalikRaporIcerik"><div class="bos-mesaj">Tarih secip raporu getirin</div></div>
+        </div>
+
+        <!-- EŞİK AŞILANLAR -->
+        <div class="kart">
+          <h3>Esik Asilan Ogrenciler (Bu Donem)</h3>
+          <div id="esikAsilanlar"><div class="yukleniyor-mesaj">Yukleniyor...</div></div>
+        </div>
+
+        <!-- DAVRANIS İSTATİSTİĞİ -->
+        <div class="kart">
+          <h3>En Cok Tekrar Eden Davranislar</h3>
+          <div id="davranisIstatistik"><div class="yukleniyor-mesaj">Yukleniyor...</div></div>
+        </div>
+
+        <!-- EŞİK KONTROLÜ -->
+        <div class="kart">
+          <h3>Esik Kontrolu ve Telegram Bildirimi</h3>
+          <p style="font-size:13px; color:#666; margin-bottom:12px;">Esik asilan ogrenciler icin Telegram bildirimi gonder.</p>
+          <button class="btn btn-mavi" onclick="esikKontrolVeGonder()">Esik Kontrolu Yap ve Bildir</button>
+          <div class="mesaj" id="esikMesaj"></div>
+        </div>
+      </div>
+
+      <!-- AYARLAR -->
+      <div class="sayfa" id="sayfa-ayarlar">
+        <div class="sayfa-baslik">Disiplin Ayarlari</div>
+
+        <div class="kart">
+          <h3>Davranis Turleri</h3>
+          <div id="davranisAyarListesi"><div class="yukleniyor-mesaj">Yukleniyor...</div></div>
+        </div>
+
+        <div class="kart">
+          <h3>Yeni Davranis Turu Ekle</h3>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+            <div class="form-group">
+              <label>Davranis Adi</label>
+              <input type="text" id="yeniDavranisAd" placeholder="Ornek: Kopya cekme">
+            </div>
+            <div class="form-group">
+              <label>Esik (kac tekrarda bildirim)</label>
+              <input type="number" id="yeniDavranisEsik" placeholder="3" min="1">
+            </div>
+          </div>
+          <button class="btn btn-yesil" onclick="davranisEkle()">+ Davranis Ekle</button>
+          <div class="mesaj" id="davranisMesaj"></div>
+        </div>
+
+        <!-- WHATSAPP MESAJ ŞABLONLARI -->
+        <div class="kart">
+          <h3>WhatsApp Mesaj Sablonlari</h3>
+          <p style="font-size:13px; color:#666; margin-bottom:14px;">Her davranis turu icin veli mesaj sablonu tanimlayin. {ogrenci} yazdiginiz yere ogrenci adi gelir.</p>
+          <div id="sablon-listesi"><div class="yukleniyor-mesaj">Yukleniyor...</div></div>
+          <div class="mesaj" id="sablonMesaj"></div>
+        </div>
+
+        <div class="kart">
+          <h3>Donem Ayari</h3>
+          <p style="font-size:13px; color:#666; margin-bottom:12px;">Aktif donemi degistirin.</p>
+          <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+            <div class="form-group" style="margin-bottom:0;">
+              <select id="aktifDonem">
+                <option value="1">1. Donem</option>
+                <option value="2">2. Donem</option>
+              </select>
+            </div>
+            <button class="btn btn-mavi" onclick="donemGuncelle()">Donemi Guncelle</button>
+          </div>
+          <div class="mesaj" id="donemMesaj"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
+    import {
+      getFirestore, doc, getDoc, getDocs, addDoc, setDoc, deleteDoc, updateDoc,
+      collection, query, where, orderBy, serverTimestamp, limit,
+      Timestamp
+    } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyAHTCiicd4b94rG1-jN0STRbwcrLmkYudo",
+      authDomain: "okul-yoklama-sistemi-8081f.firebaseapp.com",
+      projectId: "okul-yoklama-sistemi-8081f",
+      storageBucket: "okul-yoklama-sistemi-8081f.firebasestorage.app",
+      messagingSenderId: "38230047763",
+      appId: "1:38230047763:web:dfab058df8928b66be13e6"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const functions = getFunctions(app, 'us-central1');
+
+    let aktifKullanici = null;
+    let aktifRol = null;
+    let tumOgrenciler = [];
+    let tumDavranislar = [];
+    let seciliOgrenci = null;
+    let aktifDonem = "1";
+    let mesajSablonlari = {};
+
+    // Varsayılan şablonlar
+    const VARSAYILAN_SABLONLAR = {
+      "Derse gec kalma": "Sayın velimiz, {ogrenci} adlı öğrenciniz geçtiğimiz hafta okula geç kalma davranışını göstermiştir. Gerekli hassasiyeti gösterinizi rica ederiz.",
+      "Ders materyallerini getirmeme": "Sayın velimiz, {ogrenci} adlı öğrenciniz ders materyallerini (kitap, defter vb.) getirmemektedir. Lütfen gerekli malzemelerin temin edilmesini sağlayınız.",
+      "Kilik kiyafet kuralina uymama": "Sayın velimiz, {ogrenci} adlı öğrenciniz okul kıyafet yönetmeliğine uymamaktadır. Gerekli düzeltmenin yapılmasını rica ederiz.",
+      "Okul esyasina zarar verme": "Sayın velimiz, {ogrenci} adlı öğrenciniz okul eşyasına zarar vermiştir. Bu konuda ailenizin desteğini bekliyoruz.",
+      "Ogretmene saygisizlik": "Sayın velimiz, {ogrenci} adlı öğrenciniz öğretmenine karşı saygısız davranış sergilemiştir. Bu konunun ailenizle de görüşülmesi gerekmektedir.",
+      "Ders akisini bozma": "Sayın velimiz, {ogrenci} adlı öğrenciniz ders akışını bozan davranışlar sergilemektedir. Gerekli uyarının yapılmasını rica ederiz.",
+      "Okul kulturune uyumsuzluk": "Sayın velimiz, {ogrenci} adlı öğrenciniz okul kurallarına uyumsuz davranışlar sergilemektedir. Bu konuda desteğinizi bekliyoruz."
+    };
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) { window.location.href = '/index.html'; return; }
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (!userDoc.exists()) { window.location.href = '/index.html'; return; }
+      aktifKullanici = userDoc.data();
+      aktifRol = aktifKullanici.rol;
+
+      if (aktifRol !== 'admin' && aktifRol !== 'mudur_yardimcisi') {
+        document.getElementById('menuAyarlar').style.display = 'none';
+        document.getElementById('menuRaporlar').style.display = 'none';
+      }
+
+      await baslangicYukle();
+    });
+
+    async function baslangicYukle() {
+      const ayarDoc = await getDoc(doc(db, 'disiplin_ayarlar', 'genel'));
+      if (ayarDoc.exists()) {
+        aktifDonem = ayarDoc.data().aktif_donem || "1";
+        mesajSablonlari = ayarDoc.data().mesaj_sablonlari || {};
+      }
+
+      // Varsayılan şablonları ekle
+      Object.keys(VARSAYILAN_SABLONLAR).forEach(k => {
+        if (!mesajSablonlari[k]) mesajSablonlari[k] = VARSAYILAN_SABLONLAR[k];
+      });
+
+      const davSnap = await getDocs(query(collection(db, 'disiplin_turleri'), orderBy('sira')));
+      tumDavranislar = [];
+      davSnap.forEach(d => tumDavranislar.push({ id: d.id, ...d.data() }));
+      davranislarGoster();
+
+      const ogrSnap = await getDocs(collection(db, 'students'));
+      tumOgrenciler = [];
+      ogrSnap.forEach(d => tumOgrenciler.push({ id: d.id, ...d.data() }));
+
+      siniflarDoldur();
+      davranisFilteriDoldur();
+      raporYukle();
+      davranisAyarlariniGoster();
+      sablonlarGoster();
+
+      // Haftalık rapor için varsayılan tarihler (bu hafta Pazartesi - Cuma)
+      const bugun = new Date();
+      const haftaBaslangic = new Date(bugun);
+      haftaBaslangic.setDate(bugun.getDate() - bugun.getDay() + 1);
+      const haftaBitis = new Date(haftaBaslangic);
+      haftaBitis.setDate(haftaBaslangic.getDate() + 4);
+      document.getElementById('haftaBaslangic').value = haftaBaslangic.toISOString().split('T')[0];
+      document.getElementById('haftaBitis').value = haftaBitis.toISOString().split('T')[0];
+    }
+
+    function siniflarDoldur() {
+      const siniflar = [...new Set(tumOgrenciler.map(o => o.class_id))].sort();
+      const selects = ['filtreKayitSinif', 'haftaSinifFiltre'];
+      selects.forEach(id => {
+        const sel = document.getElementById(id);
+        siniflar.forEach(s => sel.innerHTML += `<option value="${s}">${s}</option>`);
+      });
+    }
+
+    function davranisFilteriDoldur() {
+      const select = document.getElementById('filtreKayitDavranis');
+      tumDavranislar.forEach(d => {
+        select.innerHTML += `<option value="${d.ad}">${d.ad}</option>`;
+      });
+    }
+
+    window.sayfaGoster = (sayfaId, menuItem) => {
+      document.querySelectorAll('.sayfa').forEach(s => s.classList.remove('aktif'));
+      document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('aktif'));
+      document.getElementById('sayfa-' + sayfaId).classList.add('aktif');
+      menuItem.classList.add('aktif');
+      if (sayfaId === 'kayitlar') kayitlariGetir();
+      if (sayfaId === 'raporlar') raporYukle();
+      if (sayfaId === 'ayarlar') { davranisAyarlariniGoster(); sablonlarGoster(); }
+    };
+
+    function davranislarGoster() {
+      const container = document.getElementById('davranisListesi');
+      if (tumDavranislar.length === 0) {
+        container.innerHTML = '<div class="bos-mesaj">Davranis turu bulunamadi</div>';
+        return;
+      }
+      let html = '';
+      tumDavranislar.filter(d => d.aktif).forEach(d => {
+        html += `<div class="davranis-item" id="dav-${d.id}" onclick="davranisToggle('${d.id}')">
+          <input type="checkbox" id="chk-${d.id}" onclick="event.stopPropagation()">
+          <div>
+            <div class="davranis-item-ad">${d.ad}</div>
+            <div class="davranis-item-esik">Esik: ${d.esik} tekrar</div>
+          </div>
+        </div>`;
+      });
+      container.innerHTML = html;
+    }
+
+    window.davranisToggle = (id) => {
+      const item = document.getElementById('dav-' + id);
+      const chk = document.getElementById('chk-' + id);
+      chk.checked = !chk.checked;
+      item.classList.toggle('secili', chk.checked);
+    };
+
+    window.ogrenciAra = (q) => {
+      const sonuclar = document.getElementById('ogrenciSonuclar');
+      if (q.length < 2) { sonuclar.style.display = 'none'; return; }
+      const filtre = tumOgrenciler.filter(o =>
+        o.name.toLowerCase().includes(q.toLowerCase()) ||
+        o.student_number.toString().includes(q)
+      ).slice(0, 8);
+      if (filtre.length === 0) {
+        sonuclar.innerHTML = '<div class="ogrenci-sonuc-item">Sonuc bulunamadi</div>';
+      } else {
+        sonuclar.innerHTML = filtre.map(o =>
+          `<div class="ogrenci-sonuc-item" onclick="ogrenciSec('${o.id}')">
+            <strong>${o.name}</strong>
+            <span style="color:#888; margin-left:8px; font-size:12px;">${o.student_number} | ${o.class_id}</span>
+          </div>`
+        ).join('');
+      }
+      sonuclar.style.display = 'block';
+    };
+
+    window.ogrenciSec = async (id) => {
+      seciliOgrenci = tumOgrenciler.find(o => o.id === id);
+      document.getElementById('ogrenciArama').value = '';
+      document.getElementById('ogrenciSonuclar').style.display = 'none';
+      document.getElementById('seciliOgrenciAd').textContent = seciliOgrenci.name;
+      document.getElementById('seciliOgrenciDetay').textContent = `No: ${seciliOgrenci.student_number} | Sinif: ${seciliOgrenci.class_id}`;
+      document.getElementById('seciliOgrenciDiv').style.display = 'flex';
+      await gecmisGetir();
+    };
+
+    window.ogrenciTemizle = () => {
+      seciliOgrenci = null;
+      document.getElementById('seciliOgrenciDiv').style.display = 'none';
+      document.getElementById('gecmisKutu').style.display = 'none';
+      document.getElementById('ogrenciArama').value = '';
+    };
+
+    async function gecmisGetir() {
+      const snap = await getDocs(query(
+        collection(db, 'disiplin_kayitlar'),
+        where('ogrenci_no', '==', seciliOgrenci.student_number),
+        where('donem', '==', aktifDonem),
+        orderBy('tarih', 'desc'),
+        limit(20)
+      ));
+      if (snap.empty) { document.getElementById('gecmisKutu').style.display = 'none'; return; }
+      const sayimlar = {};
+      snap.forEach(d => {
+        const k = d.data();
+        sayimlar[k.davranis] = (sayimlar[k.davranis] || 0) + 1;
+      });
+      let html = '';
+      Object.entries(sayimlar).forEach(([davranis, sayi]) => {
+        const tur = tumDavranislar.find(d => d.ad === davranis);
+        const esik = tur ? tur.esik : 999;
+        const asild = sayi >= esik;
+        html += `<div class="gecmis-satir">
+          <span>${davranis}</span>
+          <span class="${asild ? 'esik-asild' : ''}">${sayi} kez ${asild ? '(ESIK ASILDI)' : ''}</span>
+        </div>`;
+      });
+      document.getElementById('gecmisIcerik').innerHTML = html;
+      document.getElementById('gecmisKutu').style.display = 'block';
+    }
+
+    window.karakterSay = (el) => {
+      const sayi = el.value.length;
+      const sayac = document.getElementById('karakterSayac');
+      sayac.textContent = sayi + ' / 250';
+      sayac.className = 'karakter-sayac' + (sayi > 250 ? ' karakter-uyari' : '');
+    };
+
+    window.kayitKaydet = async () => {
+      if (!seciliOgrenci) { mesajGoster('kayitMesaj', 'Lutfen ogrenci secin.', 'hata'); return; }
+      const seciliDavranislar = tumDavranislar.filter(d => document.getElementById('chk-' + d.id)?.checked);
+      if (seciliDavranislar.length === 0) { mesajGoster('kayitMesaj', 'Lutfen en az bir davranis secin.', 'hata'); return; }
+      const not = document.getElementById('kayitNot').value.trim();
+      if (not.length < 10) { mesajGoster('kayitMesaj', 'Not en az 10 karakter olmali.', 'hata'); return; }
+      if (not.length > 250) { mesajGoster('kayitMesaj', 'Not en fazla 250 karakter olmali.', 'hata'); return; }
+
+      document.getElementById('btnKaydet').disabled = true;
+      try {
+        for (const davranis of seciliDavranislar) {
+          await addDoc(collection(db, 'disiplin_kayitlar'), {
+            ogrenci_id: seciliOgrenci.id,
+            ogrenci_no: seciliOgrenci.student_number,
+            ogrenci_ad: seciliOgrenci.name,
+            sinif: seciliOgrenci.class_id,
+            davranis: davranis.ad,
+            davranis_id: davranis.id,
+            not: not,
+            donem: aktifDonem,
+            ogretmen_id: auth.currentUser.uid,
+            ogretmen_ad: aktifKullanici.ad + ' ' + (aktifKullanici.soyad || ''),
+            tarih: serverTimestamp(),
+            bildirim_gonderildi: false
+          });
+        }
+        mesajGoster('kayitMesaj', seciliDavranislar.length + ' davranis kaydi eklendi.', 'basari');
+        document.getElementById('kayitNot').value = '';
+        document.getElementById('karakterSayac').textContent = '0 / 250';
+        tumDavranislar.forEach(d => {
+          const chk = document.getElementById('chk-' + d.id);
+          const item = document.getElementById('dav-' + d.id);
+          if (chk) chk.checked = false;
+          if (item) item.classList.remove('secili');
+        });
+        await gecmisGetir();
+      } catch (err) {
+        mesajGoster('kayitMesaj', 'Hata: ' + err.message, 'hata');
+      }
+      document.getElementById('btnKaydet').disabled = false;
+    };
+
+    window.kayitlariGetir = async () => {
+      const sinifFiltre = document.getElementById('filtreKayitSinif').value;
+      const davranisFiltre = document.getElementById('filtreKayitDavranis').value;
+      const container = document.getElementById('kayitlarListesi');
+      container.innerHTML = '<div class="yukleniyor-mesaj">Yukleniyor...</div>';
+      const snap = await getDocs(query(collection(db, 'disiplin_kayitlar'), orderBy('tarih', 'desc'), limit(200)));
+      let kayitlar = [];
+      snap.forEach(d => kayitlar.push({ id: d.id, ...d.data() }));
+      if (sinifFiltre) kayitlar = kayitlar.filter(k => k.sinif === sinifFiltre);
+      if (davranisFiltre) kayitlar = kayitlar.filter(k => k.davranis === davranisFiltre);
+      if (kayitlar.length === 0) { container.innerHTML = '<div class="bos-mesaj">Kayit bulunamadi</div>'; return; }
+      let html = `<table><thead><tr><th>Tarih</th><th>Ogrenci</th><th>Sinif</th><th>Davranis</th><th>Ogretmen</th><th>Not</th></tr></thead><tbody>`;
+      kayitlar.forEach(k => {
+        const tarih = k.tarih?.toDate ? k.tarih.toDate().toLocaleDateString('tr-TR') : '-';
+        html += `<tr><td>${tarih}</td>
+          <td><strong>${k.ogrenci_ad}</strong><br><small style="color:#888">${k.ogrenci_no}</small></td>
+          <td>${k.sinif}</td><td>${k.davranis}</td><td>${k.ogretmen_ad}</td>
+          <td style="max-width:200px; font-size:12px;">${k.not}</td></tr>`;
+      });
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    };
+
+    // HAFTALIK RAPOR
+    window.haftalikRaporGetir = async () => {
+      const baslangicStr = document.getElementById('haftaBaslangic').value;
+      const bitisStr = document.getElementById('haftaBitis').value;
+      const sinifFiltre = document.getElementById('haftaSinifFiltre').value;
+      const container = document.getElementById('haftalikRaporIcerik');
+
+      if (!baslangicStr || !bitisStr) {
+        container.innerHTML = '<div class="bos-mesaj">Lutfen tarih araligini secin</div>'; return;
+      }
+
+      container.innerHTML = '<div class="yukleniyor-mesaj">Yukleniyor...</div>';
+
+      const baslangic = new Date(baslangicStr + 'T00:00:00');
+      const bitis = new Date(bitisStr + 'T23:59:59');
+
+      const snap = await getDocs(query(
+        collection(db, 'disiplin_kayitlar'),
+        where('tarih', '>=', Timestamp.fromDate(baslangic)),
+        where('tarih', '<=', Timestamp.fromDate(bitis)),
+        orderBy('tarih', 'asc')
+      ));
+
+      let kayitlar = [];
+      snap.forEach(d => kayitlar.push({ id: d.id, ...d.data() }));
+
+      if (sinifFiltre) kayitlar = kayitlar.filter(k => k.sinif === sinifFiltre);
+
+      if (kayitlar.length === 0) {
+        container.innerHTML = '<div class="bos-mesaj">Bu tarih araliginda kayit bulunamadi</div>'; return;
+      }
+
+      // Günlere göre grupla
+      const gunler = {};
+      const gunAdlari = ['Pazar', 'Pazartesi', 'Sali', 'Carsamba', 'Persembe', 'Cuma', 'Cumartesi'];
+      kayitlar.forEach(k => {
+        const tarih = k.tarih?.toDate ? k.tarih.toDate() : new Date();
+        const tarihStr = tarih.toLocaleDateString('tr-TR');
+        const gunAdi = gunAdlari[tarih.getDay()];
+        const key = tarihStr + '|' + gunAdi;
+        if (!gunler[key]) gunler[key] = {};
+        if (!gunler[key][k.davranis]) gunler[key][k.davranis] = [];
+        gunler[key][k.davranis].push(k);
+      });
+
+      let html = '';
+      Object.entries(gunler).sort().forEach(([gunKey, davranislar]) => {
+        const [tarih, gunAdi] = gunKey.split('|');
+        html += `<div class="haftalik-rapor-blok">
+          <div class="haftalik-rapor-baslik">
+            <h4>${gunAdi} - ${tarih}</h4>
+          </div>
+          <div class="haftalik-rapor-icerik">`;
+
+        // Her davranış için
+        const satirlar = [];
+        Object.entries(davranislar).forEach(([davranis, kayitGrubu]) => {
+          // Öğrenci bazında say ve sırala
+          const ogrSayimlar = {};
+          kayitGrubu.forEach(k => {
+            const key = k.ogrenci_no;
+            if (!ogrSayimlar[key]) ogrSayimlar[key] = { ...k, sayi: 0 };
+            ogrSayimlar[key].sayi++;
+          });
+
+          const ogrList = Object.values(ogrSayimlar).sort((a, b) =>
+            parseInt(a.ogrenci_no) - parseInt(b.ogrenci_no)
+          );
+
+          // WhatsApp mesajı hazırla
+          const sablon = mesajSablonlari[davranis] || `Sayın velimiz, {ogrenci} adlı öğrenciniz ${davranis} davranışını göstermiştir.`;
+          const ogrenciListesiMetin = ogrList.map(o => `- ${o.ogrenci_ad} (${o.sinif}) No: ${o.ogrenci_no}`).join('\n');
+          const mesaj = sablon.replace('{ogrenci}', '[ÖĞRENCİ ADI]') + '\n\n' +
+            `Bu hafta etkilenen öğrenciler:\n${ogrenciListesiMetin}`;
+
+          satirlar.push({ davranis, ogrList, mesaj });
+        });
+
+        // Sütunlar halinde göster
+        const sutunSayisi = Math.min(3, satirlar.length);
+        html += `<div style="display:grid; grid-template-columns:repeat(${sutunSayisi}, 1fr); gap:16px;">`;
+
+        satirlar.forEach(({ davranis, ogrList, mesaj }) => {
+          html += `<div class="davranis-grup">
+            <div class="davranis-grup-baslik">
+              <span>${davranis}</span>
+              <span class="rozet rozet-mavi">${ogrList.length} ogrenci</span>
+            </div>
+            <div>`;
+
+          ogrList.forEach(o => {
+            const tekrarClass = o.sayi > 2 ? 'tekrar' : 'tekrar tekrar-az';
+            html += `<div class="davranis-ogrenci-item">
+              <span>
+                <strong style="font-size:12px;">${o.ogrenci_no}</strong>
+                <span style="margin-left:4px;">${o.ogrenci_ad}</span>
+                <span style="color:#888; font-size:11px; margin-left:4px;">${o.sinif}</span>
+              </span>
+              ${o.sayi > 1 ? `<span class="${tekrarClass}">${o.sayi}x</span>` : ''}
+            </div>`;
+          });
+
+          const mesajEncoded = encodeURIComponent(mesaj);
+          html += `</div>
+            <button class="whatsapp-btn" style="margin-top:8px;" onclick="mesajKopyala('${davranis}', \`${mesaj.replace(/`/g, "'")}\`)">
+              WhatsApp Mesaji Kopyala
+            </button>
+          </div>`;
+        });
+
+        html += `</div></div></div>`;
+      });
+
+      container.innerHTML = html;
+    };
+
+    window.mesajKopyala = (davranis, mesaj) => {
+      navigator.clipboard.writeText(mesaj).then(() => {
+        alert(davranis + ' icin mesaj panoya kopyalandi!\nWhatsApp\'ta yapistirabilirsiniz.');
+      }).catch(() => {
+        const el = document.createElement('textarea');
+        el.value = mesaj;
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand('copy');
+        document.body.removeChild(el);
+        alert(davranis + ' icin mesaj panoya kopyalandi!');
+      });
+    };
+
+    // RAPOR
+    async function raporYukle() {
+      const snap = await getDocs(query(
+        collection(db, 'disiplin_kayitlar'),
+        where('donem', '==', aktifDonem)
+      ));
+      const kayitlar = [];
+      snap.forEach(d => kayitlar.push(d.data()));
+
+      document.getElementById('statToplamKayit').textContent = kayitlar.length;
+      const ogrenciler = new Set(kayitlar.map(k => k.ogrenci_no));
+      document.getElementById('statFarkliOgrenci').textContent = ogrenciler.size;
+
+      const sayimlar = {};
+      kayitlar.forEach(k => {
+        const key = k.ogrenci_no + '|' + k.davranis;
+        sayimlar[key] = (sayimlar[key] || 0) + 1;
+      });
+
+      const esikAsilanlar = [];
+      Object.entries(sayimlar).forEach(([key, sayi]) => {
+        const [ogrNo, davranis] = key.split('|');
+        const tur = tumDavranislar.find(d => d.ad === davranis);
+        if (tur && sayi >= tur.esik) {
+          const kayit = kayitlar.find(k => k.ogrenci_no === ogrNo && k.davranis === davranis);
+          esikAsilanlar.push({ ogrNo, ogrAd: kayit?.ogrenci_ad, sinif: kayit?.sinif, davranis, sayi, esik: tur.esik });
+        }
+      });
+
+      document.getElementById('statEsikAsilan').textContent = esikAsilanlar.length;
+
+      if (esikAsilanlar.length === 0) {
+        document.getElementById('esikAsilanlar').innerHTML = '<div class="bos-mesaj">Esik asilan ogrenci yok</div>';
+      } else {
+        esikAsilanlar.sort((a, b) => parseInt(a.ogrNo) - parseInt(b.ogrNo));
+        let html = `<table><thead><tr><th>No</th><th>Ogrenci</th><th>Sinif</th><th>Davranis</th><th>Tekrar</th><th>Esik</th></tr></thead><tbody>`;
+        esikAsilanlar.forEach(e => {
+          html += `<tr><td>${e.ogrNo}</td>
+            <td><strong>${e.ogrAd}</strong></td>
+            <td>${e.sinif}</td><td>${e.davranis}</td>
+            <td><span class="rozet rozet-kirmizi">${e.sayi}</span></td>
+            <td>${e.esik}</td></tr>`;
+        });
+        html += '</tbody></table>';
+        document.getElementById('esikAsilanlar').innerHTML = html;
+      }
+
+      const davSayimlar = {};
+      kayitlar.forEach(k => davSayimlar[k.davranis] = (davSayimlar[k.davranis] || 0) + 1);
+      const sirali = Object.entries(davSayimlar).sort((a, b) => b[1] - a[1]);
+      if (sirali.length === 0) {
+        document.getElementById('davranisIstatistik').innerHTML = '<div class="bos-mesaj">Veri yok</div>';
+      } else {
+        const maks = sirali[0][1];
+        let html = '';
+        sirali.forEach(([ad, sayi]) => {
+          const yuzde = Math.round(sayi / maks * 100);
+          html += `<div style="margin-bottom:12px;">
+            <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+              <span style="font-size:13px;">${ad}</span>
+              <span style="font-size:13px; font-weight:600;">${sayi}</span>
+            </div>
+            <div style="background:#f0f0f0; border-radius:4px; height:8px;">
+              <div style="background:#1a73e8; height:100%; border-radius:4px; width:${yuzde}%;"></div>
+            </div>
+          </div>`;
+        });
+        document.getElementById('davranisIstatistik').innerHTML = html;
+      }
+    }
+
+    window.esikKontrolVeGonder = async () => {
+      mesajGoster('esikMesaj', 'Kontrol ediliyor...', 'basari');
+      try {
+        await auth.currentUser.getIdToken(true);
+        const fn = httpsCallable(functions, 'disiplinEsikKontrol');
+        const result = await fn({ donem: aktifDonem });
+        mesajGoster('esikMesaj', result.data.message, 'basari');
+        raporYukle();
+      } catch (err) {
+        mesajGoster('esikMesaj', 'Hata: ' + err.message, 'hata');
+      }
+    };
+
+    async function davranisAyarlariniGoster() {
+      const container = document.getElementById('davranisAyarListesi');
+      if (tumDavranislar.length === 0) {
+        container.innerHTML = '<div class="bos-mesaj">Davranis turu bulunamadi</div>'; return;
+      }
+      let html = `<table><thead><tr><th>Davranis</th><th>Esik</th><th>Durum</th><th></th></tr></thead><tbody>`;
+      tumDavranislar.forEach(d => {
+        html += `<tr><td>${d.ad}</td><td>${d.esik} tekrar</td>
+          <td><span class="rozet ${d.aktif ? 'rozet-yesil' : 'rozet-kirmizi'}">${d.aktif ? 'Aktif' : 'Pasif'}</span></td>
+          <td><button class="btn btn-gri" style="padding:4px 10px; font-size:12px;"
+            onclick="davranisToggleAktif('${d.id}', ${d.aktif})">${d.aktif ? 'Pasif Yap' : 'Aktif Yap'}</button></td>
+        </tr>`;
+      });
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    }
+
+    window.davranisToggleAktif = async (id, mevcutDurum) => {
+      await updateDoc(doc(db, 'disiplin_turleri', id), { aktif: !mevcutDurum });
+      const idx = tumDavranislar.findIndex(d => d.id === id);
+      if (idx !== -1) tumDavranislar[idx].aktif = !mevcutDurum;
+      davranisAyarlariniGoster();
+      davranislarGoster();
+    };
+
+    window.davranisEkle = async () => {
+      const ad = document.getElementById('yeniDavranisAd').value.trim();
+      const esik = parseInt(document.getElementById('yeniDavranisEsik').value);
+      if (!ad || !esik || esik < 1) { mesajGoster('davranisMesaj', 'Ad ve esik deger giriniz.', 'hata'); return; }
+      const ref = await addDoc(collection(db, 'disiplin_turleri'), {
+        ad, esik, sira: tumDavranislar.length + 1, aktif: true, olusturulma: serverTimestamp()
+      });
+      tumDavranislar.push({ id: ref.id, ad, esik, sira: tumDavranislar.length + 1, aktif: true });
+      document.getElementById('yeniDavranisAd').value = '';
+      document.getElementById('yeniDavranisEsik').value = '';
+      davranislarGoster();
+      davranisAyarlariniGoster();
+      mesajGoster('davranisMesaj', 'Davranis turu eklendi.', 'basari');
+    };
+
+    // WHATSAPP MESAJ ŞABLONLARI
+    function sablonlarGoster() {
+      const container = document.getElementById('sablon-listesi');
+      let html = '';
+      tumDavranislar.forEach(d => {
+        const sablon = mesajSablonlari[d.ad] || VARSAYILAN_SABLONLAR[d.ad] || '';
+        html += `<div style="margin-bottom:16px; padding-bottom:16px; border-bottom:1px solid #f0f0f0;">
+          <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">${d.ad}</label>
+          <textarea id="sablon-${d.id}" rows="3"
+            style="width:100%; padding:8px 12px; border:1px solid #ddd; border-radius:8px; font-size:13px; font-family:inherit; resize:vertical;"
+            placeholder="{ogrenci} yazdigınız yere ogrenci adi gelir">${sablon}</textarea>
+        </div>`;
+      });
+      html += `<button class="btn btn-yesil" onclick="sablonlariKaydet()">Sablonlari Kaydet</button>`;
+      container.innerHTML = html;
+    }
+
+    window.sablonlariKaydet = async () => {
+      const yeniSablonlar = {};
+      tumDavranislar.forEach(d => {
+        const el = document.getElementById('sablon-' + d.id);
+        if (el) yeniSablonlar[d.ad] = el.value.trim();
+      });
+      mesajSablonlari = yeniSablonlar;
+      await setDoc(doc(db, 'disiplin_ayarlar', 'genel'), {
+        aktif_donem: aktifDonem,
+        mesaj_sablonlari: yeniSablonlar,
+        guncelleme: serverTimestamp()
+      });
+      mesajGoster('sablonMesaj', 'Sablonlar kaydedildi.', 'basari');
+    };
+
+    window.donemGuncelle = async () => {
+      const yeniDonem = document.getElementById('aktifDonem').value;
+      await setDoc(doc(db, 'disiplin_ayarlar', 'genel'), {
+        aktif_donem: yeniDonem, mesaj_sablonlari: mesajSablonlari, guncelleme: serverTimestamp()
+      });
+      aktifDonem = yeniDonem;
+      mesajGoster('donemMesaj', yeniDonem + '. Donem aktif yapildi.', 'basari');
+      raporYukle();
+    };
+
+    function mesajGoster(id, metin, tip) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = metin;
+      el.className = 'mesaj mesaj-' + tip;
+      el.style.display = 'block';
+      if (tip === 'basari') setTimeout(() => el.style.display = 'none', 4000);
+    }
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.ogrenci-arama')) {
+        document.getElementById('ogrenciSonuclar').style.display = 'none';
+      }
+    });
+
+  </script>
+</body>
+</html>

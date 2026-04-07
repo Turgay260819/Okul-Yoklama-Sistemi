@@ -109,5 +109,17 @@ service cloud.firestore {
       allow read: if isLoggedIn();
       allow write: if isYonetim();
     }
+    match /disiplin_kayitlar/{docId} {
+      allow read: if isLoggedIn();
+      allow write: if isLoggedIn();
+    }
+    match /disiplin_turleri/{docId} {
+      allow read: if isLoggedIn();
+      allow write: if isYonetim();
+    }
+    match /disiplin_ayarlar/{docId} {
+      allow read: if isLoggedIn();
+      allow write: if isYonetim();
+    }
   }
 }
