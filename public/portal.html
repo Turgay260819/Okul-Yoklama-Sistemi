@@ -197,6 +197,7 @@
       .icerik-alani { overflow: visible; }
       .sayfa-kapsayici { padding: 0; overflow: visible; }
     }
+.menu-rozet { background: var(--kirmizi); color: white; border-radius: 10px; padding: 2px 7px; font-size: 11px; font-weight: 800; margin-left: auto; }
   </style>
 </head>
 <body>
@@ -715,7 +716,7 @@
         } else if (item.dis) {
           container.innerHTML += `<button class="menu-item" onclick="window.open('${item.dis}','_blank')"><span class="menu-ikon">${item.ikon}</span>${item.ad}</button>`;
         } else {
-          container.innerHTML += `<button class="menu-item" id="menu-${item.id}" onclick="sayfaGoster('${item.id}','${item.ad}',this)"><span class="menu-ikon">${item.ikon}</span>${item.ad}</button>`;
+          container.innerHTML += `<button class="menu-item" id="menu-${item.id}" onclick="sayfaGoster('${item.id}','${item.ad}',this)"><span class="menu-ikon">${item.ikon}</span>${item.ad}<span class="menu-rozet" id="rozet-${item.id}" style="display:none;">0</span></button>`;
         }
       });
     }
@@ -781,6 +782,14 @@
       } else {
         const ogSnap = await getDocs(query(collection(db, 'teachers'), where('uid', '==', user.uid)));
         if (!ogSnap.empty) aktifOgretmenDoc = { id: ogSnap.docs[0].id, ...ogSnap.docs[0].data() };
+    // Açık görev rozeti
+        if (aktifOgretmenDoc) {
+          const gorevSnap = await getDocs(query(collection(db, 'gorevler'), where('atanan_ids', 'array-contains', aktifOgretmenDoc.id),    where('durum', '==', 'acik')));
+          if (gorevSnap.size > 0) {
+            const rozet = document.getElementById('rozet-gorevlerim');
+            if (rozet) { rozet.textContent = gorevSnap.size; rozet.style.display = 'inline'; }
+          }
+        }
         sayfaGoster('derslerim', 'Derslerim', document.getElementById('menu-derslerim'));
       }
     });
