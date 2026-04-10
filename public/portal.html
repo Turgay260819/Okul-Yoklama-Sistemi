@@ -959,15 +959,54 @@
     // ── RAPORLAR ──
     window.raporSekme = (id, el) => { document.querySelectorAll('#sayfa-raporlar .sekme-icerik').forEach(s => s.classList.remove('aktif')); document.querySelectorAll('#sayfa-raporlar .sekme-btn').forEach(b => b.classList.remove('aktif')); document.getElementById('rsekme-' + id).classList.add('aktif'); el.classList.add('aktif'); };
     window.gunlukRaporGetir = async () => {
-      const tarih = document.getElementById('gunlukTarih').value; const container = document.getElementById('gunlukRaporIcerik');
+      const tarih = document.getElementById('gunlukTarih').value;
+      const container = document.getElementById('gunlukRaporIcerik');
       container.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
-      const sinifSnap = await getDocs(collection(db, 'classes')); let siniflar = []; sinifSnap.forEach(d => siniflar.push(d.data())); siniflar.sort((a, b) => a.grade !== b.grade ? a.grade - b.grade : a.class_name.localeCompare(b.class_name));
-      const summarySnap = await getDocs(query(collection(db, 'daily_summary'), where('date', '==', tarih)));
-      if (summarySnap.empty) { container.innerHTML = '<div class="bos-mesaj">Bu tarihte devamsizlik verisi yok.</div>'; return; }
-      const dev = {}; summarySnap.forEach(d => { const data = d.data(); if (!dev[data.class_id]) dev[data.class_id] = { tamGun: [], yarimGun: [] }; if (data.status === 'full_day_absent') dev[data.class_id].tamGun.push(data.student_number); else if (data.status === 'half_day_absent') dev[data.class_id].yarimGun.push(data.student_number); });
+
+      const sinifSnap = await getDocs(collection(db, 'classes'));
+      let siniflar = []; sinifSnap.forEach(d => siniflar.push(d.data()));
+      siniflar.sort((a, b) => a.grade !== b.grade ? a.grade - b.grade : a.class_name.localeCompare(b.class_name));
+
+      // attendance koleksiyonundan o günün yoklamalarını getir
+      const attSnap = await getDocs(query(collection(db, 'attendance'), where('date', '==', tarih)));
+      if (attSnap.empty) { container.innerHTML = '<div class="bos-mesaj">Bu tarihte yoklama kaydi yok.</div>'; return; }
+
+      // Her öğrencinin kaç derste yoklanıp kaç derste yok olduğunu hesapla
+      const ogrenciDersler = {}; // student_no -> { toplam, yok }
+      const sinifDersler = {};   // class_id -> toplam ders sayısı
+
+      attSnap.forEach(d => {
+        const data = d.data();
+        const classId = data.class_id;
+        if (!sinifDersler[classId]) sinifDersler[classId] = 0;
+        sinifDersler[classId]++;
+        (data.absent_students || []).forEach(no => {
+          const key = classId + '|' + no;
+          if (!ogrenciDersler[key]) ogrenciDersler[key] = { class_id: classId, no, yok: 0 };
+          ogrenciDersler[key].yok++;
+        });
+      });
+
+      // Tam gün / yarım gün hesapla
+      // Tam gün: tüm derslerde yok
+      // Yarım gün: derslerin yarısından fazlasında yok
+      const sinifDevamsiz = {};
+      Object.values(ogrenciDersler).forEach(ogr => {
+        const toplamDers = sinifDersler[ogr.class_id] || 1;
+        if (!sinifDevamsiz[ogr.class_id]) sinifDevamsiz[ogr.class_id] = { tamGun: [], yarimGun: [] };
+        if (ogr.yok >= toplamDers) {
+          sinifDevamsiz[ogr.class_id].tamGun.push(ogr.no);
+        } else {
+          sinifDevamsiz[ogr.class_id].yarimGun.push(ogr.no);
+        }
+      });
+
       const tarihStr = new Date(tarih + 'T12:00:00').toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', weekday: 'long' });
       let html = `<div class="kart"><div style="text-align:center;margin-bottom:16px;"><div style="font-size:16px;font-weight:800;">AHMET YENİCE ORTAOKULU</div><div style="font-size:13px;color:var(--text2);margin-top:4px;">Gunluk Devamsizlik Raporu — ${tarihStr}</div></div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;">`;
-      siniflar.forEach(s => { const v = dev[s.class_name] || { tamGun: [], yarimGun: [] }; html += `<div class="rapor-sinif"><div class="rapor-sinif-baslik">${s.class_name}</div><div class="rapor-sinif-icerik"><div class="rapor-tam"><div class="rapor-alt-baslik">Tam Gun</div><div class="rapor-ogrenciler">${v.tamGun.length ? v.tamGun.join(', ') : '<span class="rapor-bos">Yok</span>'}</div></div><div class="rapor-yarim"><div class="rapor-alt-baslik">Yarim Gun</div><div class="rapor-ogrenciler">${v.yarimGun.length ? v.yarimGun.join(', ') : '<span class="rapor-bos">Yok</span>'}</div></div></div></div>`; });
+      siniflar.forEach(s => {
+        const v = sinifDevamsiz[s.class_name] || { tamGun: [], yarimGun: [] };
+        html += `<div class="rapor-sinif"><div class="rapor-sinif-baslik">${s.class_name}</div><div class="rapor-sinif-icerik"><div class="rapor-tam"><div class="rapor-alt-baslik">Tam Gun</div><div class="rapor-ogrenciler">${v.tamGun.length ? v.tamGun.join(', ') : '<span class="rapor-bos">Yok</span>'}</div></div><div class="rapor-yarim"><div class="rapor-alt-baslik">Yarim Gun</div><div class="rapor-ogrenciler">${v.yarimGun.length ? v.yarimGun.join(', ') : '<span class="rapor-bos">Yok</span>'}</div></div></div></div>`;
+      });
       html += '</div></div>'; container.innerHTML = html;
     };
     window.gecRaporGetir = async () => {
@@ -982,15 +1021,72 @@
       html += '</tbody></table></div>'; container.innerHTML = html;
     };
     window.istatistikGetir = async () => {
-      const bas = document.getElementById('istatBaslangic').value; const bit = document.getElementById('istatBitis').value; const container = document.getElementById('istatistikIcerik');
-      container.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
-      const snap = await getDocs(query(collection(db, 'daily_summary'), where('date', '>=', bas), where('date', '<=', bit)));
-      if (snap.empty) { container.innerHTML = '<div class="bos-mesaj">Veri yok.</div>'; return; }
-      const sinifSnap = await getDocs(collection(db, 'classes')); const siniflar = {}; sinifSnap.forEach(d => siniflar[d.data().class_name] = d.data());
-      const sd = {}; const kd = {5:0,6:0,7:0,8:0}; const gd = {}; let tam = 0, yar = 0;
-      snap.forEach(d => { const data = d.data(); const k = siniflar[data.class_id]?.grade; if (!sd[data.class_id]) sd[data.class_id] = {tam:0,yar:0}; if (data.status === 'full_day_absent') { sd[data.class_id].tam++; if(k) kd[k]++; tam++; } else if (data.status === 'half_day_absent') { sd[data.class_id].yar++; if(k) kd[k]++; yar++; } if (!gd[data.date]) gd[data.date] = 0; gd[data.date]++; });
-      const sirali = Object.entries(sd).map(([s,v]) => ({s,t:v.tam+v.yar,tam:v.tam,yar:v.yar})).sort((a,b) => b.t-a.t);
-      container.innerHTML = `<div class="stat-ozet"><div class="stat-kart"><div class="stat-sayi">${tam+yar}</div><div class="stat-etiket">Toplam</div></div><div class="stat-kart"><div class="stat-sayi" style="color:var(--kirmizi)">${tam}</div><div class="stat-etiket">Tam Gun</div></div><div class="stat-kart"><div class="stat-sayi" style="color:var(--text2)">${yar}</div><div class="stat-etiket">Yarim Gun</div></div><div class="stat-kart"><div class="stat-sayi" style="color:var(--yesil)">${sirali[0]?.s || '—'}</div><div class="stat-etiket">En Cok</div></div></div><div class="grafik-grid"><div class="grafik-kart"><h4>Sinif Bazinda</h4><canvas id="sinifGrafik"></canvas></div><div class="grafik-kart"><h4>Kademe</h4><canvas id="kademeGrafik"></canvas></div></div><div class="grafik-kart" style="margin-bottom:20px;"><h4>Gunluk Trend</h4><canvas id="trendGrafik"></canvas></div><div class="kart"><div class="kart-baslik">Detay</div><table><thead><tr><th>Sinif</th><th>Tam</th><th>Yarim</th><th>Toplam</th></tr></thead><tbody>${sirali.map(s=>`<tr><td><strong>${s.s}</strong></td><td style="color:var(--kirmizi)">${s.tam}</td><td style="color:var(--text2)">${s.yar}</td><td><strong>${s.t}</strong></td></tr>`).join('')}</tbody></table></div>`;
+      const bas = document.getElementById('istatBaslangic').value;
+      const bit = document.getElementById('istatBitis').value;
+      const container = document.getElementById('istatistikIcerik');
+      container.innerHTML = '<div class="yukleniyor">Veriler hesaplaniyor...</div>';
+
+      const attSnap = await getDocs(query(collection(db, 'attendance'), where('date', '>=', bas), where('date', '<=', bit)));
+      if (attSnap.empty) { container.innerHTML = '<div class="bos-mesaj">Bu tarih araliginda veri yok.</div>'; return; }
+
+      const sinifSnap = await getDocs(collection(db, 'classes'));
+      const siniflar = {}; sinifSnap.forEach(d => siniflar[d.data().class_name] = d.data());
+
+      // Her sınıf için günlük ders sayısı ve devamsızlıkları hesapla
+      const gunSinifDersler = {};  // tarih|sinif -> ders sayısı
+      const gunSinifYok = {};      // tarih|sinif|ogrenciNo -> yok sayısı
+      const gunlukToplam = {};     // tarih -> toplam devamsız
+
+      attSnap.forEach(d => {
+        const data = d.data();
+        const key = data.date + '|' + data.class_id;
+        if (!gunSinifDersler[key]) gunSinifDersler[key] = 0;
+        gunSinifDersler[key]++;
+        (data.absent_students || []).forEach(no => {
+          const ogrKey = data.date + '|' + data.class_id + '|' + no;
+          if (!gunSinifYok[ogrKey]) gunSinifYok[ogrKey] = { date: data.date, class_id: data.class_id, no, yok: 0 };
+          gunSinifYok[ogrKey].yok++;
+        });
+      });
+
+      // Tam gün / yarım gün hesapla
+      const sd = {};  // sinif -> { tam, yar }
+      const kd = {5:0, 6:0, 7:0, 8:0};
+      const gd = {};  // tarih -> toplam
+      let tamToplam = 0, yarToplam = 0;
+
+      Object.values(gunSinifYok).forEach(ogr => {
+        const dersKey = ogr.date + '|' + ogr.class_id;
+        const toplamDers = gunSinifDersler[dersKey] || 1;
+        const tamGun = ogr.yok >= toplamDers;
+        const kademe = siniflar[ogr.class_id]?.grade;
+
+        if (!sd[ogr.class_id]) sd[ogr.class_id] = { tam: 0, yar: 0 };
+        if (!gd[ogr.date]) gd[ogr.date] = 0;
+
+        if (tamGun) { sd[ogr.class_id].tam++; if (kademe) kd[kademe]++; tamToplam++; gd[ogr.date]++; }
+        else { sd[ogr.class_id].yar++; if (kademe) kd[kademe]++; yarToplam++; gd[ogr.date]++; }
+      });
+
+      const sirali = Object.entries(sd).map(([s,v]) => ({s, t: v.tam+v.yar, tam: v.tam, yar: v.yar})).sort((a,b) => b.t-a.t);
+
+      container.innerHTML = `<div class="stat-ozet">
+        <div class="stat-kart"><div class="stat-sayi">${tamToplam+yarToplam}</div><div class="stat-etiket">Toplam Devamsizlik</div></div>
+        <div class="stat-kart"><div class="stat-sayi" style="color:var(--kirmizi)">${tamToplam}</div><div class="stat-etiket">Tam Gun</div></div>
+        <div class="stat-kart"><div class="stat-sayi" style="color:var(--text2)">${yarToplam}</div><div class="stat-etiket">Yarim Gun</div></div>
+        <div class="stat-kart"><div class="stat-sayi" style="color:var(--yesil)">${sirali[0]?.s || '—'}</div><div class="stat-etiket">En Cok Devamsiz</div></div>
+      </div>
+      <div class="grafik-grid">
+        <div class="grafik-kart"><h4>Sinif Bazinda</h4><canvas id="sinifGrafik"></canvas></div>
+        <div class="grafik-kart"><h4>Kademe</h4><canvas id="kademeGrafik"></canvas></div>
+      </div>
+      <div class="grafik-kart" style="margin-bottom:20px;"><h4>Gunluk Trend</h4><canvas id="trendGrafik"></canvas></div>
+      <div class="kart"><div class="kart-baslik">Sinif Detay Tablosu</div>
+        <table><thead><tr><th>Sinif</th><th>Tam Gun</th><th>Yarim Gun</th><th>Toplam</th></tr></thead><tbody>
+          ${sirali.map(s => `<tr><td><strong>${s.s}</strong></td><td style="color:var(--kirmizi)">${s.tam}</td><td style="color:var(--text2)">${s.yar}</td><td><strong>${s.t}</strong></td></tr>`).join('')}
+        </tbody></table>
+      </div>`;
+
       const top10 = sirali.slice(0,10);
       new Chart(document.getElementById('sinifGrafik'),{type:'bar',data:{labels:top10.map(s=>s.s),datasets:[{label:'Tam Gun',data:top10.map(s=>s.tam),backgroundColor:'#ea433580',borderColor:'#ea4335',borderWidth:1},{label:'Yarim Gun',data:top10.map(s=>s.yar),backgroundColor:'#9e9e9e80',borderColor:'#9e9e9e',borderWidth:1}]},options:{responsive:true,plugins:{legend:{position:'top'}},scales:{y:{beginAtZero:true}}}});
       new Chart(document.getElementById('kademeGrafik'),{type:'doughnut',data:{labels:['5. Sinif','6. Sinif','7. Sinif','8. Sinif'],datasets:[{data:[kd[5],kd[6],kd[7],kd[8]],backgroundColor:['#1a73e8','#34a853','#fbbc04','#ea4335'],borderWidth:2}]},options:{responsive:true,plugins:{legend:{position:'bottom'}}}});
