@@ -78,6 +78,8 @@
     .btn-kirmizi:hover { background: #c5221f; }
     .btn-gri { background: var(--bg); color: var(--text); border: 1px solid var(--border); }
     .btn-gri:hover { background: var(--border); }
+    .btn-turuncu { background: var(--turuncu); color: white; }
+    .btn-turuncu:hover { background: #e09900; }
     .btn-sm { padding: 7px 14px; font-size: var(--font-sm); }
 
     .form-group { margin-bottom: 16px; }
@@ -98,6 +100,7 @@
     .rozet-kirmizi { background: #fce8e6; color: #c5221f; }
     .rozet-sari { background: #fef7e0; color: #b06000; }
     .rozet-gri { background: #f1f3f4; color: #555; }
+    .rozet-turuncu { background: #fff3e0; color: #e65100; }
 
     .mesaj { padding: 12px 16px; border-radius: 10px; font-size: var(--font-md); font-weight: 600; margin-top: 12px; display: none; }
     .mesaj-basari { background: #e6f4ea; color: #1e7e34; }
@@ -130,7 +133,24 @@
     .ders-bilgi-baslik { font-size: 17px; font-weight: 700; }
     .ders-bilgi-alt { font-size: 14px; color: var(--text2); margin-top: 4px; }
 
-    /* RAPORLAR */
+    /* GÖREV KARTI */
+    .gorev-kart { background: white; border-radius: 12px; padding: 18px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); border-left: 4px solid var(--border); }
+    .gorev-kart.acik { border-left-color: var(--mavi); }
+    .gorev-kart.tamamlandi { border-left-color: var(--yesil); }
+    .gorev-kart.tamamlanmadi { border-left-color: var(--kirmizi); }
+    .gorev-kart.iptal { border-left-color: var(--text2); }
+    .gorev-baslik { font-size: var(--font-lg); font-weight: 700; margin-bottom: 6px; }
+    .gorev-meta { font-size: var(--font-sm); color: var(--text2); margin-bottom: 10px; display: flex; flex-wrap: wrap; gap: 12px; }
+    .gorev-butonlar { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+
+    /* SIRA KARTI */
+    .sira-item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: var(--bg); border-radius: 10px; margin-bottom: 8px; }
+    .sira-no { width: 30px; height: 30px; border-radius: 50%; background: var(--border); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; color: var(--text2); flex-shrink: 0; }
+    .sira-no.siradaki { background: var(--mavi-acik); color: var(--mavi); }
+    .sira-isim { flex: 1; font-weight: 600; }
+    .sira-meta { font-size: 12px; color: var(--text2); }
+
+    /* SEKMELER */
     .sekme-bar { display: flex; gap: 4px; margin-bottom: 20px; background: var(--bg); border-radius: 10px; padding: 4px; width: fit-content; flex-wrap: wrap; }
     .sekme-btn { padding: 8px 18px; border-radius: 8px; cursor: pointer; font-size: var(--font-sm); font-weight: 600; color: var(--text2); border: none; background: none; font-family: inherit; transition: all 0.15s; }
     .sekme-btn:hover { color: var(--text); }
@@ -138,7 +158,7 @@
     .sekme-icerik { display: none; }
     .sekme-icerik.aktif { display: block; }
 
-    .rapor-sinif { margin-bottom: 12px; page-break-inside: avoid; }
+    .rapor-sinif { margin-bottom: 12px; }
     .rapor-sinif-baslik { background: var(--mavi); color: white; padding: 6px 12px; font-weight: 700; font-size: 14px; border-radius: 6px 6px 0 0; }
     .rapor-sinif-icerik { border: 1px solid var(--border); border-top: none; display: grid; grid-template-columns: 1fr 1fr; border-radius: 0 0 6px 6px; overflow: hidden; }
     .rapor-alt-baslik { padding: 6px 12px; font-size: 12px; font-weight: 700; border-bottom: 1px solid var(--border); }
@@ -297,8 +317,7 @@
                 <div class="kart-baslik">DYK Ogrenci Listesi</div>
                 <div style="background:#fff3e0; border:1px solid #ffcc02; border-radius:8px; padding:10px 14px; font-size:13px; color:#e65100; margin-bottom:12px;">Gelmeyen ogrencileri isaretleyin</div>
                 <div id="dykOgrenciListesi"></div>
-                <div class="form-group" style="margin-top:16px;">
-                  <label>Ders Durumu</label>
+                <div class="form-group" style="margin-top:16px;"><label>Ders Durumu</label>
                   <select id="dykDurum" onchange="dykDurumDegisti()">
                     <option value="completed">Ders yapildi</option>
                     <option value="not_held">Ders yapilmadi</option>
@@ -353,6 +372,103 @@
           <!-- DİSİPLİN -->
           <div class="sayfa" id="sayfa-disiplin"><div class="yukleniyor">Yukleniyor...</div></div>
 
+          <!-- GÖREV DAĞILIMI -->
+          <div class="sayfa" id="sayfa-gorev">
+            <div class="sekme-bar">
+              <button class="sekme-btn aktif" onclick="gorevSekme('liste', this)">Gorev Listesi</button>
+              <button class="sekme-btn" onclick="gorevSekme('yeni', this)">Yeni Gorev</button>
+              <button class="sekme-btn" onclick="gorevSekme('siralar', this)">Sira Durumu</button>
+              <button class="sekme-btn" onclick="gorevSekme('istatistik', this)">Istatistikler</button>
+              <button class="sekme-btn" onclick="gorevSekme('takvim', this)">Takvim Kilidi</button>
+            </div>
+
+            <!-- GÖREV LİSTESİ -->
+            <div class="sekme-icerik aktif" id="gsekme-liste">
+              <div style="display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;">
+                <button class="btn btn-gri btn-sm" onclick="gorevFiltrele('hepsi', this)" style="background:var(--mavi);color:white;">Hepsi</button>
+                <button class="btn btn-gri btn-sm" onclick="gorevFiltrele('acik', this)">Acik</button>
+                <button class="btn btn-gri btn-sm" onclick="gorevFiltrele('tamamlandi', this)">Tamamlandi</button>
+                <button class="btn btn-gri btn-sm" onclick="gorevFiltrele('tamamlanmadi', this)">Tamamlanmadi</button>
+                <button class="btn btn-gri btn-sm" onclick="gorevFiltrele('iptal', this)">Iptal</button>
+                <button class="btn btn-gri btn-sm" style="margin-left:auto;" onclick="gorevleriniYukle()">🔄 Yenile</button>
+              </div>
+              <div id="gorevListesiIcerik"><div class="yukleniyor">Yukleniyor...</div></div>
+            </div>
+
+            <!-- YENİ GÖREV -->
+            <div class="sekme-icerik" id="gsekme-yeni">
+              <div class="kart">
+                <div class="kart-baslik">Yeni Gorev Olustur</div>
+                <div class="form-group"><label>Gorev Basligi *</label><input type="text" id="gorevBaslik" placeholder="Ornek: Koridor Nobeti"></div>
+                <div class="form-group"><label>Aciklama</label><textarea id="gorevAciklama" rows="3" placeholder="Gorev detaylari..."></textarea></div>
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label>Gorev Turu *</label>
+                    <select id="gorevTur" onchange="gorevTurDegisti()">
+                      <option value="genel">Genel Gorev</option>
+                      <option value="brans">Brans Gorevi</option>
+                    </select>
+                  </div>
+                  <div class="form-group" id="gorevBransRow" style="display:none;">
+                    <label>Brans *</label>
+                    <select id="gorevBrans"><option value="">Brans secin...</option></select>
+                  </div>
+                  <div class="form-group">
+                    <label>Ogretmen Sayisi *</label>
+                    <input type="number" id="gorevSayi" value="1" min="1" max="10">
+                  </div>
+                  <div class="form-group">
+                    <label>Son Tarih *</label>
+                    <input type="date" id="gorevSonTarih">
+                  </div>
+                </div>
+                <button class="btn btn-yesil" onclick="gorevOlustur()">📋 Olustur ve Ata</button>
+                <div class="mesaj" id="gorevOlusturMesaj"></div>
+              </div>
+            </div>
+
+            <!-- SIRALAR -->
+            <div class="sekme-icerik" id="gsekme-siralar">
+              <div class="kart">
+                <div class="kart-baslik">Atama Sira Durumu</div>
+                <p style="font-size:13px; color:var(--text2); margin-bottom:16px;">Siradaki ogretmen bir sonraki gorevi alacak. Cooldown surecindekiler ve raporlular atlanir.</p>
+                <div class="sekme-bar" id="siraTabBar" style="margin-bottom:16px;"></div>
+                <div id="siraListesiIcerik"><div class="yukleniyor">Yukleniyor...</div></div>
+              </div>
+            </div>
+
+            <!-- İSTATİSTİKLER -->
+            <div class="sekme-icerik" id="gsekme-istatistik">
+              <div id="gorevIstatistikIcerik"><div class="yukleniyor">Yukleniyor...</div></div>
+            </div>
+
+            <!-- TAKVİM KİLİDİ -->
+            <div class="sekme-icerik" id="gsekme-takvim">
+              <div class="kart">
+                <div class="kart-baslik">Gorev Atamasina Kapali Gunler</div>
+                <p style="font-size:13px; color:var(--text2); margin-bottom:16px;">Tatil, sinav gibi gunlerde gorev atamasi yapilmaz.</p>
+                <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; margin-bottom:16px;">
+                  <div class="form-group" style="margin-bottom:0;"><label>Tarih</label><input type="date" id="kilitTarih"></div>
+                  <div class="form-group" style="margin-bottom:0; flex:1;"><label>Neden</label><input type="text" id="kilitNeden" placeholder="Ortak sinav haftasi"></div>
+                  <button class="btn btn-mavi" onclick="tarihKilitle()">🔒 Kilitle</button>
+                </div>
+                <div class="mesaj" id="kilitMesaj"></div>
+              </div>
+              <div class="kart">
+                <div class="kart-baslik">Kapali Gunler</div>
+                <div id="kilitListesi"><div class="yukleniyor">Yukleniyor...</div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ÖĞRETMENİN GÖREVLERİM -->
+          <div class="sayfa" id="sayfa-gorevlerim">
+            <div class="kart">
+              <div class="kart-baslik">Gorevlerim</div>
+              <div id="ogretmenGorevListesi"><div class="yukleniyor">Yukleniyor...</div></div>
+            </div>
+          </div>
+
           <!-- RAPORLAR -->
           <div class="sayfa" id="sayfa-raporlar">
             <div class="sekme-bar">
@@ -405,8 +521,6 @@
               <button class="sekme-btn" onclick="ayarSekme('donem', this)">Donem</button>
               <button class="sekme-btn" onclick="ayarSekme('sistem', this)">Sistem</button>
             </div>
-
-            <!-- ÖĞRETMENLER -->
             <div class="sekme-icerik aktif" id="asekme-ogretmenler">
               <div class="kart">
                 <div class="kart-baslik">Yeni Ogretmen Ekle</div>
@@ -424,87 +538,56 @@
                 <div id="ayarOgretmenListesi"><div class="yukleniyor">Yukleniyor...</div></div>
               </div>
             </div>
-
-            <!-- SINIFLAR -->
             <div class="sekme-icerik" id="asekme-siniflar">
               <div class="kart">
                 <div class="kart-baslik">Yeni Sinif Ekle</div>
                 <div class="form-grid">
                   <div class="form-group"><label>Sinif Adi</label><input type="text" id="ayarSinifAd" placeholder="7A"></div>
-                  <div class="form-group">
-                    <label>Kademe</label>
+                  <div class="form-group"><label>Kademe</label>
                     <select id="ayarSinifKademe">
-                      <option value="5">5. Sinif</option>
-                      <option value="6">6. Sinif</option>
-                      <option value="7">7. Sinif</option>
-                      <option value="8">8. Sinif</option>
+                      <option value="5">5. Sinif</option><option value="6">6. Sinif</option>
+                      <option value="7">7. Sinif</option><option value="8">8. Sinif</option>
                     </select>
                   </div>
                 </div>
                 <button class="btn btn-yesil" onclick="sinifEkle()">+ Sinif Ekle</button>
                 <div class="mesaj" id="sinifEkleMesaj"></div>
               </div>
-              <div class="kart">
-                <div class="kart-baslik">Sinif Listesi</div>
-                <div id="ayarSinifListesi"><div class="yukleniyor">Yukleniyor...</div></div>
-              </div>
+              <div class="kart"><div class="kart-baslik">Sinif Listesi</div><div id="ayarSinifListesi"><div class="yukleniyor">Yukleniyor...</div></div></div>
             </div>
-
-            <!-- ÖĞRENCİLER -->
             <div class="sekme-icerik" id="asekme-ogrenciler">
               <div class="kart">
                 <div class="kart-baslik">Ogrenci Ekle</div>
                 <div class="form-grid">
                   <div class="form-group"><label>Ogrenci No</label><input type="text" id="ayarOgrenciNo" placeholder="1234"></div>
                   <div class="form-group"><label>Ad Soyad</label><input type="text" id="ayarOgrenciAd" placeholder="Ad Soyad"></div>
-                  <div class="form-group">
-                    <label>Sinif</label>
-                    <select id="ayarOgrenciSinif"><option value="">Sinif secin</option></select>
-                  </div>
+                  <div class="form-group"><label>Sinif</label><select id="ayarOgrenciSinif"><option value="">Sinif secin</option></select></div>
                 </div>
                 <button class="btn btn-yesil" onclick="ogrenciEkle()">+ Ogrenci Ekle</button>
                 <div class="mesaj" id="ogrenciEkleMesaj"></div>
               </div>
               <div class="kart">
                 <div class="kart-baslik">Ogrenci Listesi</div>
-                <div style="margin-bottom:12px;">
-                  <select id="ayarOgrenciSinifFiltre" onchange="ogrencileriGetir()" style="padding:10px 14px; border:2px solid var(--border); border-radius:10px; font-size:15px; font-family:inherit;">
-                    <option value="">Tum Siniflar</option>
-                  </select>
-                </div>
+                <div style="margin-bottom:12px;"><select id="ayarOgrenciSinifFiltre" onchange="ogrencileriGetir()" style="padding:10px 14px; border:2px solid var(--border); border-radius:10px; font-size:15px; font-family:inherit;"><option value="">Tum Siniflar</option></select></div>
                 <div id="ayarOgrenciListesi"><div class="yukleniyor">Yukleniyor...</div></div>
               </div>
             </div>
-
-            <!-- DÖNEM -->
             <div class="sekme-icerik" id="asekme-donem">
               <div class="kart">
                 <div class="kart-baslik">Aktif Donem Ayari</div>
-                <p style="font-size:13px; color:var(--text2); margin-bottom:16px;">Disiplin sistemi icin aktif donemi belirleyin. Donem degisince esikler sifirlanir.</p>
-                <div class="form-group" style="max-width:200px;">
-                  <label>Aktif Donem</label>
-                  <select id="aktifDonemSecim">
-                    <option value="1">1. Donem</option>
-                    <option value="2">2. Donem</option>
-                  </select>
+                <p style="font-size:13px; color:var(--text2); margin-bottom:16px;">Disiplin sistemi icin aktif donemi belirleyin.</p>
+                <div class="form-group" style="max-width:200px;"><label>Aktif Donem</label>
+                  <select id="aktifDonemSecim"><option value="1">1. Donem</option><option value="2">2. Donem</option></select>
                 </div>
                 <button class="btn btn-mavi" onclick="donemGuncelle()">Donemi Kaydet</button>
                 <div class="mesaj" id="donemMesaj"></div>
               </div>
             </div>
-
-            <!-- SİSTEM -->
             <div class="sekme-icerik" id="asekme-sistem">
               <div class="kart">
                 <div class="kart-baslik">Genel Ayarlar</div>
-                <div class="form-group" style="max-width:300px;">
-                  <label>Ders Suresi (dakika)</label>
-                  <input type="number" id="ayarDersSuresi" placeholder="40">
-                </div>
-                <div class="form-group" style="max-width:300px;">
-                  <label>Telegram Bot Token</label>
-                  <input type="text" id="ayarTelegram" placeholder="bot token">
-                </div>
+                <div class="form-group" style="max-width:300px;"><label>Ders Suresi (dakika)</label><input type="number" id="ayarDersSuresi" placeholder="40"></div>
+                <div class="form-group" style="max-width:300px;"><label>Telegram Bot Token</label><input type="text" id="ayarTelegram" placeholder="bot token"></div>
                 <button class="btn btn-mavi" onclick="sistemAyarlariniKaydet()">Kaydet</button>
                 <div class="mesaj" id="sistemAyarMesaj"></div>
               </div>
@@ -537,13 +620,25 @@
     </div>
   </div>
 
+  <!-- GÖREV ONAY MODAL -->
+  <div class="modal-zemin" id="gorevOnayModal">
+    <div class="modal-kutu">
+      <div class="modal-baslik" id="gorevOnayBaslik">Gorev Islemi</div>
+      <p id="gorevOnayAciklama" style="color:var(--text2); margin-bottom:20px;"></p>
+      <div class="modal-butonlar">
+        <button class="btn btn-gri" onclick="modalKapat2()">Iptal</button>
+        <button class="btn" id="gorevOnayBtn" onclick="gorevOnaylaConfirm()">Onayla</button>
+      </div>
+    </div>
+  </div>
+
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
     import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
     import {
       getFirestore, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc,
-      collection, query, where, orderBy, serverTimestamp
+      collection, query, where, orderBy, serverTimestamp, Timestamp
     } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     const firebaseConfig = {
@@ -567,16 +662,22 @@
     let tumSiniflar = [];
     let aktifDers = null;
     let aktifOgretmenDoc = null;
+    let tumGorevler = [];
+    let gorevFiltresi = 'hepsi';
+    let gorevOnayPendingId = null;
+    let gorevOnayTip = null;
 
     const gunler = ['Pazar','Pazartesi','Sali','Carsamba','Persembe','Cuma','Cumartesi'];
-    const tarihObj = new Date();
     document.getElementById('tarihBilgi').textContent =
-      gunler[tarihObj.getDay()] + ', ' + tarihObj.toLocaleDateString('tr-TR', {day:'numeric', month:'long', year:'numeric'});
+      gunler[new Date().getDay()] + ', ' + new Date().toLocaleDateString('tr-TR', {day:'numeric', month:'long', year:'numeric'});
     document.getElementById('yoklamaTarih').value = bugun;
     document.getElementById('ogretmenYoklamaTarih').value = bugun;
     document.getElementById('dykTarih').value = bugun;
     document.getElementById('manuelTarih').value = bugun;
+    document.getElementById('gorevSonTarih').value = bugun;
+    document.getElementById('kilitTarih').value = bugun;
 
+    // ── MENÜLER ──
     const adminMenu = [
       { bolum: 'Genel' },
       { id: 'anasayfa', ikon: '📊', ad: 'Genel Durum' },
@@ -587,6 +688,7 @@
       { bolum: 'Yonetim' },
       { id: 'nobet', ikon: '🔔', ad: 'Nobet Yonetimi' },
       { id: 'disiplin', ikon: '📝', ad: 'Disiplin' },
+      { id: 'gorev', ikon: '👥', ad: 'Gorev Dagilimi' },
       { bolum: 'Sistem' },
       { id: 'ayarlar', ikon: '⚙️', ad: 'Ayarlar' },
     ];
@@ -598,6 +700,7 @@
       { id: 'dyk', ikon: '📚', ad: 'DYK Yoklama' },
       { id: 'manuel', ikon: '✏️', ad: 'Manuel Giris' },
       { bolum: 'Diger' },
+      { id: 'gorevlerim', ikon: '👥', ad: 'Gorevlerim' },
       { id: 'nobet', ikon: '🔔', ad: 'Nobet Programim' },
       { id: 'disiplin', ikon: '📝', ad: 'Disiplin Kaydi' },
     ];
@@ -636,17 +739,17 @@
       else if (id === 'ayarlar') ayarlarYukle();
       else if (id === 'nobet') nobetYukle();
       else if (id === 'disiplin') disiplinYukle();
+      else if (id === 'gorev') gorevSayfasiBaslat();
+      else if (id === 'gorevlerim') ogretmenGorevleriniYukle();
     }
 
     function raporSayfasiBaslat() {
-      const bugunStr = new Date().toISOString().split('T')[0];
+      if (!document.getElementById('gunlukTarih').value) document.getElementById('gunlukTarih').value = bugun;
+      if (!document.getElementById('gecBaslangic').value) document.getElementById('gecBaslangic').value = bugun;
+      if (!document.getElementById('gecBitis').value) document.getElementById('gecBitis').value = bugun;
       const ayBas = new Date(); ayBas.setDate(1);
-      const ayBasStr = ayBas.toISOString().split('T')[0];
-      if (!document.getElementById('gunlukTarih').value) document.getElementById('gunlukTarih').value = bugunStr;
-      if (!document.getElementById('gecBaslangic').value) document.getElementById('gecBaslangic').value = bugunStr;
-      if (!document.getElementById('gecBitis').value) document.getElementById('gecBitis').value = bugunStr;
-      if (!document.getElementById('istatBaslangic').value) document.getElementById('istatBaslangic').value = ayBasStr;
-      if (!document.getElementById('istatBitis').value) document.getElementById('istatBitis').value = bugunStr;
+      if (!document.getElementById('istatBaslangic').value) document.getElementById('istatBaslangic').value = ayBas.toISOString().split('T')[0];
+      if (!document.getElementById('istatBitis').value) document.getElementById('istatBitis').value = bugun;
     }
 
     // ── OTURUM ──
@@ -688,12 +791,8 @@
       const hata = document.getElementById('girisHata');
       hata.style.display = 'none';
       if (!email || !sifre) { hata.textContent = 'Email ve sifre girin.'; hata.style.display = 'block'; return; }
-      try {
-        await signInWithEmailAndPassword(auth, email, sifre);
-      } catch (err) {
-        hata.textContent = 'Email veya sifre yanlis.';
-        hata.style.display = 'block';
-      }
+      try { await signInWithEmailAndPassword(auth, email, sifre); }
+      catch (err) { hata.textContent = 'Email veya sifre yanlis.'; hata.style.display = 'block'; }
     };
 
     window.cikisYap = async () => { await signOut(auth); };
@@ -702,15 +801,12 @@
       const ogSnap = await getDocs(collection(db, 'teachers'));
       tumOgretmenler = [];
       ogSnap.forEach(d => tumOgretmenler.push({ id: d.id, ...d.data() }));
-
       const sinSnap = await getDocs(collection(db, 'classes'));
       tumSiniflar = [];
       sinSnap.forEach(d => tumSiniflar.push({ id: d.id, ...d.data() }));
-
       const modalOgr = document.getElementById('modalOgretmen');
       modalOgr.innerHTML = '';
       tumOgretmenler.forEach(o => modalOgr.innerHTML += `<option value="${o.id}">${o.ad}</option>`);
-
       const manuelSinif = document.getElementById('manuelSinif');
       manuelSinif.innerHTML = '<option value="">Sinif secin...</option>';
       tumSiniflar.sort((a, b) => a.class_name.localeCompare(b.class_name));
@@ -721,13 +817,8 @@
     async function anasayfaYukle() {
       try {
         const snap = await getDocs(query(collection(db, 'today_lessons'), where('date', '==', bugun)));
-        let girilen = 0, eksik = 0;
-        const durumlar = [];
-        snap.forEach(d => {
-          const data = d.data();
-          if (data.status === 'filled') girilen++; else eksik++;
-          durumlar.push(data);
-        });
+        let girilen = 0, eksik = 0; const durumlar = [];
+        snap.forEach(d => { const data = d.data(); if (data.status === 'filled') girilen++; else eksik++; durumlar.push(data); });
         document.getElementById('statToplamDers').textContent = snap.size;
         document.getElementById('statGirilenYoklama').textContent = girilen;
         document.getElementById('statEksikYoklama').textContent = eksik;
@@ -735,13 +826,10 @@
         let tamGun = 0;
         summSnap.forEach(d => { if (d.data().status === 'full_day_absent') tamGun++; });
         document.getElementById('statTamGun').textContent = tamGun;
-        if (durumlar.length === 0) { document.getElementById('bugunDurum').innerHTML = '<div class="bos-mesaj">Bugun icin ders programi olusturulmamis</div>'; return; }
+        if (!durumlar.length) { document.getElementById('bugunDurum').innerHTML = '<div class="bos-mesaj">Bugun icin ders programi olusturulmamis</div>'; return; }
         durumlar.sort((a, b) => a.lesson_number - b.lesson_number);
         let html = '<table><thead><tr><th>Sinif</th><th>Ders No</th><th>Durum</th></tr></thead><tbody>';
-        durumlar.forEach(d => {
-          const rozet = d.status === 'filled' ? '<span class="rozet rozet-yesil">Girildi</span>' : '<span class="rozet rozet-kirmizi">Eksik</span>';
-          html += `<tr><td>${d.class_id}</td><td>${d.lesson_number}. Ders</td><td>${rozet}</td></tr>`;
-        });
+        durumlar.forEach(d => { html += `<tr><td>${d.class_id}</td><td>${d.lesson_number}. Ders</td><td>${d.status === 'filled' ? '<span class="rozet rozet-yesil">Girildi</span>' : '<span class="rozet rozet-kirmizi">Eksik</span>'}</td></tr>`; });
         html += '</tbody></table>';
         document.getElementById('bugunDurum').innerHTML = html;
       } catch (err) { console.error(err); }
@@ -754,36 +842,25 @@
       const snap = await getDocs(query(collection(db, 'attendance'), where('date', '==', tarih)));
       if (snap.empty) { container.innerHTML = '<div class="bos-mesaj">Bu tarihte yoklama kaydi yok</div>'; return; }
       let html = '<table><thead><tr><th>Sinif</th><th>Ders</th><th>Ogretmen</th><th>Eksik</th></tr></thead><tbody>';
-      snap.forEach(d => {
-        const data = d.data();
-        const ogr = tumOgretmenler.find(o => o.id === data.actual_teacher);
-        html += `<tr><td>${data.class_id}</td><td>${data.lesson_number}. Ders</td><td>${ogr?.ad || '-'}</td><td>${data.absent_students?.length || 0}</td></tr>`;
-      });
+      snap.forEach(d => { const data = d.data(); const ogr = tumOgretmenler.find(o => o.id === data.actual_teacher); html += `<tr><td>${data.class_id}</td><td>${data.lesson_number}. Ders</td><td>${ogr?.ad || '-'}</td><td>${data.absent_students?.length || 0}</td></tr>`; });
       html += '</tbody></table>';
       container.innerHTML = html;
     };
 
     async function dersleriniYukle() {
       const container = document.getElementById('dersListesi');
-      const baslik = document.getElementById('bugunTarihBaslik');
-      baslik.textContent = gunler[new Date().getDay()] + ', ' + new Date().toLocaleDateString('tr-TR', {day:'numeric', month:'long'});
+      document.getElementById('bugunTarihBaslik').textContent = gunler[new Date().getDay()] + ', ' + new Date().toLocaleDateString('tr-TR', {day:'numeric', month:'long'});
       container.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
       const snap = await getDocs(query(collection(db, 'today_lessons'), where('date', '==', bugun)));
       let dersler = [];
-      snap.forEach(d => {
-        const data = { id: d.id, ...d.data() };
-        if (!aktifOgretmenDoc || data.teacher_id === aktifOgretmenDoc.id) dersler.push(data);
-      });
-      if (dersler.length === 0) { container.innerHTML = '<div class="bos-mesaj">Bugun icin atanmis dersiniz yok.</div>'; return; }
+      snap.forEach(d => { const data = { id: d.id, ...d.data() }; if (!aktifOgretmenDoc || data.teacher_id === aktifOgretmenDoc.id) dersler.push(data); });
+      if (!dersler.length) { container.innerHTML = '<div class="bos-mesaj">Bugun icin atanmis dersiniz yok.</div>'; return; }
       dersler.sort((a, b) => a.lesson_number - b.lesson_number);
       let html = '';
       for (const ders of dersler) {
         const yokSnap = await getDocs(query(collection(db, 'attendance'), where('date', '==', bugun), where('class_id', '==', ders.class_id), where('lesson_number', '==', ders.lesson_number)));
         const girildi = !yokSnap.empty;
-        html += `<div class="ders-kart ${girildi ? 'girildi' : 'eksik'}">
-          <div><div class="ders-bilgi-baslik">${ders.lesson_number}. Ders — ${ders.class_id}</div><div class="ders-bilgi-alt">${ders.lesson_name || '-'}</div></div>
-          ${girildi ? '<span class="rozet rozet-yesil">Girildi</span>' : `<button class="btn btn-mavi" onclick="yoklamaAc('${ders.id}','${ders.class_id}',${ders.lesson_number},'${ders.lesson_name || ''}','${ders.teacher_id}')">Yoklama Gir</button>`}
-        </div>`;
+        html += `<div class="ders-kart ${girildi ? 'girildi' : 'eksik'}"><div><div class="ders-bilgi-baslik">${ders.lesson_number}. Ders — ${ders.class_id}</div><div class="ders-bilgi-alt">${ders.lesson_name || '-'}</div></div>${girildi ? '<span class="rozet rozet-yesil">Girildi</span>' : `<button class="btn btn-mavi" onclick="yoklamaAc('${ders.id}','${ders.class_id}',${ders.lesson_number},'${ders.lesson_name || ''}','${ders.teacher_id}')">Yoklama Gir</button>`}</div>`;
       }
       container.innerHTML = html;
     }
@@ -797,11 +874,7 @@
       const snap = await getDocs(q);
       if (snap.empty) { container.innerHTML = '<div class="bos-mesaj">Bu tarihte yoklama kaydiniz yok.</div>'; return; }
       let html = '<table><thead><tr><th>Sinif</th><th>Ders</th><th>Ders Adi</th><th>Eksik</th><th>Durum</th></tr></thead><tbody>';
-      snap.forEach(d => {
-        const data = d.data();
-        const gec = data.is_late_entry ? '<span class="rozet rozet-sari">Gec Giris</span>' : '<span class="rozet rozet-yesil">Normal</span>';
-        html += `<tr><td>${data.class_id}</td><td>${data.lesson_number}. Ders</td><td>${data.lesson_name || '-'}</td><td>${data.absent_students?.length || 0} ogrenci</td><td>${gec}</td></tr>`;
-      });
+      snap.forEach(d => { const data = d.data(); html += `<tr><td>${data.class_id}</td><td>${data.lesson_number}. Ders</td><td>${data.lesson_name || '-'}</td><td>${data.absent_students?.length || 0}</td><td>${data.is_late_entry ? '<span class="rozet rozet-sari">Gec</span>' : '<span class="rozet rozet-yesil">Normal</span>'}</td></tr>`; });
       html += '</tbody></table>';
       container.innerHTML = html;
     };
@@ -810,11 +883,7 @@
       const select = document.getElementById('dykKursSelect');
       select.innerHTML = '<option value="">Kurs secin...</option>';
       const snap = await getDocs(collection(db, 'dyk_courses'));
-      snap.forEach(d => {
-        const k = d.data();
-        if (!aktifOgretmenDoc || k.teacher_id === aktifOgretmenDoc.id)
-          select.innerHTML += `<option value="${d.id}">${k.class_id} — ${k.course_name}</option>`;
-      });
+      snap.forEach(d => { const k = d.data(); if (!aktifOgretmenDoc || k.teacher_id === aktifOgretmenDoc.id) select.innerHTML += `<option value="${d.id}">${k.class_id} — ${k.course_name}</option>`; });
     }
 
     window.dykYoklamaBaslat = async () => {
@@ -822,83 +891,39 @@
       if (!kursId) { alert('Kurs secin.'); return; }
       const kursDoc = await getDoc(doc(db, 'dyk_courses', kursId));
       if (!kursDoc.exists()) return;
-      const kurs = kursDoc.data();
-      const snap = await getDocs(query(collection(db, 'students'), where('class_id', '==', kurs.class_id), where('status', '==', 'active')));
-      let ogrenciler = [];
-      snap.forEach(d => ogrenciler.push(d.data()));
+      const snap = await getDocs(query(collection(db, 'students'), where('class_id', '==', kursDoc.data().class_id), where('status', '==', 'active')));
+      let ogrenciler = []; snap.forEach(d => ogrenciler.push(d.data()));
       ogrenciler.sort((a, b) => a.student_number.localeCompare(b.student_number));
-      const container = document.getElementById('dykOgrenciListesi');
       let html = '';
-      ogrenciler.forEach(o => {
-        html += `<div class="ogrenci-satir" id="dyk-satir-${o.student_number}" onclick="dykIsaretle('${o.student_number}')">
-          <input type="checkbox" id="dyk-chk-${o.student_number}" onclick="event.stopPropagation(); dykIsaretle('${o.student_number}')">
-          <span class="ogrenci-no">${o.student_number}</span><span class="ogrenci-isim">${o.name}</span>
-        </div>`;
-      });
-      container.innerHTML = html || '<div class="bos-mesaj">Ogrenci bulunamadi.</div>';
+      ogrenciler.forEach(o => { html += `<div class="ogrenci-satir" id="dyk-satir-${o.student_number}" onclick="dykIsaretle('${o.student_number}')"><input type="checkbox" id="dyk-chk-${o.student_number}" onclick="event.stopPropagation(); dykIsaretle('${o.student_number}')"><span class="ogrenci-no">${o.student_number}</span><span class="ogrenci-isim">${o.name}</span></div>`; });
+      document.getElementById('dykOgrenciListesi').innerHTML = html || '<div class="bos-mesaj">Ogrenci yok.</div>';
       document.getElementById('dykYoklamaAlani').style.display = 'block';
     };
-
-    window.dykIsaretle = (no) => {
-      const chk = document.getElementById('dyk-chk-' + no);
-      chk.checked = !chk.checked;
-      document.getElementById('dyk-satir-' + no).classList.toggle('yok', chk.checked);
-    };
-
-    window.dykDurumDegisti = () => {
-      document.getElementById('dykSebepAlani').style.display = document.getElementById('dykDurum').value === 'not_held' ? 'block' : 'none';
-    };
-
+    window.dykIsaretle = (no) => { const chk = document.getElementById('dyk-chk-' + no); chk.checked = !chk.checked; document.getElementById('dyk-satir-' + no).classList.toggle('yok', chk.checked); };
+    window.dykDurumDegisti = () => { document.getElementById('dykSebepAlani').style.display = document.getElementById('dykDurum').value === 'not_held' ? 'block' : 'none'; };
     window.dykKaydet = async () => {
-      const kursId = document.getElementById('dykKursSelect').value;
-      const tarih = document.getElementById('dykTarih').value;
+      const yoklar = []; document.querySelectorAll('#dykOgrenciListesi input:checked').forEach(c => yoklar.push(c.id.replace('dyk-chk-', '')));
       const durum = document.getElementById('dykDurum').value;
-      const yoklar = [];
-      document.querySelectorAll('#dykOgrenciListesi input:checked').forEach(c => yoklar.push(c.id.replace('dyk-chk-', '')));
-      try {
-        await addDoc(collection(db, 'dyk_attendance'), { date: tarih, course_id: kursId, teacher_id: aktifOgretmenDoc?.id || '', absent_students: yoklar, status: durum, reason: durum === 'not_held' ? document.getElementById('dykSebep').value : '', created_at: serverTimestamp(), locked: true });
-        mesajGoster('dykMesaj', 'DYK yoklamasi kaydedildi.', 'basari');
-        document.getElementById('dykYoklamaAlani').style.display = 'none';
-      } catch (err) { mesajGoster('dykMesaj', 'Hata: ' + err.message, 'hata'); }
+      try { await addDoc(collection(db, 'dyk_attendance'), { date: document.getElementById('dykTarih').value, course_id: document.getElementById('dykKursSelect').value, teacher_id: aktifOgretmenDoc?.id || '', absent_students: yoklar, status: durum, reason: durum === 'not_held' ? document.getElementById('dykSebep').value : '', created_at: serverTimestamp(), locked: true }); mesajGoster('dykMesaj', 'DYK yoklamasi kaydedildi.', 'basari'); document.getElementById('dykYoklamaAlani').style.display = 'none'; }
+      catch (err) { mesajGoster('dykMesaj', 'Hata: ' + err.message, 'hata'); }
     };
 
     window.manuelOgrencileriGetir = async () => {
-      const sinif = document.getElementById('manuelSinif').value;
-      if (!sinif) return;
+      const sinif = document.getElementById('manuelSinif').value; if (!sinif) return;
       const snap = await getDocs(query(collection(db, 'students'), where('class_id', '==', sinif), where('status', '==', 'active')));
-      let ogrenciler = [];
-      snap.forEach(d => ogrenciler.push(d.data()));
-      ogrenciler.sort((a, b) => a.student_number.localeCompare(b.student_number));
-      const container = document.getElementById('manuelOgrenciListesi');
+      let ogrenciler = []; snap.forEach(d => ogrenciler.push(d.data())); ogrenciler.sort((a, b) => a.student_number.localeCompare(b.student_number));
       let html = '';
-      ogrenciler.forEach(o => {
-        html += `<div class="ogrenci-satir" id="man-satir-${o.student_number}" onclick="manuelIsaretle('${o.student_number}')">
-          <input type="checkbox" id="man-chk-${o.student_number}" onclick="event.stopPropagation(); manuelIsaretle('${o.student_number}')">
-          <span class="ogrenci-no">${o.student_number}</span><span class="ogrenci-isim">${o.name}</span>
-        </div>`;
-      });
-      container.innerHTML = html || '<div class="bos-mesaj">Bu sinifta ogrenci yok.</div>';
+      ogrenciler.forEach(o => { html += `<div class="ogrenci-satir" id="man-satir-${o.student_number}" onclick="manuelIsaretle('${o.student_number}')"><input type="checkbox" id="man-chk-${o.student_number}" onclick="event.stopPropagation(); manuelIsaretle('${o.student_number}')"><span class="ogrenci-no">${o.student_number}</span><span class="ogrenci-isim">${o.name}</span></div>`; });
+      document.getElementById('manuelOgrenciListesi').innerHTML = html || '<div class="bos-mesaj">Ogrenci yok.</div>';
       document.getElementById('manuelOgrenciKarti').style.display = 'block';
     };
-
-    window.manuelIsaretle = (no) => {
-      const chk = document.getElementById('man-chk-' + no);
-      chk.checked = !chk.checked;
-      document.getElementById('man-satir-' + no).classList.toggle('yok', chk.checked);
-    };
-
+    window.manuelIsaretle = (no) => { const chk = document.getElementById('man-chk-' + no); chk.checked = !chk.checked; document.getElementById('man-satir-' + no).classList.toggle('yok', chk.checked); };
     window.manuelKaydet = async () => {
-      const tarih = document.getElementById('manuelTarih').value;
-      const sinif = document.getElementById('manuelSinif').value;
-      const dersNo = parseInt(document.getElementById('manuelDersNo').value);
-      const dersAdi = document.getElementById('manuelDersAdi').value.trim();
+      const sinif = document.getElementById('manuelSinif').value; const dersAdi = document.getElementById('manuelDersAdi').value.trim();
       if (!sinif || !dersAdi) { mesajGoster('manuelMesaj', 'Tum alanlari doldurun.', 'hata'); return; }
-      const yoklar = [];
-      document.querySelectorAll('#manuelOgrenciListesi input:checked').forEach(c => yoklar.push(c.id.replace('man-chk-', '')));
-      try {
-        await addDoc(collection(db, 'attendance'), { date: tarih, class_id: sinif, lesson_number: dersNo, lesson_name: dersAdi, teacher_id: aktifOgretmenDoc?.id || 'manuel', actual_teacher: aktifOgretmenDoc?.id || 'manuel', absent_students: yoklar, created_at: serverTimestamp(), entered_at: serverTimestamp(), is_late_entry: true, is_manual: true, locked: true });
-        mesajGoster('manuelMesaj', 'Manuel yoklama kaydedildi.', 'basari');
-      } catch (err) { mesajGoster('manuelMesaj', 'Hata: ' + err.message, 'hata'); }
+      const yoklar = []; document.querySelectorAll('#manuelOgrenciListesi input:checked').forEach(c => yoklar.push(c.id.replace('man-chk-', '')));
+      try { await addDoc(collection(db, 'attendance'), { date: document.getElementById('manuelTarih').value, class_id: sinif, lesson_number: parseInt(document.getElementById('manuelDersNo').value), lesson_name: dersAdi, teacher_id: aktifOgretmenDoc?.id || 'manuel', actual_teacher: aktifOgretmenDoc?.id || 'manuel', absent_students: yoklar, created_at: serverTimestamp(), entered_at: serverTimestamp(), is_late_entry: true, is_manual: true, locked: true }); mesajGoster('manuelMesaj', 'Manuel yoklama kaydedildi.', 'basari'); }
+      catch (err) { mesajGoster('manuelMesaj', 'Hata: ' + err.message, 'hata'); }
     };
 
     window.yoklamaAc = async (dersId, classId, lessonNo, lessonName, teacherId) => {
@@ -907,335 +932,593 @@
       document.getElementById('modalAltBaslik').textContent = lessonName;
       const modalOgr = document.getElementById('modalOgretmen');
       for (let opt of modalOgr.options) { if (opt.value === teacherId) { opt.selected = true; break; } }
-      const container = document.getElementById('modalOgrenciListesi');
-      container.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
       const snap = await getDocs(query(collection(db, 'students'), where('class_id', '==', classId), where('status', '==', 'active')));
-      let ogrenciler = [];
-      snap.forEach(d => ogrenciler.push({ id: d.id, ...d.data() }));
-      ogrenciler.sort((a, b) => a.student_number.localeCompare(b.student_number));
+      let ogrenciler = []; snap.forEach(d => ogrenciler.push({ id: d.id, ...d.data() })); ogrenciler.sort((a, b) => a.student_number.localeCompare(b.student_number));
       let html = '';
-      ogrenciler.forEach(o => {
-        html += `<div class="ogrenci-satir" id="satir-${o.student_number}" onclick="yokIsaretle('${o.student_number}')">
-          <input type="checkbox" id="chk-${o.student_number}" onclick="event.stopPropagation(); yokIsaretle('${o.student_number}')">
-          <span class="ogrenci-no">${o.student_number}</span><span class="ogrenci-isim">${o.name}</span>
-        </div>`;
-      });
-      container.innerHTML = html;
+      ogrenciler.forEach(o => { html += `<div class="ogrenci-satir" id="satir-${o.student_number}" onclick="yokIsaretle('${o.student_number}')"><input type="checkbox" id="chk-${o.student_number}" onclick="event.stopPropagation(); yokIsaretle('${o.student_number}')"><span class="ogrenci-no">${o.student_number}</span><span class="ogrenci-isim">${o.name}</span></div>`; });
+      document.getElementById('modalOgrenciListesi').innerHTML = html;
       document.getElementById('yoklamaOzet').textContent = 'Tum ogrenciler mevcut';
       document.getElementById('yoklamaModal').classList.add('aktif');
     };
-
-    window.yokIsaretle = (no) => {
-      const chk = document.getElementById('chk-' + no);
-      chk.checked = !chk.checked;
-      document.getElementById('satir-' + no).classList.toggle('yok', chk.checked);
-      const yoklar = document.querySelectorAll('#modalOgrenciListesi input:checked').length;
-      document.getElementById('yoklamaOzet').textContent = yoklar === 0 ? 'Tum ogrenciler mevcut' : yoklar + ' ogrenci yok isaretlendi';
-    };
-
+    window.yokIsaretle = (no) => { const chk = document.getElementById('chk-' + no); chk.checked = !chk.checked; document.getElementById('satir-' + no).classList.toggle('yok', chk.checked); const y = document.querySelectorAll('#modalOgrenciListesi input:checked').length; document.getElementById('yoklamaOzet').textContent = y === 0 ? 'Tum ogrenciler mevcut' : y + ' ogrenci yok isaretlendi'; };
     window.yoklamaKaydet = async () => {
       if (!aktifDers) return;
-      const yoklar = [];
-      document.querySelectorAll('#modalOgrenciListesi input:checked').forEach(c => yoklar.push(c.id.replace('chk-', '')));
-      const ogretmenId = document.getElementById('modalOgretmen').value;
-      const gec = new Date().getHours() >= 9;
-      try {
-        await addDoc(collection(db, 'attendance'), { date: bugun, class_id: aktifDers.classId, lesson_number: aktifDers.lessonNo, lesson_name: aktifDers.lessonName, teacher_id: aktifDers.teacherId, actual_teacher: ogretmenId, absent_students: yoklar, created_at: serverTimestamp(), entered_at: serverTimestamp(), is_late_entry: gec, locked: true });
-        await updateDoc(doc(db, 'today_lessons', aktifDers.dersId), { status: 'filled' });
-        modalKapat();
-        dersleriniYukle();
-        anasayfaYukle();
-      } catch (err) { alert('Hata: ' + err.message); }
+      const yoklar = []; document.querySelectorAll('#modalOgrenciListesi input:checked').forEach(c => yoklar.push(c.id.replace('chk-', '')));
+      try { await addDoc(collection(db, 'attendance'), { date: bugun, class_id: aktifDers.classId, lesson_number: aktifDers.lessonNo, lesson_name: aktifDers.lessonName, teacher_id: aktifDers.teacherId, actual_teacher: document.getElementById('modalOgretmen').value, absent_students: yoklar, created_at: serverTimestamp(), entered_at: serverTimestamp(), is_late_entry: new Date().getHours() >= 9, locked: true }); await updateDoc(doc(db, 'today_lessons', aktifDers.dersId), { status: 'filled' }); modalKapat(); dersleriniYukle(); anasayfaYukle(); }
+      catch (err) { alert('Hata: ' + err.message); }
     };
-
     window.modalKapat = () => { document.getElementById('yoklamaModal').classList.remove('aktif'); aktifDers = null; };
+    window.modalKapat2 = () => { document.getElementById('gorevOnayModal').classList.remove('aktif'); gorevOnayPendingId = null; gorevOnayTip = null; };
 
     window.manuelDersOlustur = async () => {
-      const mesaj = document.getElementById('dersOlusturMesaj');
       mesajGoster('dersOlusturMesaj', 'Olusturuluyor...', 'bilgi');
-      try {
-        const fn = httpsCallable(functions, 'manuelDersOlustur');
-        const result = await fn({ tarih: bugun });
-        mesajGoster('dersOlusturMesaj', result.data.message, 'basari');
-        anasayfaYukle();
-      } catch (err) { mesajGoster('dersOlusturMesaj', 'Hata: ' + err.message, 'hata'); }
+      try { const fn = httpsCallable(functions, 'manuelDersOlustur'); const r = await fn({ tarih: bugun }); mesajGoster('dersOlusturMesaj', r.data.message, 'basari'); anasayfaYukle(); }
+      catch (err) { mesajGoster('dersOlusturMesaj', 'Hata: ' + err.message, 'hata'); }
     };
 
     // ── RAPORLAR ──
-    window.raporSekme = (id, el) => {
-      document.querySelectorAll('#sayfa-raporlar .sekme-icerik').forEach(s => s.classList.remove('aktif'));
-      document.querySelectorAll('#sayfa-raporlar .sekme-btn').forEach(b => b.classList.remove('aktif'));
-      document.getElementById('rsekme-' + id).classList.add('aktif');
-      el.classList.add('aktif');
-    };
-
+    window.raporSekme = (id, el) => { document.querySelectorAll('#sayfa-raporlar .sekme-icerik').forEach(s => s.classList.remove('aktif')); document.querySelectorAll('#sayfa-raporlar .sekme-btn').forEach(b => b.classList.remove('aktif')); document.getElementById('rsekme-' + id).classList.add('aktif'); el.classList.add('aktif'); };
     window.gunlukRaporGetir = async () => {
-      const tarih = document.getElementById('gunlukTarih').value;
-      const container = document.getElementById('gunlukRaporIcerik');
+      const tarih = document.getElementById('gunlukTarih').value; const container = document.getElementById('gunlukRaporIcerik');
       container.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
-      const sinifSnap = await getDocs(collection(db, 'classes'));
-      let siniflar = [];
-      sinifSnap.forEach(d => siniflar.push(d.data()));
-      siniflar.sort((a, b) => a.grade !== b.grade ? a.grade - b.grade : a.class_name.localeCompare(b.class_name));
+      const sinifSnap = await getDocs(collection(db, 'classes')); let siniflar = []; sinifSnap.forEach(d => siniflar.push(d.data())); siniflar.sort((a, b) => a.grade !== b.grade ? a.grade - b.grade : a.class_name.localeCompare(b.class_name));
       const summarySnap = await getDocs(query(collection(db, 'daily_summary'), where('date', '==', tarih)));
       if (summarySnap.empty) { container.innerHTML = '<div class="bos-mesaj">Bu tarihte devamsizlik verisi yok.</div>'; return; }
-      const devamsizliklar = {};
-      summarySnap.forEach(d => {
-        const data = d.data();
-        if (!devamsizliklar[data.class_id]) devamsizliklar[data.class_id] = { tamGun: [], yarimGun: [] };
-        if (data.status === 'full_day_absent') devamsizliklar[data.class_id].tamGun.push(data.student_number);
-        else if (data.status === 'half_day_absent') devamsizliklar[data.class_id].yarimGun.push(data.student_number);
-      });
+      const dev = {}; summarySnap.forEach(d => { const data = d.data(); if (!dev[data.class_id]) dev[data.class_id] = { tamGun: [], yarimGun: [] }; if (data.status === 'full_day_absent') dev[data.class_id].tamGun.push(data.student_number); else if (data.status === 'half_day_absent') dev[data.class_id].yarimGun.push(data.student_number); });
       const tarihStr = new Date(tarih + 'T12:00:00').toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', weekday: 'long' });
-      let html = `<div class="kart"><div style="text-align:center; margin-bottom:16px;"><div style="font-size:16px; font-weight:800;">AHMET YENİCE ORTAOKULU</div><div style="font-size:13px; color:var(--text2); margin-top:4px;">Gunluk Devamsizlik Raporu — ${tarihStr}</div></div><div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:10px;">`;
-      siniflar.forEach(sinif => {
-        const veri = devamsizliklar[sinif.class_name] || { tamGun: [], yarimGun: [] };
-        html += `<div class="rapor-sinif"><div class="rapor-sinif-baslik">${sinif.class_name}</div><div class="rapor-sinif-icerik"><div class="rapor-tam"><div class="rapor-alt-baslik">Tam Gun</div><div class="rapor-ogrenciler">${veri.tamGun.length > 0 ? veri.tamGun.join(', ') : '<span class="rapor-bos">Yok</span>'}</div></div><div class="rapor-yarim"><div class="rapor-alt-baslik">Yarim Gun</div><div class="rapor-ogrenciler">${veri.yarimGun.length > 0 ? veri.yarimGun.join(', ') : '<span class="rapor-bos">Yok</span>'}</div></div></div></div>`;
-      });
-      html += '</div></div>';
-      container.innerHTML = html;
+      let html = `<div class="kart"><div style="text-align:center;margin-bottom:16px;"><div style="font-size:16px;font-weight:800;">AHMET YENİCE ORTAOKULU</div><div style="font-size:13px;color:var(--text2);margin-top:4px;">Gunluk Devamsizlik Raporu — ${tarihStr}</div></div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;">`;
+      siniflar.forEach(s => { const v = dev[s.class_name] || { tamGun: [], yarimGun: [] }; html += `<div class="rapor-sinif"><div class="rapor-sinif-baslik">${s.class_name}</div><div class="rapor-sinif-icerik"><div class="rapor-tam"><div class="rapor-alt-baslik">Tam Gun</div><div class="rapor-ogrenciler">${v.tamGun.length ? v.tamGun.join(', ') : '<span class="rapor-bos">Yok</span>'}</div></div><div class="rapor-yarim"><div class="rapor-alt-baslik">Yarim Gun</div><div class="rapor-ogrenciler">${v.yarimGun.length ? v.yarimGun.join(', ') : '<span class="rapor-bos">Yok</span>'}</div></div></div></div>`; });
+      html += '</div></div>'; container.innerHTML = html;
     };
-
     window.gecRaporGetir = async () => {
-      const baslangic = document.getElementById('gecBaslangic').value;
-      const bitis = document.getElementById('gecBitis').value;
-      const container = document.getElementById('gecRaporIcerik');
+      const bas = document.getElementById('gecBaslangic').value; const bit = document.getElementById('gecBitis').value; const container = document.getElementById('gecRaporIcerik');
       container.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
-      const snap = await getDocs(query(collection(db, 'late_entries'), where('date', '>=', baslangic), where('date', '<=', bitis)));
-      if (snap.empty) { container.innerHTML = '<div class="bos-mesaj">Bu tarih araliginda gec giris kaydi yok.</div>'; return; }
-      const ogSnap = await getDocs(collection(db, 'teachers'));
-      const ogretmenler = {};
-      ogSnap.forEach(d => ogretmenler[d.id] = d.data());
-      const benzersiz = new Set();
-      snap.forEach(d => benzersiz.add(d.data().teacher_id));
-      let html = `<div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;"><div class="stat-kart"><div class="stat-sayi" style="color:var(--turuncu)">${snap.size}</div><div class="stat-etiket">Toplam Gec Giris</div></div><div class="stat-kart"><div class="stat-sayi">${benzersiz.size}</div><div class="stat-etiket">Farkli Ogretmen</div></div></div><div class="kart"><table><thead><tr><th>Ogretmen</th><th>Tarih</th><th>Sinif</th><th>Ders</th></tr></thead><tbody>`;
-      snap.docs.sort((a, b) => a.data().date.localeCompare(b.data().date)).forEach(d => {
-        const data = d.data();
-        const og = ogretmenler[data.teacher_id];
-        html += `<tr><td>${og?.ad || '-'}</td><td>${data.date}</td><td>${data.class_id}</td><td>${data.lesson_number}. Ders</td></tr>`;
-      });
-      html += '</tbody></table></div>';
-      container.innerHTML = html;
+      const snap = await getDocs(query(collection(db, 'late_entries'), where('date', '>=', bas), where('date', '<=', bit)));
+      if (snap.empty) { container.innerHTML = '<div class="bos-mesaj">Gec giris kaydi yok.</div>'; return; }
+      const ogMap = {}; tumOgretmenler.forEach(o => ogMap[o.id] = o);
+      const benzersiz = new Set(); snap.forEach(d => benzersiz.add(d.data().teacher_id));
+      let html = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;"><div class="stat-kart"><div class="stat-sayi" style="color:var(--turuncu)">${snap.size}</div><div class="stat-etiket">Toplam Gec Giris</div></div><div class="stat-kart"><div class="stat-sayi">${benzersiz.size}</div><div class="stat-etiket">Farkli Ogretmen</div></div></div><div class="kart"><table><thead><tr><th>Ogretmen</th><th>Tarih</th><th>Sinif</th><th>Ders</th></tr></thead><tbody>`;
+      snap.docs.sort((a, b) => a.data().date.localeCompare(b.data().date)).forEach(d => { const data = d.data(); html += `<tr><td>${ogMap[data.teacher_id]?.ad || '-'}</td><td>${data.date}</td><td>${data.class_id}</td><td>${data.lesson_number}. Ders</td></tr>`; });
+      html += '</tbody></table></div>'; container.innerHTML = html;
     };
-
     window.istatistikGetir = async () => {
-      const baslangic = document.getElementById('istatBaslangic').value;
-      const bitis = document.getElementById('istatBitis').value;
-      const container = document.getElementById('istatistikIcerik');
-      container.innerHTML = '<div class="yukleniyor">Veriler hesaplaniyor...</div>';
-      const snap = await getDocs(query(collection(db, 'daily_summary'), where('date', '>=', baslangic), where('date', '<=', bitis)));
-      if (snap.empty) { container.innerHTML = '<div class="bos-mesaj">Bu tarih araliginda veri yok.</div>'; return; }
-      const sinifSnap = await getDocs(collection(db, 'classes'));
-      const siniflar = {};
-      sinifSnap.forEach(d => siniflar[d.data().class_name] = d.data());
-      const sinifDevamsizlik = {};
-      const kademDevamsizlik = { 5: 0, 6: 0, 7: 0, 8: 0 };
-      const gunlukDevamsizlik = {};
-      let toplamTam = 0, toplamYarim = 0;
-      snap.forEach(d => {
-        const data = d.data();
-        const kademe = siniflar[data.class_id]?.grade;
-        if (!sinifDevamsizlik[data.class_id]) sinifDevamsizlik[data.class_id] = { tam: 0, yarim: 0 };
-        if (data.status === 'full_day_absent') { sinifDevamsizlik[data.class_id].tam++; if (kademe) kademDevamsizlik[kademe]++; toplamTam++; }
-        else if (data.status === 'half_day_absent') { sinifDevamsizlik[data.class_id].yarim++; if (kademe) kademDevamsizlik[kademe]++; toplamYarim++; }
-        if (!gunlukDevamsizlik[data.date]) gunlukDevamsizlik[data.date] = 0;
-        gunlukDevamsizlik[data.date]++;
-      });
-      const sinifSirali = Object.entries(sinifDevamsizlik).map(([sinif, v]) => ({ sinif, toplam: v.tam + v.yarim, tam: v.tam, yarim: v.yarim })).sort((a, b) => b.toplam - a.toplam);
-      container.innerHTML = `<div class="stat-ozet"><div class="stat-kart"><div class="stat-sayi">${toplamTam + toplamYarim}</div><div class="stat-etiket">Toplam</div></div><div class="stat-kart"><div class="stat-sayi" style="color:var(--kirmizi)">${toplamTam}</div><div class="stat-etiket">Tam Gun</div></div><div class="stat-kart"><div class="stat-sayi" style="color:var(--text2)">${toplamYarim}</div><div class="stat-etiket">Yarim Gun</div></div><div class="stat-kart"><div class="stat-sayi" style="color:var(--yesil)">${sinifSirali[0]?.sinif || '—'}</div><div class="stat-etiket">En Cok</div></div></div><div class="grafik-grid"><div class="grafik-kart"><h4>Sinif Bazinda</h4><canvas id="sinifGrafik"></canvas></div><div class="grafik-kart"><h4>Kademe</h4><canvas id="kademeGrafik"></canvas></div></div><div class="grafik-kart" style="margin-bottom:20px;"><h4>Gunluk Trend</h4><canvas id="trendGrafik"></canvas></div><div class="kart"><div class="kart-baslik">Detay Tablosu</div><table><thead><tr><th>Sinif</th><th>Tam</th><th>Yarim</th><th>Toplam</th></tr></thead><tbody>${sinifSirali.map(s => `<tr><td><strong>${s.sinif}</strong></td><td style="color:var(--kirmizi)">${s.tam}</td><td style="color:var(--text2)">${s.yarim}</td><td><strong>${s.toplam}</strong></td></tr>`).join('')}</tbody></table></div>`;
-      const top10 = sinifSirali.slice(0, 10);
-      new Chart(document.getElementById('sinifGrafik'), { type: 'bar', data: { labels: top10.map(s => s.sinif), datasets: [{ label: 'Tam Gun', data: top10.map(s => s.tam), backgroundColor: '#ea433580', borderColor: '#ea4335', borderWidth: 1 }, { label: 'Yarim Gun', data: top10.map(s => s.yarim), backgroundColor: '#9e9e9e80', borderColor: '#9e9e9e', borderWidth: 1 }] }, options: { responsive: true, plugins: { legend: { position: 'top' } }, scales: { y: { beginAtZero: true } } } });
-      new Chart(document.getElementById('kademeGrafik'), { type: 'doughnut', data: { labels: ['5. Sinif', '6. Sinif', '7. Sinif', '8. Sinif'], datasets: [{ data: [kademDevamsizlik[5], kademDevamsizlik[6], kademDevamsizlik[7], kademDevamsizlik[8]], backgroundColor: ['#1a73e8', '#34a853', '#fbbc04', '#ea4335'], borderWidth: 2 }] }, options: { responsive: true, plugins: { legend: { position: 'bottom' } } } });
-      const gunGunler = Object.keys(gunlukDevamsizlik).sort();
-      new Chart(document.getElementById('trendGrafik'), { type: 'line', data: { labels: gunGunler.map(g => new Date(g + 'T12:00:00').toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })), datasets: [{ label: 'Gunluk Toplam', data: gunGunler.map(g => gunlukDevamsizlik[g]), borderColor: '#1a73e8', backgroundColor: '#1a73e820', borderWidth: 2, fill: true, tension: 0.3 }] }, options: { responsive: true, plugins: { legend: { position: 'top' } }, scales: { y: { beginAtZero: true } } } });
+      const bas = document.getElementById('istatBaslangic').value; const bit = document.getElementById('istatBitis').value; const container = document.getElementById('istatistikIcerik');
+      container.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
+      const snap = await getDocs(query(collection(db, 'daily_summary'), where('date', '>=', bas), where('date', '<=', bit)));
+      if (snap.empty) { container.innerHTML = '<div class="bos-mesaj">Veri yok.</div>'; return; }
+      const sinifSnap = await getDocs(collection(db, 'classes')); const siniflar = {}; sinifSnap.forEach(d => siniflar[d.data().class_name] = d.data());
+      const sd = {}; const kd = {5:0,6:0,7:0,8:0}; const gd = {}; let tam = 0, yar = 0;
+      snap.forEach(d => { const data = d.data(); const k = siniflar[data.class_id]?.grade; if (!sd[data.class_id]) sd[data.class_id] = {tam:0,yar:0}; if (data.status === 'full_day_absent') { sd[data.class_id].tam++; if(k) kd[k]++; tam++; } else if (data.status === 'half_day_absent') { sd[data.class_id].yar++; if(k) kd[k]++; yar++; } if (!gd[data.date]) gd[data.date] = 0; gd[data.date]++; });
+      const sirali = Object.entries(sd).map(([s,v]) => ({s,t:v.tam+v.yar,tam:v.tam,yar:v.yar})).sort((a,b) => b.t-a.t);
+      container.innerHTML = `<div class="stat-ozet"><div class="stat-kart"><div class="stat-sayi">${tam+yar}</div><div class="stat-etiket">Toplam</div></div><div class="stat-kart"><div class="stat-sayi" style="color:var(--kirmizi)">${tam}</div><div class="stat-etiket">Tam Gun</div></div><div class="stat-kart"><div class="stat-sayi" style="color:var(--text2)">${yar}</div><div class="stat-etiket">Yarim Gun</div></div><div class="stat-kart"><div class="stat-sayi" style="color:var(--yesil)">${sirali[0]?.s || '—'}</div><div class="stat-etiket">En Cok</div></div></div><div class="grafik-grid"><div class="grafik-kart"><h4>Sinif Bazinda</h4><canvas id="sinifGrafik"></canvas></div><div class="grafik-kart"><h4>Kademe</h4><canvas id="kademeGrafik"></canvas></div></div><div class="grafik-kart" style="margin-bottom:20px;"><h4>Gunluk Trend</h4><canvas id="trendGrafik"></canvas></div><div class="kart"><div class="kart-baslik">Detay</div><table><thead><tr><th>Sinif</th><th>Tam</th><th>Yarim</th><th>Toplam</th></tr></thead><tbody>${sirali.map(s=>`<tr><td><strong>${s.s}</strong></td><td style="color:var(--kirmizi)">${s.tam}</td><td style="color:var(--text2)">${s.yar}</td><td><strong>${s.t}</strong></td></tr>`).join('')}</tbody></table></div>`;
+      const top10 = sirali.slice(0,10);
+      new Chart(document.getElementById('sinifGrafik'),{type:'bar',data:{labels:top10.map(s=>s.s),datasets:[{label:'Tam Gun',data:top10.map(s=>s.tam),backgroundColor:'#ea433580',borderColor:'#ea4335',borderWidth:1},{label:'Yarim Gun',data:top10.map(s=>s.yar),backgroundColor:'#9e9e9e80',borderColor:'#9e9e9e',borderWidth:1}]},options:{responsive:true,plugins:{legend:{position:'top'}},scales:{y:{beginAtZero:true}}}});
+      new Chart(document.getElementById('kademeGrafik'),{type:'doughnut',data:{labels:['5. Sinif','6. Sinif','7. Sinif','8. Sinif'],datasets:[{data:[kd[5],kd[6],kd[7],kd[8]],backgroundColor:['#1a73e8','#34a853','#fbbc04','#ea4335'],borderWidth:2}]},options:{responsive:true,plugins:{legend:{position:'bottom'}}}});
+      const gg = Object.keys(gd).sort();
+      new Chart(document.getElementById('trendGrafik'),{type:'line',data:{labels:gg.map(g=>new Date(g+'T12:00:00').toLocaleDateString('tr-TR',{day:'numeric',month:'short'})),datasets:[{label:'Gunluk Toplam',data:gg.map(g=>gd[g]),borderColor:'#1a73e8',backgroundColor:'#1a73e820',borderWidth:2,fill:true,tension:0.3}]},options:{responsive:true,plugins:{legend:{position:'top'}},scales:{y:{beginAtZero:true}}}});
     };
 
-    // ── AYARLAR ──
-    window.ayarSekme = (id, el) => {
-      document.querySelectorAll('#sayfa-ayarlar .sekme-icerik').forEach(s => s.classList.remove('aktif'));
-      document.querySelectorAll('#sayfa-ayarlar .sekme-btn').forEach(b => b.classList.remove('aktif'));
-      document.getElementById('asekme-' + id).classList.add('aktif');
-      el.classList.add('aktif');
-    };
-
-    async function ayarlarYukle() {
-      await ogretmenleriListele();
-      await siniflariListele();
-      await sinifDropdownlariniDoldur();
-      await ogrencileriGetir();
-      await donemBilgisiniGetir();
+    // ── GÖREV DAĞILIMI ──
+    function gorevSayfasiBaslat() {
+      gorevleriniYukle();
+      branslariDoldur();
     }
 
-    async function ogretmenleriListele() {
-      const snap = await getDocs(collection(db, 'teachers'));
-      tumOgretmenler = [];
-      snap.forEach(d => tumOgretmenler.push({ id: d.id, ...d.data() }));
-      const container = document.getElementById('ayarOgretmenListesi');
-      if (snap.empty) { container.innerHTML = '<div class="bos-mesaj">Henuz ogretmen eklenmemis</div>'; return; }
-      let html = '<table><thead><tr><th>Ad Soyad</th><th>Brans</th><th>E-posta</th></tr></thead><tbody>';
-      tumOgretmenler.forEach(o => html += `<tr><td><strong>${o.ad}</strong></td><td>${o.brans}</td><td>${o.email}</td></tr>`);
+    function branslariDoldur() {
+      const select = document.getElementById('gorevBrans');
+      const branslar = [...new Set(tumOgretmenler.map(o => o.brans).filter(Boolean))].sort();
+      select.innerHTML = '<option value="">Brans secin...</option>';
+      branslar.forEach(b => select.innerHTML += `<option value="${b}">${b}</option>`);
+    }
+
+    window.gorevSekme = (id, el) => {
+      document.querySelectorAll('#sayfa-gorev .sekme-icerik').forEach(s => s.classList.remove('aktif'));
+      document.querySelectorAll('#sayfa-gorev .sekme-btn').forEach(b => b.classList.remove('aktif'));
+      document.getElementById('gsekme-' + id).classList.add('aktif');
+      el.classList.add('aktif');
+      if (id === 'liste') gorevleriniYukle();
+      else if (id === 'siralar') siralariYukle();
+      else if (id === 'istatistik') gorevIstatistikYukle();
+      else if (id === 'takvim') kilitliGunleriYukle();
+    };
+
+    window.gorevTurDegisti = () => {
+      document.getElementById('gorevBransRow').style.display = document.getElementById('gorevTur').value === 'brans' ? 'block' : 'none';
+    };
+
+    async function gorevleriniYukle() {
+      const container = document.getElementById('gorevListesiIcerik');
+      container.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
+      const snap = await getDocs(query(collection(db, 'gorevler'), orderBy('olusturulma_tarihi', 'desc')));
+      tumGorevler = [];
+      snap.forEach(d => tumGorevler.push({ id: d.id, ...d.data() }));
+      gorevleriniRender();
+    }
+
+    window.gorevleriniYukle = gorevleriniYukle;
+
+    window.gorevFiltrele = (filtre, el) => {
+      gorevFiltresi = filtre;
+      document.querySelectorAll('#gsekme-liste .btn').forEach(b => { b.style.background = ''; b.style.color = ''; });
+      el.style.background = 'var(--mavi)'; el.style.color = 'white';
+      gorevleriniRender();
+    };
+
+    function gorevleriniRender() {
+      const container = document.getElementById('gorevListesiIcerik');
+      let liste = gorevFiltresi === 'hepsi' ? tumGorevler : tumGorevler.filter(g => g.durum === gorevFiltresi);
+      if (!liste.length) { container.innerHTML = '<div class="bos-mesaj">Gorev bulunamadi.</div>'; return; }
+
+      const durumEtiket = { acik: 'Acik', tamamlandi: 'Tamamlandi', tamamlanmadi: 'Tamamlanmadi', iptal: 'Iptal' };
+      const durumRozet = { acik: 'rozet-mavi', tamamlandi: 'rozet-yesil', tamamlanmadi: 'rozet-kirmizi', iptal: 'rozet-gri' };
+
+      let html = '';
+      liste.forEach(g => {
+        const atanenAdlar = (g.atananlar || []).join(', ') || '—';
+        const gecti = g.son_tarih && g.son_tarih < bugun && g.durum === 'acik';
+        html += `<div class="gorev-kart ${g.durum || 'acik'}">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px;">
+            <div class="gorev-baslik">${g.baslik}</div>
+            <span class="rozet ${durumRozet[g.durum] || 'rozet-mavi'}">${durumEtiket[g.durum] || 'Acik'}</span>
+          </div>
+          <div class="gorev-meta">
+            <span>👤 ${atanenAdlar}</span>
+            <span>📅 Son: <strong ${gecti ? 'style="color:var(--kirmizi)"' : ''}>${g.son_tarih || '—'}${gecti ? ' ⚠️' : ''}</strong></span>
+            <span>${g.tur === 'brans' ? '🎓 Brans: ' + g.brans : '📌 Genel'}</span>
+          </div>
+          ${g.aciklama ? `<p style="font-size:13px; color:var(--text2); margin-bottom:8px;">${g.aciklama}</p>` : ''}
+          <div class="gorev-butonlar">
+            ${g.durum === 'acik' && (aktifRol === 'admin') ? `
+              <button class="btn btn-yesil btn-sm" onclick="gorevOnayAc('${g.id}', 'tamamlandi')">✓ Tamamlandi</button>
+              <button class="btn btn-kirmizi btn-sm" onclick="gorevOnayAc('${g.id}', 'tamamlanmadi')">✗ Tamamlanmadi</button>
+            ` : ''}
+          </div>
+        </div>`;
+      });
+      container.innerHTML = html;
+    }
+
+    window.gorevOnayAc = (gorevId, tip) => {
+      gorevOnayPendingId = gorevId;
+      gorevOnayTip = tip;
+      const gorev = tumGorevler.find(g => g.id === gorevId);
+      const baslik = tip === 'tamamlandi' ? '✅ Gorev Tamamlandi' : '❌ Tamamlanmadi';
+      const aciklama = tip === 'tamamlandi'
+        ? `"${gorev?.baslik}" gorevi tamamlandi olarak isaretlenecek.`
+        : `"${gorev?.baslik}" gorevi tamamlanmadi olarak isaretlenecek. Atanan ogretmen bir sonraki gorevde once alinacak.`;
+      document.getElementById('gorevOnayBaslik').textContent = baslik;
+      document.getElementById('gorevOnayAciklama').textContent = aciklama;
+      const btn = document.getElementById('gorevOnayBtn');
+      btn.textContent = tip === 'tamamlandi' ? '✓ Onayla' : '✗ Onayla';
+      btn.className = 'btn ' + (tip === 'tamamlandi' ? 'btn-yesil' : 'btn-kirmizi');
+      document.getElementById('gorevOnayModal').classList.add('aktif');
+    };
+
+    window.gorevOnaylaConfirm = async () => {
+      if (!gorevOnayPendingId) return;
+      try {
+        await updateDoc(doc(db, 'gorevler', gorevOnayPendingId), {
+          durum: gorevOnayTip,
+          kapatma_tarihi: bugun,
+          kapatma_notu: gorevOnayTip === 'tamamlanmadi' ? 'Tamamlanmadi olarak isaretlendi.' : ''
+        });
+
+        // Tamamlanmadıysa öncelik kuyruğuna ekle
+        if (gorevOnayTip === 'tamamlanmadi') {
+          const gorev = tumGorevler.find(g => g.id === gorevOnayPendingId);
+          const atamalar = gorev?.atanan_ids || [];
+          for (const tid of atamalar) {
+            await addDoc(collection(db, 'oncelik_kuyrugu'), {
+              ogretmen_id: tid,
+              sebep: 'tamamlanmadi',
+              kaynak_gorev_id: gorevOnayPendingId,
+              kullanildi: false,
+              olusturulma_tarihi: bugun
+            });
+          }
+        }
+
+        modalKapat2();
+        await gorevleriniYukle();
+      } catch (err) { alert('Hata: ' + err.message); }
+    };
+
+    window.gorevOlustur = async () => {
+      const baslik = document.getElementById('gorevBaslik').value.trim();
+      const aciklama = document.getElementById('gorevAciklama').value.trim();
+      const tur = document.getElementById('gorevTur').value;
+      const brans = document.getElementById('gorevBrans').value;
+      const sayi = parseInt(document.getElementById('gorevSayi').value) || 1;
+      const sonTarih = document.getElementById('gorevSonTarih').value;
+
+      if (!baslik) { mesajGoster('gorevOlusturMesaj', 'Gorev basligi gerekli.', 'hata'); return; }
+      if (!sonTarih) { mesajGoster('gorevOlusturMesaj', 'Son tarih gerekli.', 'hata'); return; }
+      if (tur === 'brans' && !brans) { mesajGoster('gorevOlusturMesaj', 'Brans secin.', 'hata'); return; }
+
+      // Kapalı gün kontrolü
+      const kilitSnap = await getDocs(query(collection(db, 'takvim_kilidi'), where('tarih', '==', bugun)));
+      if (!kilitSnap.empty) { mesajGoster('gorevOlusturMesaj', 'Bugun gorev atamasina kapali bir gun.', 'hata'); return; }
+
+      mesajGoster('gorevOlusturMesaj', 'Atama yapiliyor...', 'bilgi');
+
+      try {
+        // Uygun öğretmenleri seç
+        const atananlar = await gorevAtamaAlgoritm(tur, brans, sayi);
+        if (!atananlar.length) { mesajGoster('gorevOlusturMesaj', 'Uygun ogretmen bulunamadi. Tum ogretmenler cooldown surecinde olabilir.', 'hata'); return; }
+
+        const atananAdlar = atananlar.map(a => a.ad);
+        const atananIds = atananlar.map(a => a.id);
+
+        const gorevRef = await addDoc(collection(db, 'gorevler'), {
+          baslik, aciklama, tur, brans: tur === 'brans' ? brans : '',
+          sayi, son_tarih: sonTarih, durum: 'acik',
+          atananlar: atananAdlar, atanan_ids: atananIds,
+          olusturan_id: aktifKullanici?.uid || '',
+          olusturan_ad: aktifKullanici?.ad || '',
+          olusturulma_tarihi: bugun,
+          kapatma_tarihi: '', kapatma_notu: ''
+        });
+
+        // Sıraları güncelle (cooldown)
+        const cooldownBitis = tarihEkle(bugun, 30);
+        for (const ogr of atananlar) {
+          const siraSnap = await getDocs(query(collection(db, 'ogretmen_sirasi'), where('ogretmen_id', '==', ogr.id), where('sira_turu', '==', tur === 'brans' ? 'brans_' + brans : 'genel')));
+          if (!siraSnap.empty) {
+            await updateDoc(siraSnap.docs[0].ref, { son_atama: bugun, cooldown_bitis: cooldownBitis });
+          }
+          // Öncelik kuyruğunu kullanıldı olarak işaretle
+          const oncelikSnap = await getDocs(query(collection(db, 'oncelik_kuyrugu'), where('ogretmen_id', '==', ogr.id), where('kullanildi', '==', false)));
+          for (const d of oncelikSnap.docs) {
+            await updateDoc(d.ref, { kullanildi: true, kullanim_tarihi: bugun });
+          }
+        }
+
+        mesajGoster('gorevOlusturMesaj', `Gorev olusturuldu. Atanan: ${atananAdlar.join(', ')}`, 'basari');
+        document.getElementById('gorevBaslik').value = '';
+        document.getElementById('gorevAciklama').value = '';
+      } catch (err) { mesajGoster('gorevOlusturMesaj', 'Hata: ' + err.message, 'hata'); }
+    };
+
+    async function gorevAtamaAlgoritm(tur, brans, sayi) {
+      const siraKey = tur === 'brans' ? 'brans_' + brans : 'genel';
+
+      // Havuzu oluştur
+      let havuz = tumOgretmenler.filter(o => {
+        if (tur === 'brans') return o.brans === brans;
+        return true;
+      });
+
+      // Önce öncelik kuyruğu
+      const oncelikSnap = await getDocs(query(collection(db, 'oncelik_kuyrugu'), where('kullanildi', '==', false)));
+      const oncelikIds = new Set();
+      oncelikSnap.forEach(d => oncelikIds.add(d.data().ogretmen_id));
+
+      // Sıra bilgilerini al
+      const siraSnap = await getDocs(query(collection(db, 'ogretmen_sirasi'), where('sira_turu', '==', siraKey)));
+      const siraMap = {};
+      siraSnap.forEach(d => siraMap[d.data().ogretmen_id] = d.data());
+
+      // Uygunluk kontrolü (cooldown, açık görev)
+      const acikGorevSnap = await getDocs(query(collection(db, 'gorevler'), where('durum', '==', 'acik')));
+      const acikGorevOgretmenler = new Set();
+      acikGorevSnap.forEach(d => { (d.data().atanan_ids || []).forEach(id => acikGorevOgretmenler.add(id)); });
+
+      function uygunMu(ogr, atlaKooldown = false) {
+        if (acikGorevOgretmenler.has(ogr.id)) return false;
+        if (!atlaKooldown && siraMap[ogr.id]?.cooldown_bitis) {
+          if (siraMap[ogr.id].cooldown_bitis >= bugun) return false;
+        }
+        return true;
+      }
+
+      const secilen = [];
+
+      // 1. Öncelik kuyruğundan al
+      for (const ogr of havuz) {
+        if (secilen.length >= sayi) break;
+        if (oncelikIds.has(ogr.id) && uygunMu(ogr, true)) secilen.push(ogr);
+      }
+
+      // 2. Normal sıradan al
+      const sirasiyla = havuz.filter(o => !secilen.find(s => s.id === o.id)).sort((a, b) => {
+        const sa = siraMap[a.id]?.son_atama || '0000-00-00';
+        const sb = siraMap[b.id]?.son_atama || '0000-00-00';
+        if (sa !== sb) return sa.localeCompare(sb);
+        return (a.ad || '').localeCompare(b.ad || '', 'tr');
+      });
+
+      for (const ogr of sirasiyla) {
+        if (secilen.length >= sayi) break;
+        if (uygunMu(ogr)) secilen.push(ogr);
+      }
+
+      // Eğer sıra kaydı yoksa ilk kullanım için sıra oluştur
+      for (const ogr of secilen) {
+        if (!siraMap[ogr.id]) {
+          await addDoc(collection(db, 'ogretmen_sirasi'), { ogretmen_id: ogr.id, ogretmen_ad: ogr.ad, sira_turu: siraKey, son_atama: bugun, cooldown_bitis: tarihEkle(bugun, 30) });
+        }
+      }
+
+      return secilen;
+    }
+
+    function tarihEkle(tarihStr, gun) {
+      const d = new Date(tarihStr);
+      d.setDate(d.getDate() + gun);
+      return d.toISOString().split('T')[0];
+    }
+
+    // ── SIRALARI YUKLE ──
+    async function siralariYukle() {
+      const container = document.getElementById('siraListesiIcerik');
+      container.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
+
+      const siraSnap = await getDocs(collection(db, 'ogretmen_sirasi'));
+      const siralar = [];
+      siraSnap.forEach(d => siralar.push({ id: d.id, ...d.data() }));
+
+      const turler = [...new Set(siralar.map(s => s.sira_turu))].sort();
+      if (!turler.length) { document.getElementById('siraTabBar').innerHTML = ''; container.innerHTML = '<div class="bos-mesaj">Henuz sira kaydi yok. Gorev olusturdukca sira olusur.</div>'; return; }
+
+      const tabBar = document.getElementById('siraTabBar');
+      tabBar.innerHTML = turler.map((t, i) =>
+        `<button class="sekme-btn ${i === 0 ? 'aktif' : ''}" onclick="siraTabGoster('${t}', this)">${t === 'genel' ? 'Genel Sira' : t.replace('brans_', '')}</button>`
+      ).join('');
+
+      siraTabGosterIcerik(turler[0], siralar);
+    }
+
+    window.siraTabGoster = (tur, el) => {
+      document.querySelectorAll('#siraTabBar .sekme-btn').forEach(b => b.classList.remove('aktif'));
+      el.classList.add('aktif');
+      getDocs(collection(db, 'ogretmen_sirasi')).then(snap => {
+        const siralar = [];
+        snap.forEach(d => siralar.push({ id: d.id, ...d.data() }));
+        siraTabGosterIcerik(tur, siralar);
+      });
+    };
+
+    function siraTabGosterIcerik(tur, siralar) {
+      const filtered = siralar.filter(s => s.sira_turu === tur).sort((a, b) => a.son_atama.localeCompare(b.son_atama));
+      const container = document.getElementById('siraListesiIcerik');
+      if (!filtered.length) { container.innerHTML = '<div class="bos-mesaj">Bu sira turunde kayit yok.</div>'; return; }
+
+      let siradakiBulundu = false;
+      let html = '';
+      filtered.forEach((s, i) => {
+        const cooldownVar = s.cooldown_bitis && s.cooldown_bitis >= bugun;
+        const siradaki = !siradakiBulundu && !cooldownVar;
+        if (siradaki) siradakiBulundu = true;
+        html += `<div class="sira-item">
+          <div class="sira-no ${siradaki ? 'siradaki' : ''}">${i + 1}</div>
+          <div class="sira-isim">${s.ogretmen_ad}</div>
+          <div class="sira-meta">
+            ${cooldownVar ? `<span class="rozet rozet-sari">⏳ ${s.cooldown_bitis} kadar bekleme</span>` :
+              siradaki ? '<span class="rozet rozet-mavi">Siradaki</span>' :
+              `<span style="color:var(--text2);">Son: ${s.son_atama || '—'}</span>`}
+          </div>
+        </div>`;
+      });
+      container.innerHTML = html;
+    }
+
+    // ── GÖREV İSTATİSTİK ──
+    async function gorevIstatistikYukle() {
+      const container = document.getElementById('gorevIstatistikIcerik');
+      container.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
+
+      const snap = await getDocs(collection(db, 'gorevler'));
+      const gorevler = [];
+      snap.forEach(d => gorevler.push({ id: d.id, ...d.data() }));
+
+      if (!gorevler.length) { container.innerHTML = '<div class="bos-mesaj">Henuz gorev yok.</div>'; return; }
+
+      const ogretmenStat = {};
+      tumOgretmenler.forEach(o => { ogretmenStat[o.id] = { ad: o.ad, brans: o.brans, toplam: 0, tamamlandi: 0, tamamlanmadi: 0, acik: 0 }; });
+
+      gorevler.forEach(g => {
+        (g.atanan_ids || []).forEach(id => {
+          if (!ogretmenStat[id]) ogretmenStat[id] = { ad: '?', brans: '?', toplam: 0, tamamlandi: 0, tamamlanmadi: 0, acik: 0 };
+          ogretmenStat[id].toplam++;
+          if (g.durum === 'tamamlandi') ogretmenStat[id].tamamlandi++;
+          else if (g.durum === 'tamamlanmadi') ogretmenStat[id].tamamlanmadi++;
+          else if (g.durum === 'acik') ogretmenStat[id].acik++;
+        });
+      });
+
+      const sirali = Object.values(ogretmenStat).filter(o => o.toplam > 0).sort((a, b) => b.toplam - a.toplam);
+      const toplam = gorevler.length;
+      const tamamlandi = gorevler.filter(g => g.durum === 'tamamlandi').length;
+      const tamamlanmadi = gorevler.filter(g => g.durum === 'tamamlanmadi').length;
+      const acik = gorevler.filter(g => g.durum === 'acik').length;
+
+      container.innerHTML = `
+        <div class="stat-grid">
+          <div class="stat-kart"><div class="stat-sayi">${toplam}</div><div class="stat-etiket">Toplam Gorev</div></div>
+          <div class="stat-kart"><div class="stat-sayi" style="color:var(--yesil)">${tamamlandi}</div><div class="stat-etiket">Tamamlandi</div></div>
+          <div class="stat-kart"><div class="stat-sayi" style="color:var(--kirmizi)">${tamamlanmadi}</div><div class="stat-etiket">Tamamlanmadi</div></div>
+          <div class="stat-kart"><div class="stat-sayi" style="color:var(--mavi)">${acik}</div><div class="stat-etiket">Acik</div></div>
+        </div>
+        <div class="kart">
+          <div class="kart-baslik">Ogretmen Bazinda Gorev Dagilimi</div>
+          <table><thead><tr><th>Ogretmen</th><th>Brans</th><th>Toplam</th><th>Tamamlandi</th><th>Tamamlanmadi</th><th>Acik</th></tr></thead><tbody>
+            ${sirali.map(o => `<tr><td><strong>${o.ad}</strong></td><td>${o.brans}</td><td><strong>${o.toplam}</strong></td><td style="color:var(--yesil)">${o.tamamlandi}</td><td style="color:var(--kirmizi)">${o.tamamlanmadi}</td><td>${o.acik}</td></tr>`).join('')}
+          </tbody></table>
+        </div>`;
+    }
+
+    // ── TAKVİM KİLİDİ ──
+    window.tarihKilitle = async () => {
+      const tarih = document.getElementById('kilitTarih').value;
+      const neden = document.getElementById('kilitNeden').value.trim();
+      if (!tarih) { mesajGoster('kilitMesaj', 'Tarih secin.', 'hata'); return; }
+      const kontrol = await getDocs(query(collection(db, 'takvim_kilidi'), where('tarih', '==', tarih)));
+      if (!kontrol.empty) { mesajGoster('kilitMesaj', 'Bu tarih zaten kapali.', 'hata'); return; }
+      await addDoc(collection(db, 'takvim_kilidi'), { tarih, neden, olusturan: aktifKullanici?.ad || '', olusturulma: bugun });
+      mesajGoster('kilitMesaj', 'Tarih kapatildi.', 'basari');
+      document.getElementById('kilitNeden').value = '';
+      kilitliGunleriYukle();
+    };
+
+    async function kilitliGunleriYukle() {
+      const snap = await getDocs(collection(db, 'takvim_kilidi'));
+      const container = document.getElementById('kilitListesi');
+      if (snap.empty) { container.innerHTML = '<div class="bos-mesaj">Kapali gun yok.</div>'; return; }
+      let gunler2 = [];
+      snap.forEach(d => gunler2.push({ id: d.id, ...d.data() }));
+      gunler2.sort((a, b) => b.tarih.localeCompare(a.tarih));
+      let html = '<table><thead><tr><th>Tarih</th><th>Neden</th><th>Ekleyen</th><th></th></tr></thead><tbody>';
+      gunler2.forEach(g => { html += `<tr><td><strong>${g.tarih}</strong></td><td>${g.neden || '—'}</td><td>${g.olusturan || '—'}</td><td><button class="btn btn-kirmizi btn-sm" onclick="kilitSil('${g.id}')">Sil</button></td></tr>`; });
       html += '</tbody></table>';
       container.innerHTML = html;
     }
 
+    window.kilitSil = async (id) => {
+      if (!confirm('Bu gunun kilidini kaldiracaksiniz. Emin misiniz?')) return;
+      await deleteDoc(doc(db, 'takvim_kilidi', id));
+      kilitliGunleriYukle();
+    };
+
+    // ── ÖĞRETMENİN GÖREVLERİ ──
+    async function ogretmenGorevleriniYukle() {
+      const container = document.getElementById('ogretmenGorevListesi');
+      container.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
+      if (!aktifOgretmenDoc) { container.innerHTML = '<div class="bos-mesaj">Ogretmen bilgisi bulunamadi.</div>'; return; }
+      const snap = await getDocs(query(collection(db, 'gorevler'), where('atanan_ids', 'array-contains', aktifOgretmenDoc.id), orderBy('olusturulma_tarihi', 'desc')));
+      if (snap.empty) { container.innerHTML = '<div class="bos-mesaj">Henuz gorev atanmamis.</div>'; return; }
+      const durumRozet = { acik: 'rozet-mavi', tamamlandi: 'rozet-yesil', tamamlanmadi: 'rozet-kirmizi', iptal: 'rozet-gri' };
+      const durumEtiket = { acik: 'Acik', tamamlandi: 'Tamamlandi', tamamlanmadi: 'Tamamlanmadi', iptal: 'Iptal' };
+      let html = '';
+      snap.forEach(d => {
+        const g = d.data();
+        const gecti = g.son_tarih && g.son_tarih < bugun && g.durum === 'acik';
+        html += `<div class="gorev-kart ${g.durum || 'acik'}">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px;">
+            <div class="gorev-baslik">${g.baslik}</div>
+            <span class="rozet ${durumRozet[g.durum] || 'rozet-mavi'}">${durumEtiket[g.durum] || 'Acik'}</span>
+          </div>
+          <div class="gorev-meta">
+            <span>📅 Son Tarih: <strong ${gecti ? 'style="color:var(--kirmizi)"' : ''}>${g.son_tarih || '—'}${gecti ? ' ⚠️' : ''}</strong></span>
+            <span>${g.tur === 'brans' ? '🎓 Brans: ' + g.brans : '📌 Genel'}</span>
+          </div>
+          ${g.aciklama ? `<p style="font-size:13px; color:var(--text2);">${g.aciklama}</p>` : ''}
+        </div>`;
+      });
+      container.innerHTML = html;
+    }
+
+    // ── AYARLAR ──
+    window.ayarSekme = (id, el) => { document.querySelectorAll('#sayfa-ayarlar .sekme-icerik').forEach(s => s.classList.remove('aktif')); document.querySelectorAll('#sayfa-ayarlar .sekme-btn').forEach(b => b.classList.remove('aktif')); document.getElementById('asekme-' + id).classList.add('aktif'); el.classList.add('aktif'); };
+
+    async function ayarlarYukle() { await ogretmenleriListele(); await siniflariListele(); await sinifDropdownlariniDoldur(); await ogrencileriGetir(); await donemBilgisiniGetir(); }
+
+    async function ogretmenleriListele() {
+      const snap = await getDocs(collection(db, 'teachers')); tumOgretmenler = []; snap.forEach(d => tumOgretmenler.push({ id: d.id, ...d.data() }));
+      const container = document.getElementById('ayarOgretmenListesi');
+      if (snap.empty) { container.innerHTML = '<div class="bos-mesaj">Henuz ogretmen eklenmemis</div>'; return; }
+      let html = '<table><thead><tr><th>Ad Soyad</th><th>Brans</th><th>E-posta</th></tr></thead><tbody>';
+      tumOgretmenler.forEach(o => html += `<tr><td><strong>${o.ad}</strong></td><td>${o.brans}</td><td>${o.email}</td></tr>`);
+      html += '</tbody></table>'; container.innerHTML = html;
+    }
+
     window.ogretmenEkle = async () => {
-      const ad = document.getElementById('ayarOgretmenAd').value.trim();
-      const brans = document.getElementById('ayarOgretmenBrans').value.trim();
-      const email = document.getElementById('ayarOgretmenEmail').value.trim();
-      const sifre = document.getElementById('ayarOgretmenSifre').value;
+      const ad = document.getElementById('ayarOgretmenAd').value.trim(); const brans = document.getElementById('ayarOgretmenBrans').value.trim();
+      const email = document.getElementById('ayarOgretmenEmail').value.trim(); const sifre = document.getElementById('ayarOgretmenSifre').value;
       if (!ad || !brans || !email || !sifre) { mesajGoster('ogretmenEkleMesaj', 'Tum alanlari doldurun.', 'hata'); return; }
       mesajGoster('ogretmenEkleMesaj', 'Ekleniyor...', 'bilgi');
       try {
         const fn = httpsCallable(functions, 'ogretmenOlustur');
         await fn({ ad, brans, email, sifre });
         mesajGoster('ogretmenEkleMesaj', 'Ogretmen eklendi.', 'basari');
-        document.getElementById('ayarOgretmenAd').value = '';
-        document.getElementById('ayarOgretmenBrans').value = '';
-        document.getElementById('ayarOgretmenEmail').value = '';
-        document.getElementById('ayarOgretmenSifre').value = '';
+        ['ayarOgretmenAd','ayarOgretmenBrans','ayarOgretmenEmail','ayarOgretmenSifre'].forEach(id => document.getElementById(id).value = '');
         await ogretmenleriListele();
       } catch (err) { mesajGoster('ogretmenEkleMesaj', 'Hata: ' + err.message, 'hata'); }
     };
 
     async function siniflariListele() {
-      const snap = await getDocs(collection(db, 'classes'));
-      tumSiniflar = [];
-      snap.forEach(d => tumSiniflar.push({ id: d.id, ...d.data() }));
+      const snap = await getDocs(collection(db, 'classes')); tumSiniflar = []; snap.forEach(d => tumSiniflar.push({ id: d.id, ...d.data() }));
       const container = document.getElementById('ayarSinifListesi');
       if (snap.empty) { container.innerHTML = '<div class="bos-mesaj">Henuz sinif eklenmemis</div>'; return; }
       tumSiniflar.sort((a, b) => a.grade !== b.grade ? a.grade - b.grade : a.class_name.localeCompare(b.class_name));
       let html = '<table><thead><tr><th>Sinif Adi</th><th>Kademe</th><th></th></tr></thead><tbody>';
-      tumSiniflar.forEach(s => {
-        html += `<tr><td><strong>${s.class_name}</strong></td><td>${s.grade}. Sinif</td>
-          <td><button class="btn btn-kirmizi btn-sm" onclick="sinifSil('${s.id}','${s.class_name}')">Sil</button></td></tr>`;
-      });
-      html += '</tbody></table>';
-      container.innerHTML = html;
+      tumSiniflar.forEach(s => { html += `<tr><td><strong>${s.class_name}</strong></td><td>${s.grade}. Sinif</td><td><button class="btn btn-kirmizi btn-sm" onclick="sinifSil('${s.id}','${s.class_name}')">Sil</button></td></tr>`; });
+      html += '</tbody></table>'; container.innerHTML = html;
     }
 
     window.sinifEkle = async () => {
-      const ad = document.getElementById('ayarSinifAd').value.trim().toUpperCase();
-      const kademe = document.getElementById('ayarSinifKademe').value;
+      const ad = document.getElementById('ayarSinifAd').value.trim().toUpperCase(); const kademe = document.getElementById('ayarSinifKademe').value;
       if (!ad) { mesajGoster('sinifEkleMesaj', 'Sinif adi girin.', 'hata'); return; }
       await addDoc(collection(db, 'classes'), { class_name: ad, grade: parseInt(kademe), created_at: serverTimestamp() });
-      mesajGoster('sinifEkleMesaj', 'Sinif eklendi.', 'basari');
-      document.getElementById('ayarSinifAd').value = '';
-      await siniflariListele();
-      await sinifDropdownlariniDoldur();
+      mesajGoster('sinifEkleMesaj', 'Sinif eklendi.', 'basari'); document.getElementById('ayarSinifAd').value = '';
+      await siniflariListele(); await sinifDropdownlariniDoldur();
     };
 
     window.sinifSil = async (id, isim) => {
       if (!confirm(`"${isim}" sinifini silmek istediginize emin misiniz?`)) return;
-      await deleteDoc(doc(db, 'classes', id));
-      await siniflariListele();
-      await sinifDropdownlariniDoldur();
+      await deleteDoc(doc(db, 'classes', id)); await siniflariListele(); await sinifDropdownlariniDoldur();
     };
 
     async function sinifDropdownlariniDoldur() {
-      const snap = await getDocs(collection(db, 'classes'));
-      let siniflar = [];
-      snap.forEach(d => siniflar.push(d.data()));
-      siniflar.sort((a, b) => a.class_name.localeCompare(b.class_name));
-
-      const selects = ['ayarOgrenciSinif', 'ayarOgrenciSinifFiltre'];
-      selects.forEach(id => {
-        const el = document.getElementById(id);
-        const ilk = id === 'ayarOgrenciSinifFiltre' ? '<option value="">Tum Siniflar</option>' : '<option value="">Sinif secin</option>';
-        el.innerHTML = ilk;
-        siniflar.forEach(s => el.innerHTML += `<option value="${s.class_name}">${s.class_name}</option>`);
+      const snap = await getDocs(collection(db, 'classes')); let siniflar = []; snap.forEach(d => siniflar.push(d.data())); siniflar.sort((a, b) => a.class_name.localeCompare(b.class_name));
+      ['ayarOgrenciSinif', 'ayarOgrenciSinifFiltre'].forEach(id => {
+        const el = document.getElementById(id); const ilk = id.includes('Filtre') ? '<option value="">Tum Siniflar</option>' : '<option value="">Sinif secin</option>';
+        el.innerHTML = ilk; siniflar.forEach(s => el.innerHTML += `<option value="${s.class_name}">${s.class_name}</option>`);
       });
     }
 
     window.ogrencileriGetir = async () => {
-      const filtre = document.getElementById('ayarOgrenciSinifFiltre').value;
-      const container = document.getElementById('ayarOgrenciListesi');
+      const filtre = document.getElementById('ayarOgrenciSinifFiltre').value; const container = document.getElementById('ayarOgrenciListesi');
       container.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
       let q = filtre ? query(collection(db, 'students'), where('class_id', '==', filtre)) : collection(db, 'students');
       const snap = await getDocs(q);
       if (snap.empty) { container.innerHTML = '<div class="bos-mesaj">Ogrenci bulunamadi</div>'; return; }
+      let ogrenciler = []; snap.forEach(d => ogrenciler.push({ id: d.id, ...d.data() })); ogrenciler.sort((a, b) => a.student_number.localeCompare(b.student_number));
       let html = '<table><thead><tr><th>No</th><th>Ad Soyad</th><th>Sinif</th><th></th></tr></thead><tbody>';
-      let ogrenciler = [];
-      snap.forEach(d => ogrenciler.push({ id: d.id, ...d.data() }));
-      ogrenciler.sort((a, b) => a.student_number.localeCompare(b.student_number));
-      ogrenciler.forEach(o => {
-        html += `<tr><td>${o.student_number}</td><td>${o.name}</td><td>${o.class_id}</td>
-          <td><button class="btn btn-kirmizi btn-sm" onclick="ogrenciSil('${o.id}','${o.name}')">Sil</button></td></tr>`;
-      });
-      html += '</tbody></table>';
-      container.innerHTML = html;
+      ogrenciler.forEach(o => { html += `<tr><td>${o.student_number}</td><td>${o.name}</td><td>${o.class_id}</td><td><button class="btn btn-kirmizi btn-sm" onclick="ogrenciSil('${o.id}','${o.name}')">Sil</button></td></tr>`; });
+      html += '</tbody></table>'; container.innerHTML = html;
     };
 
     window.ogrenciEkle = async () => {
-      const no = document.getElementById('ayarOgrenciNo').value.trim();
-      const ad = document.getElementById('ayarOgrenciAd').value.trim();
-      const sinif = document.getElementById('ayarOgrenciSinif').value;
+      const no = document.getElementById('ayarOgrenciNo').value.trim(); const ad = document.getElementById('ayarOgrenciAd').value.trim(); const sinif = document.getElementById('ayarOgrenciSinif').value;
       if (!no || !ad || !sinif) { mesajGoster('ogrenciEkleMesaj', 'Tum alanlari doldurun.', 'hata'); return; }
       await addDoc(collection(db, 'students'), { student_number: no, name: ad, class_id: sinif, status: 'active', created_at: serverTimestamp() });
-      mesajGoster('ogrenciEkleMesaj', 'Ogrenci eklendi.', 'basari');
-      document.getElementById('ayarOgrenciNo').value = '';
-      document.getElementById('ayarOgrenciAd').value = '';
-      ogrencileriGetir();
+      mesajGoster('ogrenciEkleMesaj', 'Ogrenci eklendi.', 'basari'); document.getElementById('ayarOgrenciNo').value = ''; document.getElementById('ayarOgrenciAd').value = ''; ogrencileriGetir();
     };
 
-    window.ogrenciSil = async (id, isim) => {
-      if (!confirm(`"${isim}" adli ogrenciyi silmek istediginize emin misiniz?`)) return;
-      await deleteDoc(doc(db, 'students', id));
-      ogrencileriGetir();
-    };
+    window.ogrenciSil = async (id, isim) => { if (!confirm(`"${isim}" adli ogrenciyi silmek istediginize emin misiniz?`)) return; await deleteDoc(doc(db, 'students', id)); ogrencileriGetir(); };
 
     async function donemBilgisiniGetir() {
       const ayarDoc = await getDoc(doc(db, 'disiplin_ayarlar', 'genel'));
-      if (ayarDoc.exists()) {
-        const donem = ayarDoc.data().aktif_donem || '1';
-        document.getElementById('aktifDonemSecim').value = donem;
-      }
+      if (ayarDoc.exists()) document.getElementById('aktifDonemSecim').value = ayarDoc.data().aktif_donem || '1';
     }
 
     window.donemGuncelle = async () => {
       const donem = document.getElementById('aktifDonemSecim').value;
       const ayarDoc = await getDoc(doc(db, 'disiplin_ayarlar', 'genel'));
-      const mevcutVeri = ayarDoc.exists() ? ayarDoc.data() : {};
-      await setDoc(doc(db, 'disiplin_ayarlar', 'genel'), { ...mevcutVeri, aktif_donem: donem, guncelleme: serverTimestamp() });
+      await setDoc(doc(db, 'disiplin_ayarlar', 'genel'), { ...(ayarDoc.exists() ? ayarDoc.data() : {}), aktif_donem: donem, guncelleme: serverTimestamp() });
       mesajGoster('donemMesaj', donem + '. Donem aktif yapildi.', 'basari');
     };
 
     window.sistemAyarlariniKaydet = async () => {
-      await setDoc(doc(db, 'settings', 'genel'), {
-        lesson_duration: parseInt(document.getElementById('ayarDersSuresi').value) || 40,
-        telegram_token: document.getElementById('ayarTelegram').value,
-        updated_at: serverTimestamp()
-      });
+      await setDoc(doc(db, 'settings', 'genel'), { lesson_duration: parseInt(document.getElementById('ayarDersSuresi').value) || 40, telegram_token: document.getElementById('ayarTelegram').value, updated_at: serverTimestamp() });
       mesajGoster('sistemAyarMesaj', 'Ayarlar kaydedildi.', 'basari');
     };
 
     window.telegramTest = async () => {
       mesajGoster('telegramTestMesaj', 'Gonderiliyor...', 'bilgi');
-      try {
-        const fn = httpsCallable(functions, 'testBildirimiGonder');
-        await fn({});
-        mesajGoster('telegramTestMesaj', 'Telegram mesaji gonderildi!', 'basari');
-      } catch (err) { mesajGoster('telegramTestMesaj', 'Hata: ' + err.message, 'hata'); }
+      try { const fn = httpsCallable(functions, 'testBildirimiGonder'); await fn({}); mesajGoster('telegramTestMesaj', 'Telegram mesaji gonderildi!', 'basari'); }
+      catch (err) { mesajGoster('telegramTestMesaj', 'Hata: ' + err.message, 'hata'); }
     };
 
-    // ── NÖBET & DİSİPLİN ──
-    function nobetYukle() {
-      document.getElementById('sayfa-nobet').innerHTML = '<iframe src="/nobet.html" style="width:100%; height:85vh; border:none; border-radius:12px;"></iframe>';
-    }
-    function disiplinYukle() {
-      document.getElementById('sayfa-disiplin').innerHTML = '<iframe src="/disiplin.html" style="width:100%; height:85vh; border:none; border-radius:12px;"></iframe>';
-    }
+    function nobetYukle() { document.getElementById('sayfa-nobet').innerHTML = '<iframe src="/nobet.html" style="width:100%; height:85vh; border:none; border-radius:12px;"></iframe>'; }
+    function disiplinYukle() { document.getElementById('sayfa-disiplin').innerHTML = '<iframe src="/disiplin.html" style="width:100%; height:85vh; border:none; border-radius:12px;"></iframe>'; }
 
-    // ── SIDEBAR ──
     window.sidebarAc = () => { document.getElementById('sidebar').classList.add('acik'); document.getElementById('sidebarOverlay').classList.add('aktif'); };
     window.sidebarKapat = () => { document.getElementById('sidebar').classList.remove('acik'); document.getElementById('sidebarOverlay').classList.remove('aktif'); };
 
-    // ── MESAJ YARDIMCISI ──
     function mesajGoster(id, metin, tip) {
-      const el = document.getElementById(id);
-      if (!el) return;
-      el.textContent = metin;
-      el.className = 'mesaj mesaj-' + tip;
-      el.style.display = 'block';
+      const el = document.getElementById(id); if (!el) return;
+      el.textContent = metin; el.className = 'mesaj mesaj-' + tip; el.style.display = 'block';
       if (tip !== 'bilgi') setTimeout(() => el.style.display = 'none', 4000);
     }
 
