@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Okul Yonetim Sistemi</title>
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <style>
     :root {
       --mavi: #1a73e8;
@@ -159,6 +160,43 @@
 
     .yukleniyor { text-align: center; color: var(--text2); padding: 40px; font-size: var(--font-md); }
     .bos-mesaj { text-align: center; color: var(--text2); padding: 40px; font-size: var(--font-md); }
+
+    /* RAPORLAR */
+    .sekme-bar { display: flex; gap: 4px; margin-bottom: 20px; background: var(--bg); border-radius: 10px; padding: 4px; width: fit-content; }
+    .sekme-btn { padding: 8px 18px; border-radius: 8px; cursor: pointer; font-size: var(--font-sm); font-weight: 600; color: var(--text2); border: none; background: none; font-family: inherit; transition: all 0.15s; }
+    .sekme-btn:hover { color: var(--text); }
+    .sekme-btn.aktif { background: white; color: var(--mavi); box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .sekme-icerik { display: none; }
+    .sekme-icerik.aktif { display: block; }
+
+    .rapor-sinif { margin-bottom: 12px; page-break-inside: avoid; }
+    .rapor-sinif-baslik { background: var(--mavi); color: white; padding: 6px 12px; font-weight: 700; font-size: 14px; border-radius: 6px 6px 0 0; }
+    .rapor-sinif-icerik { border: 1px solid var(--border); border-top: none; display: grid; grid-template-columns: 1fr 1fr; border-radius: 0 0 6px 6px; overflow: hidden; }
+    .rapor-alt-baslik { padding: 6px 12px; font-size: 12px; font-weight: 700; border-bottom: 1px solid var(--border); }
+    .rapor-tam { background: #fff5f5; }
+    .rapor-tam .rapor-alt-baslik { color: var(--kirmizi); border-right: 1px solid var(--border); }
+    .rapor-yarim { background: #fafafa; }
+    .rapor-yarim .rapor-alt-baslik { color: var(--text2); }
+    .rapor-ogrenciler { padding: 6px 12px; font-size: 12px; color: var(--text); min-height: 24px; line-height: 1.8; }
+    .rapor-tam .rapor-ogrenciler { border-right: 1px solid var(--border); }
+    .rapor-bos { color: #999; font-style: italic; }
+
+    .grafik-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+    .grafik-kart { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+    .grafik-kart h4 { font-size: var(--font-sm); font-weight: 700; color: var(--text2); margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.05em; }
+
+    .stat-ozet { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px; margin-bottom: 20px; }
+
+    @media (max-width: 768px) {
+      .grafik-grid { grid-template-columns: 1fr; }
+      .sekme-bar { flex-wrap: wrap; }
+    }
+
+    @media print {
+      .sidebar, .topbar, .sekme-bar, .btn, .hamburger { display: none !important; }
+      .icerik-alani { overflow: visible; }
+      .sayfa-kapsayici { padding: 0; overflow: visible; }
+    }
   </style>
 </head>
 <body>
@@ -381,9 +419,65 @@
 
           <!-- RAPORLAR -->
           <div class="sayfa" id="sayfa-raporlar">
-            <div class="kart">
-              <div class="kart-baslik">Raporlar</div>
-              <p style="color:var(--text2);">Raporlar modulu yakinda eklenecek.</p>
+            <div class="sekme-bar">
+              <button class="sekme-btn aktif" onclick="raporSekme('gunluk', this)">Gunluk Devamsizlik</button>
+              <button class="sekme-btn" onclick="raporSekme('gec', this)">Gec Giris</button>
+              <button class="sekme-btn" onclick="raporSekme('istatistik', this)">Istatistikler</button>
+            </div>
+
+            <!-- GÜNLÜK -->
+            <div class="sekme-icerik aktif" id="rsekme-gunluk">
+              <div class="kart">
+                <div class="kart-baslik">Gunluk Devamsizlik Raporu</div>
+                <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+                  <div class="form-group" style="margin-bottom:0;">
+                    <label>Tarih</label>
+                    <input type="date" id="gunlukTarih">
+                  </div>
+                  <button class="btn btn-mavi" onclick="gunlukRaporGetir()">Rapor Getir</button>
+                  <button class="btn btn-gri" onclick="gunlukYazdir()">Yazdir</button>
+                </div>
+              </div>
+              <div id="gunlukRaporIcerik"><div class="bos-mesaj">Tarih secin</div></div>
+            </div>
+
+            <!-- GEÇ GİRİŞ -->
+            <div class="sekme-icerik" id="rsekme-gec">
+              <div class="kart">
+                <div class="kart-baslik">Gec Giris Raporu</div>
+                <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+                  <div class="form-group" style="margin-bottom:0;">
+                    <label>Baslangic</label>
+                    <input type="date" id="gecBaslangic">
+                  </div>
+                  <div class="form-group" style="margin-bottom:0;">
+                    <label>Bitis</label>
+                    <input type="date" id="gecBitis">
+                  </div>
+                  <button class="btn btn-mavi" onclick="gecRaporGetir()">Rapor Getir</button>
+                  <button class="btn btn-gri" onclick="window.print()">Yazdir</button>
+                </div>
+              </div>
+              <div id="gecRaporIcerik"><div class="bos-mesaj">Tarih araligi secin</div></div>
+            </div>
+
+            <!-- İSTATİSTİK -->
+            <div class="sekme-icerik" id="rsekme-istatistik">
+              <div class="kart">
+                <div class="kart-baslik">Istatistik Raporu</div>
+                <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+                  <div class="form-group" style="margin-bottom:0;">
+                    <label>Baslangic</label>
+                    <input type="date" id="istatBaslangic">
+                  </div>
+                  <div class="form-group" style="margin-bottom:0;">
+                    <label>Bitis</label>
+                    <input type="date" id="istatBitis">
+                  </div>
+                  <button class="btn btn-mavi" onclick="istatistikGetir()">Hesapla</button>
+                </div>
+              </div>
+              <div id="istatistikIcerik"><div class="bos-mesaj">Tarih araligi secin</div></div>
             </div>
           </div>
 
@@ -469,7 +563,7 @@
       { id: 'anasayfa', ikon: '📊', ad: 'Genel Durum' },
       { bolum: 'Yoklama' },
       { id: 'yoklama-admin', ikon: '📋', ad: 'Gunluk Yoklamalar' },
-      { id: 'raporlar-link', ikon: '📅', ad: 'Raporlar', dis: '/rapor.html' },
+      { id: 'raporlar', ikon: '📅', ad: 'Raporlar' },
       { id: 'import-link', ikon: '📥', ad: 'Veri Import', dis: '/import.html' },
       { bolum: 'Yonetim' },
       { id: 'nobet', ikon: '🔔', ad: 'Nobet Yonetimi' },
@@ -519,8 +613,25 @@
       if (id === 'anasayfa') anasayfaYukle();
       else if (id === 'derslerim') dersleriniYukle();
       else if (id === 'dyk') dykKurslariYukle();
+      else if (id === 'raporlar') raporSayfasiBaslat();
       else if (id === 'nobet') nobetYukle();
       else if (id === 'disiplin') disiplinYukle();
+    }
+
+    function raporSayfasiBaslat() {
+      const bugunStr = new Date().toISOString().split('T')[0];
+      const ayBas = new Date(); ayBas.setDate(1);
+      const ayBasStr = ayBas.toISOString().split('T')[0];
+      const gunlukEl = document.getElementById('gunlukTarih');
+      const gecBasEl = document.getElementById('gecBaslangic');
+      const gecBitEl = document.getElementById('gecBitis');
+      const istatBasEl = document.getElementById('istatBaslangic');
+      const istatBitEl = document.getElementById('istatBitis');
+      if (gunlukEl && !gunlukEl.value) gunlukEl.value = bugunStr;
+      if (gecBasEl && !gecBasEl.value) gecBasEl.value = bugunStr;
+      if (gecBitEl && !gecBitEl.value) gecBitEl.value = bugunStr;
+      if (istatBasEl && !istatBasEl.value) istatBasEl.value = ayBasStr;
+      if (istatBitEl && !istatBitEl.value) istatBitEl.value = bugunStr;
     }
 
     // ── OTURUM ──
@@ -943,6 +1054,192 @@
         mesaj.textContent = 'Hata: ' + err.message;
         mesaj.className = 'mesaj mesaj-hata';
       }
+    };
+
+    // ── RAPORLAR ──
+    window.raporSekme = (id, el) => {
+      document.querySelectorAll('#sayfa-raporlar .sekme-icerik').forEach(s => s.classList.remove('aktif'));
+      document.querySelectorAll('.sekme-btn').forEach(b => b.classList.remove('aktif'));
+      document.getElementById('rsekme-' + id).classList.add('aktif');
+      el.classList.add('aktif');
+    };
+
+    window.gunlukRaporGetir = async () => {
+      const tarih = document.getElementById('gunlukTarih').value;
+      const container = document.getElementById('gunlukRaporIcerik');
+      container.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
+
+      const sinifSnap = await getDocs(collection(db, 'classes'));
+      let siniflar = [];
+      sinifSnap.forEach(d => siniflar.push(d.data()));
+      siniflar.sort((a, b) => a.grade !== b.grade ? a.grade - b.grade : a.class_name.localeCompare(b.class_name));
+
+      const summarySnap = await getDocs(query(collection(db, 'daily_summary'), where('date', '==', tarih)));
+
+      if (summarySnap.empty) {
+        container.innerHTML = '<div class="bos-mesaj">Bu tarihte devamsizlik verisi yok.</div>';
+        return;
+      }
+
+      const devamsizliklar = {};
+      summarySnap.forEach(d => {
+        const data = d.data();
+        if (!devamsizliklar[data.class_id]) devamsizliklar[data.class_id] = { tamGun: [], yarimGun: [] };
+        if (data.status === 'full_day_absent') devamsizliklar[data.class_id].tamGun.push(data.student_number);
+        else if (data.status === 'half_day_absent') devamsizliklar[data.class_id].yarimGun.push(data.student_number);
+      });
+
+      const tarihStr = new Date(tarih + 'T12:00:00').toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', weekday: 'long' });
+
+      let html = `<div class="kart" id="yazdir-bolum">
+        <div style="text-align:center; margin-bottom:16px;">
+          <div style="font-size:16px; font-weight:800; color:var(--text);">AHMET YENİCE ORTAOKULU</div>
+          <div style="font-size:13px; color:var(--text2); margin-top:4px;">Gunluk Devamsizlik Raporu — ${tarihStr}</div>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:10px;">`;
+
+      siniflar.forEach(sinif => {
+        const veri = devamsizliklar[sinif.class_name] || { tamGun: [], yarimGun: [] };
+        html += `<div class="rapor-sinif">
+          <div class="rapor-sinif-baslik">${sinif.class_name}</div>
+          <div class="rapor-sinif-icerik">
+            <div class="rapor-tam">
+              <div class="rapor-alt-baslik">Tam Gun</div>
+              <div class="rapor-ogrenciler">${veri.tamGun.length > 0 ? veri.tamGun.join(', ') : '<span class="rapor-bos">Yok</span>'}</div>
+            </div>
+            <div class="rapor-yarim">
+              <div class="rapor-alt-baslik">Yarim Gun</div>
+              <div class="rapor-ogrenciler">${veri.yarimGun.length > 0 ? veri.yarimGun.join(', ') : '<span class="rapor-bos">Yok</span>'}</div>
+            </div>
+          </div>
+        </div>`;
+      });
+      html += '</div></div>';
+      container.innerHTML = html;
+    };
+
+    window.gunlukYazdir = () => { window.print(); };
+
+    window.gecRaporGetir = async () => {
+      const baslangic = document.getElementById('gecBaslangic').value;
+      const bitis = document.getElementById('gecBitis').value;
+      const container = document.getElementById('gecRaporIcerik');
+      container.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
+
+      const snap = await getDocs(query(collection(db, 'late_entries'), where('date', '>=', baslangic), where('date', '<=', bitis)));
+      if (snap.empty) { container.innerHTML = '<div class="bos-mesaj">Bu tarih araliginda gec giris kaydi yok.</div>'; return; }
+
+      const ogSnap = await getDocs(collection(db, 'teachers'));
+      const ogretmenler = {};
+      ogSnap.forEach(d => ogretmenler[d.id] = d.data());
+
+      const benzersiz = new Set();
+      snap.forEach(d => benzersiz.add(d.data().teacher_id));
+
+      let html = `<div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+        <div class="stat-kart"><div class="stat-sayi" style="color:var(--turuncu)">${snap.size}</div><div class="stat-etiket">Toplam Gec Giris</div></div>
+        <div class="stat-kart"><div class="stat-sayi">${benzersiz.size}</div><div class="stat-etiket">Farkli Ogretmen</div></div>
+      </div>
+      <div class="kart"><table><thead><tr><th>Ogretmen</th><th>Tarih</th><th>Sinif</th><th>Ders</th></tr></thead><tbody>`;
+
+      snap.docs.sort((a, b) => a.data().date.localeCompare(b.data().date)).forEach(d => {
+        const data = d.data();
+        const og = ogretmenler[data.teacher_id];
+        html += `<tr><td>${og?.ad || '-'}</td><td>${data.date}</td><td>${data.class_id}</td><td>${data.lesson_number}. Ders</td></tr>`;
+      });
+      html += '</tbody></table></div>';
+      container.innerHTML = html;
+    };
+
+    window.istatistikGetir = async () => {
+      const baslangic = document.getElementById('istatBaslangic').value;
+      const bitis = document.getElementById('istatBitis').value;
+      const container = document.getElementById('istatistikIcerik');
+      container.innerHTML = '<div class="yukleniyor">Veriler hesaplaniyor...</div>';
+
+      const snap = await getDocs(query(collection(db, 'daily_summary'), where('date', '>=', baslangic), where('date', '<=', bitis)));
+      if (snap.empty) { container.innerHTML = '<div class="bos-mesaj">Bu tarih araliginda veri yok.</div>'; return; }
+
+      const sinifSnap = await getDocs(collection(db, 'classes'));
+      const siniflar = {};
+      sinifSnap.forEach(d => siniflar[d.data().class_name] = d.data());
+
+      const sinifDevamsizlik = {};
+      const kademDevamsizlik = { 5: 0, 6: 0, 7: 0, 8: 0 };
+      const gunlukDevamsizlik = {};
+      let toplamTam = 0, toplamYarim = 0;
+
+      snap.forEach(d => {
+        const data = d.data();
+        const kademe = siniflar[data.class_id]?.grade;
+        if (!sinifDevamsizlik[data.class_id]) sinifDevamsizlik[data.class_id] = { tam: 0, yarim: 0 };
+        if (data.status === 'full_day_absent') {
+          sinifDevamsizlik[data.class_id].tam++;
+          if (kademe) kademDevamsizlik[kademe]++;
+          toplamTam++;
+        } else if (data.status === 'half_day_absent') {
+          sinifDevamsizlik[data.class_id].yarim++;
+          if (kademe) kademDevamsizlik[kademe]++;
+          toplamYarim++;
+        }
+        if (!gunlukDevamsizlik[data.date]) gunlukDevamsizlik[data.date] = 0;
+        gunlukDevamsizlik[data.date]++;
+      });
+
+      const sinifSirali = Object.entries(sinifDevamsizlik)
+        .map(([sinif, v]) => ({ sinif, toplam: v.tam + v.yarim, tam: v.tam, yarim: v.yarim }))
+        .sort((a, b) => b.toplam - a.toplam);
+
+      container.innerHTML = `
+        <div class="stat-ozet">
+          <div class="stat-kart"><div class="stat-sayi">${toplamTam + toplamYarim}</div><div class="stat-etiket">Toplam Devamsizlik</div></div>
+          <div class="stat-kart"><div class="stat-sayi" style="color:var(--kirmizi)">${toplamTam}</div><div class="stat-etiket">Tam Gun</div></div>
+          <div class="stat-kart"><div class="stat-sayi" style="color:var(--text2)">${toplamYarim}</div><div class="stat-etiket">Yarim Gun</div></div>
+          <div class="stat-kart"><div class="stat-sayi" style="color:var(--yesil)">${sinifSirali[0]?.sinif || '—'}</div><div class="stat-etiket">En Cok Devamsiz</div></div>
+        </div>
+        <div class="grafik-grid">
+          <div class="grafik-kart"><h4>Sinif Bazinda Devamsizlik</h4><canvas id="sinifGrafik"></canvas></div>
+          <div class="grafik-kart"><h4>Kademe Karsilastirmasi</h4><canvas id="kademeGrafik"></canvas></div>
+        </div>
+        <div class="grafik-kart" style="margin-bottom:20px;"><h4>Gunluk Devamsizlik Trendi</h4><canvas id="trendGrafik"></canvas></div>
+        <div class="kart">
+          <div class="kart-baslik">Sinif Detay Tablosu</div>
+          <table><thead><tr><th>Sinif</th><th>Tam Gun</th><th>Yarim Gun</th><th>Toplam</th></tr></thead><tbody>
+            ${sinifSirali.map(s => `<tr><td><strong>${s.sinif}</strong></td><td style="color:var(--kirmizi)">${s.tam}</td><td style="color:var(--text2)">${s.yarim}</td><td><strong>${s.toplam}</strong></td></tr>`).join('')}
+          </tbody></table>
+        </div>`;
+
+      const top10 = sinifSirali.slice(0, 10);
+      new Chart(document.getElementById('sinifGrafik'), {
+        type: 'bar',
+        data: {
+          labels: top10.map(s => s.sinif),
+          datasets: [
+            { label: 'Tam Gun', data: top10.map(s => s.tam), backgroundColor: '#ea433580', borderColor: '#ea4335', borderWidth: 1 },
+            { label: 'Yarim Gun', data: top10.map(s => s.yarim), backgroundColor: '#9e9e9e80', borderColor: '#9e9e9e', borderWidth: 1 }
+          ]
+        },
+        options: { responsive: true, plugins: { legend: { position: 'top' } }, scales: { y: { beginAtZero: true } } }
+      });
+
+      new Chart(document.getElementById('kademeGrafik'), {
+        type: 'doughnut',
+        data: {
+          labels: ['5. Sinif', '6. Sinif', '7. Sinif', '8. Sinif'],
+          datasets: [{ data: [kademDevamsizlik[5], kademDevamsizlik[6], kademDevamsizlik[7], kademDevamsizlik[8]], backgroundColor: ['#1a73e8', '#34a853', '#fbbc04', '#ea4335'], borderWidth: 2 }]
+        },
+        options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+      });
+
+      const gunGunler = Object.keys(gunlukDevamsizlik).sort();
+      new Chart(document.getElementById('trendGrafik'), {
+        type: 'line',
+        data: {
+          labels: gunGunler.map(g => new Date(g + 'T12:00:00').toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })),
+          datasets: [{ label: 'Gunluk Toplam', data: gunGunler.map(g => gunlukDevamsizlik[g]), borderColor: '#1a73e8', backgroundColor: '#1a73e820', borderWidth: 2, fill: true, tension: 0.3 }]
+        },
+        options: { responsive: true, plugins: { legend: { position: 'top' } }, scales: { y: { beginAtZero: true } } }
+      });
     };
 
     // ── NÖBET & DİSİPLİN ──
