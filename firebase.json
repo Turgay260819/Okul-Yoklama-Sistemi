@@ -26,6 +26,10 @@
     ],
     "rewrites": [
       {
+       "source": "/yoklama-fisi.html",
+       "destination": "/yoklama-fisi.html"
+      },
+      {
        "source": "/portal.html",
        "destination": "/portal.html"
       },

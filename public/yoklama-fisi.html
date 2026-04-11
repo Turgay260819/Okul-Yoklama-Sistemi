@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Yoklama Fişleri</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'Courier New', monospace;
+  background: #f0f4f8;
+}
+
+/* EKRAN KONTROL PANELİ */
+.kontrol {
+  background: white;
+  padding: 14px 20px;
+  border-bottom: 2px solid #ddd;
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.kontrol h1 {
+  width: 100%;
+  font-size: 16px;
+  font-family: 'Segoe UI', sans-serif;
+  color: #333;
+  margin-bottom: 6px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.form-group label {
+  font-size: 11px;
+  color: #666;
+  font-weight: 600;
+  font-family: 'Segoe UI', sans-serif;
+}
+
+.form-group input,
+.form-group select {
+  padding: 7px 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: 'Segoe UI', sans-serif;
+  outline: none;
+}
+
+.btn {
+  padding: 8px 18px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: 'Segoe UI', sans-serif;
+}
+.btn-mavi { background: #1a73e8; color: white; }
+.btn-yesil { background: #34a853; color: white; }
+.btn-gri { background: #666; color: white; }
+
+#durum {
+  width: 100%;
+  font-size: 12px;
+  color: #666;
+  font-family: 'Segoe UI', sans-serif;
+  margin-top: 4px;
+}
+
+#yazdir-alani {
+  padding: 16px;
+  background: #f0f4f8;
+}
+
+.bos-mesaj {
+  text-align: center;
+  color: #999;
+  padding: 40px;
+  font-family: 'Segoe UI', sans-serif;
+  font-size: 14px;
+}
+
+/* A4 SAYFA */
+.a4-sayfa {
+  width: 210mm;
+  min-height: 297mm;
+  background: white;
+  margin: 0 auto 16px auto;
+  padding: 4mm;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  display: flex;
+  flex-direction: column;
+}
+
+/* SAYFA BAŞLIĞI */
+.sayfa-baslik {
+  text-align: center;
+  padding-bottom: 3mm;
+  margin-bottom: 3mm;
+  border-bottom: 1.5px solid #222;
+}
+
+.sayfa-baslik .okul-adi {
+  font-size: 11pt;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #000;
+}
+
+.sayfa-baslik .alt-baslik {
+  font-size: 8.5pt;
+  color: #444;
+  margin-top: 1mm;
+}
+
+/* FİŞ GRID - 2 sütun 4 satır */
+.fis-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3mm;
+  flex: 1;
+}
+
+/* TEK FİŞ */
+.fis {
+  border: 1px solid #333;
+  padding: 2mm;
+  display: flex;
+  flex-direction: column;
+}
+
+.fis-bos {
+  border: 1px dashed #ccc;
+  opacity: 0.25;
+}
+
+.fis-bilgi {
+  display: flex;
+  justify-content: space-between;
+  font-size: 8pt;
+  font-weight: 700;
+  border-bottom: 0.5px solid #555;
+  padding-bottom: 1mm;
+  margin-bottom: 1.5mm;
+  color: #000;
+}
+
+.fis-tablo {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  flex: 1;
+}
+
+.fis-tablo td {
+  border: 0.5px solid #555;
+  text-align: center;
+  padding: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  color: #000;
+}
+
+/* Etiket sütunu */
+.etiket {
+  text-align: left !important;
+  padding-left: 1.5mm !important;
+  font-weight: 700;
+  background: #efefef;
+  font-size: 6.5pt;
+  color: #333;
+  width: 7mm;
+}
+
+/* Ders başlık satırları */
+.dh {
+  background: #efefef;
+  font-weight: 700;
+  font-size: 7.5pt;
+  height: 5mm;
+  line-height: 5mm;
+}
+
+/* Yok satırı */
+.yh {
+  height: 7mm;
+  vertical-align: top;
+  font-size: 7pt;
+  padding: 0.5mm !important;
+  line-height: 1.25;
+}
+
+/* İmza satırı */
+.ih {
+  height: 4mm;
+}
+
+/* Alt kısım */
+.fis-alt {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1.5mm;
+  padding-top: 1mm;
+  border-top: 0.5px solid #555;
+}
+
+.incelendi {
+  border: 0.5px solid #555;
+  padding: 0.5mm 2mm;
+  font-size: 6.5pt;
+  text-align: center;
+  color: #444;
+  line-height: 1.5;
+  min-width: 28mm;
+}
+
+.incelendi strong {
+  font-size: 7pt;
+  color: #000;
+  display: block;
+}
+
+.imza-cizgi {
+  border-top: 0.5px dotted #888;
+  margin-top: 1.5mm;
+  height: 4mm;
+}
+
+/* YAZDIR */
+@media print {
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  body { background: white; }
+
+  .kontrol { display: none !important; }
+
+  #yazdir-alani {
+    padding: 0;
+    background: white;
+  }
+
+  .a4-sayfa {
+    width: 100%;
+    min-height: 0;
+    height: 297mm;
+    margin: 0;
+    padding: 4mm;
+    box-shadow: none;
+    page-break-after: always;
+    break-after: page;
+  }
+
+  .a4-sayfa:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+}
+</style>
+</head>
+<body>
+
+<!-- KONTROL PANELİ -->
+<div class="kontrol">
+  <h1>Yoklama Fişleri</h1>
+
+  <div class="form-group">
+    <label>Tarih</label>
+    <input type="date" id="tarih">
+  </div>
+
+  <div class="form-group">
+    <label>Sınıf Seviyesi</label>
+    <select id="seviye">
+      <option value="hepsi">Tüm Seviyeler (4 sayfa)</option>
+      <option value="5">Sadece 5. Sınıflar</option>
+      <option value="6">Sadece 6. Sınıflar</option>
+      <option value="7">Sadece 7. Sınıflar</option>
+      <option value="8">Sadece 8. Sınıflar</option>
+    </select>
+  </div>
+
+  <button class="btn btn-mavi" onclick="fisleriOlustur()">Fişleri Oluştur</button>
+  <button class="btn btn-yesil" onclick="window.print()">Yazdır</button>
+  <a href="/portal.html" style="text-decoration:none;">
+    <button class="btn btn-gri">Ana Sayfa</button>
+  </a>
+
+  <div id="durum"></div>
+</div>
+
+<div id="yazdir-alani">
+  <div class="bos-mesaj">Tarih seçip "Fişleri Oluştur" butonuna tıklayın.</div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import {
+  getFirestore, getDocs, collection, query, where, orderBy
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAHTCiicd4b94rG1-jN0STRbwcrLmkYudo",
+  authDomain: "okul-yoklama-sistemi-8081f.firebaseapp.com",
+  projectId: "okul-yoklama-sistemi-8081f",
+  storageBucket: "okul-yoklama-sistemi-8081f.firebasestorage.app",
+  messagingSenderId: "38230047763",
+  appId: "1:38230047763:web:dfab058df8928b66be13e6"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+const OKUL_ADI = "AHMET YENİCE ORTAOKULU";
+const MUDUR_YARDIMCISI = "T. YIKILMAZ";
+
+// Bugünü varsayılan yap
+const bugun = new Date().toISOString().split('T')[0];
+document.getElementById('tarih').value = bugun;
+
+onAuthStateChanged(auth, (user) => {
+  if (!user) window.location.href = '/portal.html';
+});
+
+// Tarih formatlama
+function formatTarih(t) {
+  const d = new Date(t + 'T12:00:00');
+  const gunler = ['Pazar','Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi'];
+  const g = String(d.getDate()).padStart(2,'0');
+  const a = String(d.getMonth()+1).padStart(2,'0');
+  return `${g}.${a}.${d.getFullYear()} ${gunler[d.getDay()]}`;
+}
+
+// Öğretmen kısaltması
+function kisalt(ad) {
+  if (!ad) return '—';
+  const p = ad.trim().split(' ');
+  if (p.length === 1) return p[0].substring(0,5).toUpperCase();
+  const soyad = p[p.length-1].toUpperCase();
+  return p[0].charAt(0).toUpperCase() + '.' + soyad.substring(0,3);
+}
+
+window.fisleriOlustur = async () => {
+  const tarih = document.getElementById('tarih').value;
+  const seviye = document.getElementById('seviye').value;
+  const durum = document.getElementById('durum');
+  const alan = document.getElementById('yazdir-alani');
+
+  if (!tarih) { durum.textContent = 'Lütfen tarih seçin.'; return; }
+
+  durum.textContent = '⏳ Veriler yükleniyor...';
+  alan.innerHTML = '<div class="bos-mesaj">⏳ Fişler hazırlanıyor...</div>';
+
+  try {
+    // Sınıfları getir
+    const sinifSnap = await getDocs(collection(db, 'classes'));
+    let siniflar = [];
+    sinifSnap.forEach(d => siniflar.push({ id: d.id, ...d.data() }));
+    siniflar.sort((a, b) => {
+      if (a.grade !== b.grade) return a.grade - b.grade;
+      return a.class_name.localeCompare(b.class_name);
+    });
+
+    // Öğretmenleri getir
+    const ogSnap = await getDocs(collection(db, 'teachers'));
+    const ogretmenler = {};
+    ogSnap.forEach(d => ogretmenler[d.id] = d.data());
+
+    // Ders programını getir
+    const progSnap = await getDocs(collection(db, 'schedule'));
+    const program = {};
+    progSnap.forEach(d => {
+      const veri = d.data();
+      if (!program[veri.class_id]) program[veri.class_id] = [];
+      program[veri.class_id].push(veri);
+    });
+
+    // Yoklamaları getir
+    const yokSnap = await getDocs(query(
+      collection(db, 'attendance'),
+      where('date', '==', tarih)
+    ));
+    const yoklamalar = {};
+    yokSnap.forEach(d => {
+      const veri = d.data();
+      if (!yoklamalar[veri.class_id]) yoklamalar[veri.class_id] = {};
+      yoklamalar[veri.class_id][veri.lesson_number] = veri.absent_students || [];
+    });
+
+    // Hangi seviyeleri işleyeceğiz
+    const seviyeler = seviye === 'hepsi' ? [5, 6, 7, 8] : [parseInt(seviye)];
+    const tarihStr = formatTarih(tarih);
+    let toplamSayfa = 0;
+    let html = '';
+
+    seviyeler.forEach(sev => {
+      const buSeviyeSiniflari = siniflar.filter(s => s.grade === sev);
+      if (buSeviyeSiniflari.length === 0) return;
+
+      toplamSayfa++;
+      html += `<div class="a4-sayfa">`;
+      html += `<div class="sayfa-baslik">
+        <div class="okul-adi">${OKUL_ADI} — ÖĞRENCİ GÜNLÜK YOKLAMA FİŞLERİ</div>
+        <div class="alt-baslik">${sev}. SINIFLAR — ${tarihStr}</div>
+      </div>`;
+      html += `<div class="fis-grid">`;
+
+      // 7 şube + 1 boş = 8 yer (2x4)
+      for (let i = 0; i < 8; i++) {
+        const sinif = buSeviyeSiniflari[i];
+        if (!sinif) {
+          html += `<div class="fis fis-bos"></div>`;
+          continue;
+        }
+
+        const sinifAdi = sinif.class_name;
+        const sinifProgram = (program[sinifAdi] || [])
+          .sort((a, b) => a.lesson_number - b.lesson_number);
+        const sinifYok = yoklamalar[sinifAdi] || {};
+        const n = sinifProgram.length;
+
+        if (n === 0) {
+          html += `<div class="fis">
+            <div class="fis-bilgi"><span>${sinifAdi}</span><span>${tarihStr.split(' ')[0]}</span></div>
+            <div style="padding:4mm; font-size:7.5pt; color:#888; text-align:center;">Ders programı tanımlanmamış</div>
+          </div>`;
+          continue;
+        }
+
+        // Sütun genişliği hesapla
+        const dersW = Math.floor(93 / n);
+
+        // Satırları oluştur
+        let drsRow = '', satRow = '', yokRow = '', ogrRow = '', imzRow = '';
+        for (let k = 0; k < n; k++) {
+          const ders = sinifProgram[k];
+          const dersNo = ders.lesson_number;
+          const dersKisa = (ders.lesson_name || '').substring(0, 4).toUpperCase();
+          const ogr = ogretmenler[ders.teacher_id];
+          const ogrKisa = kisalt(ogr?.ad || '');
+          const yoklar = sinifYok[dersNo] || [];
+          const yokMetin = yoklar.join(' ');
+          const cok = yoklar.length > 4;
+
+          drsRow += `<td class="dh">${dersKisa}</td>`;
+          satRow += `<td class="dh">${dersNo}</td>`;
+          yokRow += `<td class="yh" style="font-size:${cok ? '6pt' : '7pt'};">${yokMetin}</td>`;
+          ogrRow += `<td class="dh" style="font-size:6.5pt;">${ogrKisa}</td>`;
+          imzRow += `<td class="ih"></td>`;
+        }
+
+        const colgroup = `<col style="width:7mm">${Array(n).fill(`<col style="width:${dersW}%">`).join('')}`;
+
+        html += `<div class="fis">
+          <div class="fis-bilgi">
+            <span>${sinifAdi}</span>
+            <span>${tarihStr.split(' ')[0]}</span>
+          </div>
+          <table class="fis-tablo">
+            <colgroup>${colgroup}</colgroup>
+            <tr><td class="etiket">DRS</td>${drsRow}</tr>
+            <tr><td class="etiket">SAT</td>${satRow}</tr>
+            <tr><td class="etiket">YOK</td>${yokRow}</tr>
+            <tr><td class="etiket">ÖĞR</td>${ogrRow}</tr>
+            <tr><td class="etiket">İMZ</td>${imzRow}</tr>
+          </table>
+          <div class="fis-alt">
+            <div class="incelendi">
+              <span>İNCELENDİ — MÜD.YARD.</span>
+              <strong>${MUDUR_YARDIMCISI}</strong>
+              <div class="imza-cizgi"></div>
+            </div>
+          </div>
+        </div>`;
+      }
+
+      html += `</div></div>`;
+    });
+
+    alan.innerHTML = html || '<div class="bos-mesaj">Veri bulunamadı.</div>';
+    durum.textContent = `✓ ${toplamSayfa} sayfa oluşturuldu. Yazdırmak için butona tıklayın.`;
+
+  } catch (err) {
+    console.error(err);
+    durum.textContent = 'Hata: ' + err.message;
+    alan.innerHTML = '<div class="bos-mesaj">Bir hata oluştu. Konsolu kontrol edin.</div>';
+  }
+};
+</script>
+</body>
+</html>

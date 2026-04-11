@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Otomatik Nobet Sistemi</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f0f4f8; }
+
+    .topbar {
+      background: #1a73e8; color: white;
+      padding: 14px 24px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .topbar h1 { font-size: 18px; font-weight: 600; }
+    .btn-geri {
+      background: rgba(255,255,255,0.2); border: none; color: white;
+      padding: 7px 14px; border-radius: 6px; cursor: pointer;
+      font-size: 13px; text-decoration: none;
+    }
+
+    .layout { display: flex; min-height: calc(100vh - 50px); }
+
+    .sidebar {
+      width: 200px; background: white;
+      border-right: 1px solid #e0e0e0; padding: 20px 0;
+      flex-shrink: 0;
+    }
+    .menu-item {
+      padding: 12px 20px; cursor: pointer; font-size: 14px;
+      color: #444; transition: background 0.2s; border: none;
+      background: none; width: 100%; text-align: left;
+    }
+    .menu-item:hover { background: #f0f4f8; }
+    .menu-item.aktif {
+      background: #e8f0fe; color: #1a73e8;
+      font-weight: 600; border-right: 3px solid #1a73e8;
+    }
+
+    .icerik { flex: 1; padding: 24px; }
+    .sayfa { display: none; }
+    .sayfa.aktif { display: block; }
+    .sayfa-baslik { font-size: 20px; font-weight: 600; color: #333; margin-bottom: 20px; }
+
+    .kart {
+      background: white; border-radius: 10px;
+      padding: 20px; box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+      margin-bottom: 20px;
+    }
+    .kart h3 {
+      font-size: 15px; color: #333; margin-bottom: 14px;
+      padding-bottom: 10px; border-bottom: 1px solid #f0f0f0;
+    }
+
+    .btn {
+      padding: 10px 20px; border: none; border-radius: 8px;
+      font-size: 14px; font-weight: 600; cursor: pointer;
+      font-family: inherit; display: inline-flex; align-items: center; gap: 6px;
+    }
+    .btn-mavi { background: #1a73e8; color: white; }
+    .btn-mavi:hover { background: #1557b0; }
+    .btn-yesil { background: #34a853; color: white; }
+    .btn-yesil:hover { background: #2d8f47; }
+    .btn-kirmizi { background: #ea4335; color: white; }
+    .btn-gri { background: #f0f4f8; color: #333; border: 1px solid #ddd; }
+    .btn-sm { padding: 6px 14px; font-size: 13px; }
+
+    .form-group { margin-bottom: 16px; }
+    .form-group label {
+      display: block; font-size: 13px; color: #555;
+      margin-bottom: 6px; font-weight: 600;
+    }
+    .form-group input, .form-group select {
+      width: 100%; padding: 10px 12px; border: 1px solid #ddd;
+      border-radius: 8px; font-size: 14px; outline: none; font-family: inherit;
+    }
+    .form-group input:focus, .form-group select:focus { border-color: #1a73e8; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th {
+      background: #f8f9fa; padding: 10px 14px; text-align: left;
+      font-weight: 600; color: #555; border-bottom: 2px solid #e0e0e0;
+    }
+    td { padding: 10px 14px; border-bottom: 1px solid #f0f0f0; color: #333; }
+    tr:hover td { background: #fafafa; }
+
+    .rozet {
+      display: inline-block; padding: 3px 10px;
+      border-radius: 12px; font-size: 12px; font-weight: 600;
+    }
+    .rozet-mavi { background: #e8f0fe; color: #1a73e8; }
+    .rozet-yesil { background: #e6f4ea; color: #1e7e34; }
+    .rozet-sari { background: #fef7e0; color: #b06000; }
+    .rozet-gri { background: #f1f3f4; color: #555; }
+    .rozet-kirmizi { background: #fce8e6; color: #c5221f; }
+
+    .mesaj {
+      padding: 12px 16px; border-radius: 8px;
+      font-size: 14px; margin-top: 12px; display: none;
+    }
+    .mesaj-basari { background: #e6f4ea; color: #1e7e34; }
+    .mesaj-hata { background: #fce8e6; color: #c5221f; }
+    .mesaj-bilgi { background: #e8f0fe; color: #1a73e8; }
+
+    .bos-mesaj { text-align: center; color: #999; padding: 30px; }
+    .yukleniyor { text-align: center; color: #666; padding: 30px; }
+
+    .gun-kart {
+      border: 2px solid #e0e0e0; border-radius: 10px;
+      padding: 14px; cursor: pointer; transition: all 0.2s;
+      text-align: center; font-weight: 600;
+    }
+    .gun-kart:hover { border-color: #1a73e8; background: #f8fbff; }
+    .gun-kart.oncelik1 { border-color: #1a73e8; background: #e8f0fe; color: #1a73e8; }
+    .gun-kart.oncelik2 { border-color: #34a853; background: #e6f4ea; color: #1e7e34; }
+
+    .nobet-tablosu { overflow-x: auto; }
+    .nobet-tablosu table { min-width: 600px; }
+    .nobet-tablosu td { font-size: 13px; }
+
+    .stat-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 16px; margin-bottom: 20px;
+    }
+    .stat-kart {
+      background: white; border-radius: 10px; padding: 16px;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.08); text-align: center;
+    }
+    .stat-sayi { font-size: 28px; font-weight: 700; color: #1a73e8; }
+    .stat-etiket { font-size: 12px; color: #666; margin-top: 4px; }
+
+    .hafta-bilgi {
+      background: #1a73e8; color: white;
+      border-radius: 10px; padding: 14px 18px; margin-bottom: 16px;
+      display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 10px;
+    }
+    .hafta-bilgi h3 { font-size: 16px; margin: 0; }
+    .hafta-bilgi p { font-size: 13px; opacity: 0.85; margin: 0; }
+
+    @media print {
+      .topbar, .sidebar, .btn, .mesaj { display: none !important; }
+      .layout { display: block; }
+      .icerik { padding: 0; }
+    }
+
+    @media (max-width: 768px) {
+      .layout { flex-direction: column; }
+      .sidebar { width: 100%; display: flex; flex-wrap: wrap; padding: 8px; }
+      .menu-item { padding: 8px 12px; font-size: 13px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>📅 Otomatik Nobet Sistemi</h1>
+  <a href="/portal.html" class="btn-geri">← Portale Don</a>
+</div>
+
+<div class="layout">
+  <div class="sidebar" id="sidebar">
+    <!-- Menü JS ile dolacak -->
+  </div>
+
+  <div class="icerik">
+
+    <!-- ADMİN: HAFTA YÖNETİMİ -->
+    <div class="sayfa" id="sayfa-hafta">
+      <div class="sayfa-baslik">Hafta Yonetimi</div>
+
+      <div class="kart">
+        <h3>Yeni Nöbet Haftası Oluştur</h3>
+        <p style="font-size:13px; color:#666; margin-bottom:14px;">
+          Başlangıç tarihi Pazartesi olmalıdır. Hafta oluşturulduktan sonra öğretmenler istek girebilir.
+        </p>
+        <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>Başlangıç Tarihi (Pazartesi)</label>
+            <input type="date" id="yeniHaftaTarih">
+          </div>
+          <button class="btn btn-yesil" onclick="haftaOlustur()">+ Hafta Oluştur</button>
+        </div>
+        <div class="mesaj" id="haftaMesaj"></div>
+      </div>
+
+      <div class="kart">
+        <h3>Mevcut Haftalar</h3>
+        <div id="haftaListesi"><div class="yukleniyor">Yükleniyor...</div></div>
+      </div>
+    </div>
+
+    <!-- ADMİN: AKTİF HAFTA -->
+    <div class="sayfa" id="sayfa-aktif">
+      <div class="sayfa-baslik">Aktif Hafta — İstekler ve Dağıtım</div>
+      <div id="aktifHaftaIcerik"><div class="yukleniyor">Yükleniyor...</div></div>
+    </div>
+
+    <!-- ADMİN: RAPOR -->
+    <div class="sayfa" id="sayfa-rapor">
+      <div class="sayfa-baslik">Aylık Nöbet Raporu</div>
+
+      <div class="kart">
+        <h3>Ay Seç</h3>
+        <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>Ay</label>
+            <input type="month" id="raporAy">
+          </div>
+          <button class="btn btn-mavi" onclick="aylikRaporGetir()">Raporu Getir</button>
+          <button class="btn btn-gri" onclick="window.print()">🖨 Yazdır</button>
+        </div>
+      </div>
+      <div id="aylikRaporIcerik"><div class="bos-mesaj">Ay seçin</div></div>
+    </div>
+
+    <!-- ADMİN: AYARLAR -->
+    <div class="sayfa" id="sayfa-ayarlar">
+      <div class="sayfa-baslik">Nöbet Noktaları</div>
+      <div class="kart">
+        <h3>Nöbet Noktaları (10 Nokta)</h3>
+        <p style="font-size:13px; color:#666; margin-bottom:14px;">
+          Her nöbet gününde bu noktalara birer öğretmen atanır.
+        </p>
+        <div id="noktaListesi"><div class="yukleniyor">Yükleniyor...</div></div>
+        <div style="display:flex; gap:12px; margin-top:14px; flex-wrap:wrap;">
+          <input type="text" id="yeniNoktaAd" placeholder="Nokta adı (örn: Ana Giriş)" style="padding:10px 12px; border:1px solid #ddd; border-radius:8px; font-size:14px; flex:1;">
+          <button class="btn btn-yesil" onclick="noktaEkle()">+ Ekle</button>
+        </div>
+        <div class="mesaj" id="noktaMesaj"></div>
+      </div>
+    </div>
+
+    <!-- ÖĞRETMEN: İSTEK -->
+    <div class="sayfa" id="sayfa-istek">
+      <div class="sayfa-baslik">Nöbet İsteği Gir</div>
+      <div id="istekIcerik"><div class="yukleniyor">Yükleniyor...</div></div>
+    </div>
+
+    <!-- ÖĞRETMEN: NÖBET PROGRAMIM -->
+    <div class="sayfa" id="sayfa-programim">
+      <div class="sayfa-baslik">Nöbet Programım</div>
+      <div id="programimIcerik"><div class="yukleniyor">Yükleniyor...</div></div>
+    </div>
+
+  </div>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+  import {
+    getFirestore, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc,
+    collection, query, where, orderBy, serverTimestamp, limit
+  } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAHTCiicd4b94rG1-jN0STRbwcrLmkYudo",
+    authDomain: "okul-yoklama-sistemi-8081f.firebaseapp.com",
+    projectId: "okul-yoklama-sistemi-8081f",
+    storageBucket: "okul-yoklama-sistemi-8081f.firebasestorage.app",
+    messagingSenderId: "38230047763",
+    appId: "1:38230047763:web:dfab058df8928b66be13e6"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  const NOBET_GUNLERI = ['Pazartesi', 'Sali', 'Carsamba', 'Persembe', 'Cuma'];
+  const NOBET_GUN_KEYS = ['pazartesi', 'sali', 'carsamba', 'persembe', 'cuma'];
+  const MAX_PER_GUN = 10;
+
+  let aktifKullanici = null;
+  let aktifRol = null;
+  let aktifOgretmenDoc = null;
+  let tumOgretmenler = [];
+  let nobetNoktalar = [];
+
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) { window.location.href = '/portal.html'; return; }
+    const userDoc = await getDoc(doc(db, 'users', user.uid));
+    if (!userDoc.exists()) { window.location.href = '/portal.html'; return; }
+    aktifKullanici = userDoc.data();
+    aktifRol = aktifKullanici.rol;
+
+    const ogSnap = await getDocs(collection(db, 'teachers'));
+    ogSnap.forEach(d => tumOgretmenler.push({ id: d.id, ...d.data() }));
+
+    if (aktifRol !== 'admin' && aktifRol !== 'mudur_yardimcisi') {
+      const oSnap = await getDocs(query(collection(db, 'teachers'), where('uid', '==', user.uid)));
+      if (!oSnap.empty) aktifOgretmenDoc = { id: oSnap.docs[0].id, ...oSnap.docs[0].data() };
+    }
+
+    await noktalarYukle();
+    menuOlustur();
+    ilkSayfaAc();
+  });
+
+  async function noktalarYukle() {
+    const snap = await getDocs(query(collection(db, 'oto_nobet_noktalar'), orderBy('sira')));
+    nobetNoktalar = [];
+    snap.forEach(d => nobetNoktalar.push({ id: d.id, ...d.data() }));
+  }
+
+  function menuOlustur() {
+    const sidebar = document.getElementById('sidebar');
+    if (aktifRol === 'admin' || aktifRol === 'mudur_yardimcisi') {
+      sidebar.innerHTML = `
+        <button class="menu-item" onclick="sayfaGoster('hafta', this)">📋 Hafta Yonetimi</button>
+        <button class="menu-item" onclick="sayfaGoster('aktif', this)">⚡ Aktif Hafta</button>
+        <button class="menu-item" onclick="sayfaGoster('rapor', this)">📊 Aylik Rapor</button>
+        <button class="menu-item" onclick="sayfaGoster('ayarlar', this)">⚙️ Nobet Noktalari</button>
+      `;
+    } else {
+      sidebar.innerHTML = `
+        <button class="menu-item" onclick="sayfaGoster('istek', this)">✋ Istek Gir</button>
+        <button class="menu-item" onclick="sayfaGoster('programim', this)">📅 Programim</button>
+      `;
+    }
+  }
+
+  function ilkSayfaAc() {
+    if (aktifRol === 'admin' || aktifRol === 'mudur_yardimcisi') {
+      sayfaGoster('aktif', document.querySelector('.menu-item:nth-child(2)'));
+    } else {
+      sayfaGoster('istek', document.querySelector('.menu-item'));
+    }
+  }
+
+  window.sayfaGoster = (sayfaId, el) => {
+    document.querySelectorAll('.sayfa').forEach(s => s.classList.remove('aktif'));
+    document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('aktif'));
+    document.getElementById('sayfa-' + sayfaId).classList.add('aktif');
+    if (el) el.classList.add('aktif');
+    sayfaYukle(sayfaId);
+  };
+
+  function sayfaYukle(id) {
+    if (id === 'hafta') haftalarYukle();
+    else if (id === 'aktif') aktifHaftaYukle();
+    else if (id === 'rapor') raporSayfasiBaslat();
+    else if (id === 'ayarlar') noktaListesiGoster();
+    else if (id === 'istek') istekSayfasiYukle();
+    else if (id === 'programim') programimYukle();
+  }
+
+  // ── HAFTA YÖNETİMİ ──
+  async function haftalarYukle() {
+    const container = document.getElementById('haftaListesi');
+    const snap = await getDocs(query(collection(db, 'oto_nobet_haftalar'), orderBy('olusturulma', 'desc'), limit(10)));
+    if (snap.empty) { container.innerHTML = '<div class="bos-mesaj">Henüz hafta oluşturulmamış.</div>'; return; }
+
+    let html = '<table><thead><tr><th>Hafta</th><th>Durum</th><th>İstekler</th><th></th></tr></thead><tbody>';
+    for (const d of snap.docs) {
+      const h = { id: d.id, ...d.data() };
+      const bas = new Date(h.baslangic + 'T12:00:00');
+      const bit = new Date(bas.getTime() + 4 * 86400000);
+      const basStr = bas.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' });
+      const bitStr = bit.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' });
+
+      const istekSnap = await getDocs(query(collection(db, 'oto_nobet_istekler'), where('hafta_id', '==', h.id)));
+      const durumRozet = h.durum === 'acik' ? 'rozet-yesil' : h.durum === 'dagildi' ? 'rozet-mavi' : 'rozet-gri';
+      const durumAd = h.durum === 'acik' ? 'İstek Toplanıyor' : h.durum === 'dagildi' ? 'Dağıtıldı' : 'Kapandı';
+
+      html += `<tr>
+        <td><strong>${basStr} — ${bitStr}</strong></td>
+        <td><span class="rozet ${durumRozet}">${durumAd}</span></td>
+        <td>${istekSnap.size} istek</td>
+        <td>${h.durum === 'acik' ? `<button class="btn btn-sm btn-kirmizi" onclick="haftaSil('${h.id}')">Sil</button>` : ''}</td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    container.innerHTML = html;
+
+    // Tarih input için gelecek Pazartesi'yi seç
+    const d = new Date();
+    const gun = d.getDay();
+    const pzt = new Date(d);
+    pzt.setDate(d.getDate() - (gun === 0 ? 6 : gun - 1) + 7);
+    document.getElementById('yeniHaftaTarih').value = pzt.toISOString().split('T')[0];
+  }
+
+  window.haftaOlustur = async () => {
+    const tarih = document.getElementById('yeniHaftaTarih').value;
+    if (!tarih) { mesajGoster('haftaMesaj', 'Tarih seçin.', 'hata'); return; }
+
+    const d = new Date(tarih + 'T12:00:00');
+    if (d.getDay() !== 1) { mesajGoster('haftaMesaj', 'Başlangıç tarihi Pazartesi olmalı!', 'hata'); return; }
+
+    const mevcutSnap = await getDocs(query(collection(db, 'oto_nobet_haftalar'), where('durum', '==', 'acik')));
+    if (!mevcutSnap.empty) { mesajGoster('haftaMesaj', 'Zaten açık bir hafta var. Önce onu dağıtın.', 'hata'); return; }
+
+    await addDoc(collection(db, 'oto_nobet_haftalar'), {
+      baslangic: tarih, durum: 'acik', dagitim: null,
+      olusturulma: serverTimestamp(), olusturan: aktifKullanici?.ad || ''
+    });
+
+    mesajGoster('haftaMesaj', 'Hafta oluşturuldu! Öğretmenler istek girebilir.', 'basari');
+    setTimeout(haftalarYukle, 1200);
+  };
+
+  window.haftaSil = async (id) => {
+    if (!confirm('Bu haftayı silmek istediğinizden emin misiniz?')) return;
+    await deleteDoc(doc(db, 'oto_nobet_haftalar', id));
+    haftalarYukle();
+  };
+
+  // ── AKTİF HAFTA ──
+  async function aktifHaftaYukle() {
+    const container = document.getElementById('aktifHaftaIcerik');
+    container.innerHTML = '<div class="yukleniyor">Yükleniyor...</div>';
+
+    const snap = await getDocs(query(collection(db, 'oto_nobet_haftalar'), where('durum', '==', 'acik')));
+    if (snap.empty) {
+      // Dağıtılmış son haftayı göster
+      const sonSnap = await getDocs(query(collection(db, 'oto_nobet_haftalar'), where('durum', '==', 'dagildi'), orderBy('olusturulma', 'desc'), limit(1)));
+      if (sonSnap.empty) {
+        container.innerHTML = '<div class="bos-mesaj">Henüz aktif veya dağıtılmış hafta yok. Hafta Yönetimi\'nden yeni hafta oluşturun.</div>';
+        return;
+      }
+      const h = { id: sonSnap.docs[0].id, ...sonSnap.docs[0].data() };
+      container.innerHTML = '<div style="margin-bottom:16px;"><span class="rozet rozet-mavi">Son Dağıtılan Hafta</span></div>' + dagitimTablosuHTML(h) + await aylikRaporMiniHTML();
+      return;
+    }
+
+    const hafta = { id: snap.docs[0].id, ...snap.docs[0].data() };
+    const istekSnap = await getDocs(query(collection(db, 'oto_nobet_istekler'), where('hafta_id', '==', hafta.id)));
+    const istekler = [];
+    istekSnap.forEach(d => istekler.push({ id: d.id, ...d.data() }));
+
+    const bas = new Date(hafta.baslangic + 'T12:00:00');
+    const bit = new Date(bas.getTime() + 4 * 86400000);
+    const basStr = bas.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' });
+    const bitStr = bit.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' });
+
+    let html = `
+      <div class="hafta-bilgi">
+        <div>
+          <h3>📅 ${basStr} — ${bitStr}</h3>
+          <p>${istekler.length} / ${tumOgretmenler.length} öğretmen istek girdi</p>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn btn-sm btn-gri" onclick="aktifHaftaYukle()">🔄 Yenile</button>
+          <button class="btn btn-sm" style="background:white; color:#1a73e8;" onclick="window.print()">🖨 Yazdır</button>
+        </div>
+      </div>`;
+
+    // İstatistik
+    const girenSayisi = istekler.length;
+    const girmeyen = tumOgretmenler.length - girenSayisi;
+    html += `<div class="stat-grid">
+      <div class="stat-kart"><div class="stat-sayi">${tumOgretmenler.length}</div><div class="stat-etiket">Toplam Öğretmen</div></div>
+      <div class="stat-kart"><div class="stat-sayi" style="color:#34a853">${girenSayisi}</div><div class="stat-etiket">İstek Girdi</div></div>
+      <div class="stat-kart"><div class="stat-sayi" style="color:#ea4335">${girmenYeni}</div><div class="stat-etiket">Henüz Girmedi</div></div>
+    </div>`;
+
+    // Gün bazında istek sayıları
+    const gunSayilari = {};
+    NOBET_GUN_KEYS.forEach(g => gunSayilari[g] = 0);
+    istekler.forEach(i => { gunSayilari[i.oncelik1_key]++; });
+
+    html += `<div class="kart"><h3>Gün Bazında 1. Öncelik İstekleri</h3>
+      <table><thead><tr>`;
+    NOBET_GUNLERI.forEach(g => html += `<th style="text-align:center">${g}</th>`);
+    html += '</tr></thead><tbody><tr>';
+    NOBET_GUN_KEYS.forEach(g => {
+      const sayi = gunSayilari[g];
+      const renk = sayi > MAX_PER_GUN ? '#ea4335' : sayi === MAX_PER_GUN ? '#f9ab00' : '#34a853';
+      html += `<td style="text-align:center; font-weight:700; color:${renk}; font-size:18px;">${sayi}<br><span style="font-size:11px; color:#666; font-weight:400;">/ ${MAX_PER_GUN}</span></td>`;
+    });
+    html += '</tr></tbody></table></div>';
+
+    // Öğretmen istek tablosu
+    html += `<div class="kart"><h3>Öğretmen İstekleri</h3>
+      <table><thead><tr><th>Öğretmen</th><th>1. Öncelik</th><th>2. Öncelik</th><th>İstek Zamanı</th></tr></thead><tbody>`;
+
+    const istekMap = {};
+    istekler.forEach(i => istekMap[i.ogretmen_id] = i);
+
+    tumOgretmenler.sort((a, b) => a.ad.localeCompare(b.ad, 'tr')).forEach(o => {
+      const istek = istekMap[o.id];
+      html += `<tr>
+        <td><strong>${o.ad}</strong></td>
+        <td>${istek ? `<span class="rozet rozet-mavi">${istek.oncelik1_ad}</span>` : '<span style="color:#999; font-size:12px;">Girmedi</span>'}</td>
+        <td>${istek ? `<span class="rozet rozet-gri">${istek.oncelik2_ad}</span>` : '—'}</td>
+        <td style="font-size:12px; color:#666;">${istek?.zaman ? new Date(istek.zaman.toDate ? istek.zaman.toDate() : istek.zaman).toLocaleString('tr-TR') : '—'}</td>
+      </tr>`;
+    });
+    html += '</tbody></table></div>';
+
+    // Dağıt butonu
+    html += `<div class="kart"><h3>Otomatik Dağıtım</h3>
+      <p style="font-size:13px; color:#666; margin-bottom:14px;">
+        Tüm istekler alındıktan sonra otomatik dağıtım yapın. 
+        1. öncelikler doldurulur, kapasite aşılınca öğretmen 2. önceliğine yazılır.
+      </p>
+      <button class="btn btn-yesil" onclick="nobetDagit('${hafta.id}')">⚡ Otomatik Dağıt</button>
+      <div class="mesaj" id="dagitimMesaj"></div>
+    </div>`;
+
+    container.innerHTML = html;
+
+    // girmeyen hesabını düzelt (HTML injection hatası önlemi)
+    container.querySelector('.stat-sayi:last-child') && 
+      (container.querySelectorAll('.stat-sayi')[2].textContent = girmenYeni);
+  }
+
+  // Yardımcı: girmeyen sayısı
+  let girmenYeni = 0;
+
+  // Önceki aktifHaftaYukle'deki hatayı düzelt
+  const _orijinalAktifHaftaYukle = aktifHaftaYukle;
+
+  window.nobetDagit = async (haftaId) => {
+    if (!confirm('Otomatik nöbet dağıtımı yapılacak. Onaylıyor musunuz?')) return;
+
+    const mesajEl = document.getElementById('dagitimMesaj');
+    if (mesajEl) { mesajEl.textContent = 'Dağıtım yapılıyor...'; mesajEl.className = 'mesaj mesaj-bilgi'; mesajEl.style.display = 'block'; }
+
+    const istekSnap = await getDocs(query(collection(db, 'oto_nobet_istekler'), where('hafta_id', '==', haftaId)));
+    const istekler = [];
+    istekSnap.forEach(d => istekler.push({ id: d.id, ...d.data() }));
+
+    // İstekleri zaman sırasına göre sırala (erken isteyen önce)
+    istekler.sort((a, b) => {
+      const ta = a.zaman?.toMillis ? a.zaman.toMillis() : new Date(a.zaman || 0).getTime();
+      const tb = b.zaman?.toMillis ? b.zaman.toMillis() : new Date(b.zaman || 0).getTime();
+      return ta - tb;
+    });
+
+    // Her gün için kapasite: MAX_PER_GUN
+    const dagitim = {};
+    NOBET_GUN_KEYS.forEach(g => dagitim[g] = []);
+    const atanan = new Set();
+
+    // 1. önceliklerden doldur
+    istekler.forEach(istek => {
+      const g = istek.oncelik1_key;
+      if (dagitim[g].length < MAX_PER_GUN && !atanan.has(istek.ogretmen_id)) {
+        dagitim[g].push({ id: istek.ogretmen_id, ad: istek.ogretmen_ad });
+        atanan.add(istek.ogretmen_id);
+      }
+    });
+
+    // 2. önceliklerden kalan yerleri doldur
+    istekler.forEach(istek => {
+      if (atanan.has(istek.ogretmen_id)) return;
+      const g = istek.oncelik2_key;
+      if (dagitim[g].length < MAX_PER_GUN) {
+        dagitim[g].push({ id: istek.ogretmen_id, ad: istek.ogretmen_ad });
+        atanan.add(istek.ogretmen_id);
+      }
+    });
+
+    // Kaydedilecek format: gün -> öğretmen adları dizisi (nokta bazında)
+    const dagitimKayit = {};
+    NOBET_GUN_KEYS.forEach(g => {
+      dagitimKayit[g] = dagitim[g].map(o => o.ad);
+    });
+
+    await updateDoc(doc(db, 'oto_nobet_haftalar', haftaId), {
+      durum: 'dagildi',
+      dagitim: dagitimKayit
+    });
+
+    alert('Dağıtım tamamlandı!');
+    aktifHaftaYukle();
+  };
+
+  function dagitimTablosuHTML(hafta) {
+    if (!hafta.dagitim) return '';
+    const bas = new Date(hafta.baslangic + 'T12:00:00');
+    const basStr = bas.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' });
+
+    let html = `<div class="kart"><h3>Nöbet Dağılımı — ${basStr} Haftası</h3>
+      <div class="nobet-tablosu">
+      <table><thead><tr><th>Nokta</th>`;
+    NOBET_GUNLERI.forEach(g => html += `<th>${g}</th>`);
+    html += '</tr></thead><tbody>';
+
+    // Noktaları kullan (varsa), yoksa numara
+    const noktaAdlari = nobetNoktalar.length > 0
+      ? nobetNoktalar.map(n => n.ad)
+      : Array.from({ length: MAX_PER_GUN }, (_, i) => `${i + 1}. Nokta`);
+
+    for (let i = 0; i < MAX_PER_GUN; i++) {
+      html += `<tr><td><strong>${noktaAdlari[i] || (i + 1) + '. Nokta'}</strong></td>`;
+      NOBET_GUN_KEYS.forEach(g => {
+        const ad = hafta.dagitim[g]?.[i] || '—';
+        html += `<td style="font-size:13px;">${ad}</td>`;
+      });
+      html += '</tr>';
+    }
+    html += '</tbody></table></div></div>';
+    return html;
+  }
+
+  async function aylikRaporMiniHTML() {
+    const simdi = new Date();
+    const ayBaslangic = new Date(simdi.getFullYear(), simdi.getMonth(), 1).toISOString().split('T')[0];
+    const ayBitis = new Date(simdi.getFullYear(), simdi.getMonth() + 1, 0).toISOString().split('T')[0];
+
+    const snap = await getDocs(query(collection(db, 'oto_nobet_haftalar'), where('durum', '==', 'dagildi')));
+    const haftalar = [];
+    snap.forEach(d => haftalar.push(d.data()));
+
+    const buAy = haftalar.filter(h => h.baslangic >= ayBaslangic && h.baslangic <= ayBitis);
+    if (!buAy.length) return '';
+
+    const sayimlar = {};
+    buAy.forEach(h => {
+      if (!h.dagitim) return;
+      NOBET_GUN_KEYS.forEach(g => {
+        (h.dagitim[g] || []).forEach(ad => {
+          if (ad) sayimlar[ad] = (sayimlar[ad] || 0) + 1;
+        });
+      });
+    });
+
+    const sirali = Object.entries(sayimlar).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'tr'));
+    const ayAdi = simdi.toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' });
+
+    let html = `<div class="kart"><h3>Bu Ay Nöbet Sayıları — ${ayAdi}</h3>
+      <table><thead><tr><th>Öğretmen</th><th style="text-align:center">Nöbet Sayısı</th></tr></thead><tbody>`;
+    sirali.forEach(([ad, sayi]) => {
+      html += `<tr><td><strong>${ad}</strong></td><td style="text-align:center;"><span class="rozet rozet-mavi">${sayi}</span></td></tr>`;
+    });
+    html += '</tbody></table></div>';
+    return html;
+  }
+
+  // ── AYLIK RAPOR ──
+  function raporSayfasiBaslat() {
+    const simdi = new Date();
+    document.getElementById('raporAy').value = simdi.toISOString().slice(0, 7);
+    aylikRaporGetir();
+  }
+
+  window.aylikRaporGetir = async () => {
+    const ayDeger = document.getElementById('raporAy').value;
+    const container = document.getElementById('aylikRaporIcerik');
+    if (!ayDeger) { container.innerHTML = '<div class="bos-mesaj">Ay seçin.</div>'; return; }
+    container.innerHTML = '<div class="yukleniyor">Yükleniyor...</div>';
+
+    const [yil, ay] = ayDeger.split('-').map(Number);
+    const ayBas = new Date(yil, ay - 1, 1).toISOString().split('T')[0];
+    const ayBit = new Date(yil, ay, 0).toISOString().split('T')[0];
+
+    const snap = await getDocs(query(collection(db, 'oto_nobet_haftalar'), where('durum', '==', 'dagildi')));
+    const haftalar = [];
+    snap.forEach(d => haftalar.push({ id: d.id, ...d.data() }));
+    const buAy = haftalar.filter(h => h.baslangic >= ayBas && h.baslangic <= ayBit);
+
+    if (!buAy.length) {
+      container.innerHTML = '<div class="bos-mesaj">Bu ayda tamamlanmış nöbet haftası yok.</div>';
+      return;
+    }
+
+    const sayimlar = {};
+    buAy.forEach(h => {
+      if (!h.dagitim) return;
+      NOBET_GUN_KEYS.forEach(g => {
+        (h.dagitim[g] || []).forEach(ad => {
+          if (ad) sayimlar[ad] = (sayimlar[ad] || 0) + 1;
+        });
+      });
+    });
+
+    // Tüm öğretmenleri dahil et (0 nöbet tutanlar da)
+    tumOgretmenler.forEach(o => {
+      if (!sayimlar[o.ad]) sayimlar[o.ad] = 0;
+    });
+
+    const sirali = Object.entries(sayimlar).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'tr'));
+    const ayAdi = new Date(yil, ay - 1, 1).toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' });
+
+    let html = `
+      <div class="kart">
+        <div style="text-align:center; margin-bottom:16px; padding-bottom:16px; border-bottom:2px solid #1a73e8;">
+          <div style="font-size:16px; font-weight:800;">AHMET YENİCE ORTAOKULU</div>
+          <div style="font-size:13px; color:#666; margin-top:4px;">Aylık Nöbet Raporu — ${ayAdi}</div>
+          <div style="font-size:13px; color:#666;">${buAy.length} hafta, toplam ${buAy.length * 5 * MAX_PER_GUN} nöbet görevi</div>
+        </div>
+        <table><thead><tr>
+          <th>#</th><th>Öğretmen</th><th style="text-align:center">Nöbet Sayısı</th>
+        </tr></thead><tbody>`;
+
+    sirali.forEach(([ad, sayi], i) => {
+      const renk = sayi === 0 ? '#999' : sayi >= 4 ? '#1a73e8' : '#333';
+      html += `<tr>
+        <td style="color:#999">${i + 1}</td>
+        <td><strong>${ad}</strong></td>
+        <td style="text-align:center;">
+          <span class="rozet ${sayi === 0 ? 'rozet-gri' : 'rozet-mavi'}">${sayi}</span>
+        </td>
+      </tr>`;
+    });
+
+    html += '</tbody></table></div>';
+    container.innerHTML = html;
+  };
+
+  // ── NÖBET NOKTALARI ──
+  async function noktaListesiGoster() {
+    await noktalarYukle();
+    const container = document.getElementById('noktaListesi');
+    if (!nobetNoktalar.length) {
+      container.innerHTML = '<div class="bos-mesaj">Henüz nokta eklenmemiş. Aşağıdan ekleyin.</div>';
+      return;
+    }
+    let html = '<table><thead><tr><th>#</th><th>Nokta Adı</th><th></th></tr></thead><tbody>';
+    nobetNoktalar.forEach((n, i) => {
+      html += `<tr>
+        <td>${i + 1}</td>
+        <td><strong>${n.ad}</strong></td>
+        <td><button class="btn btn-sm btn-kirmizi" onclick="noktaSil('${n.id}')">Sil</button></td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    if (nobetNoktalar.length >= MAX_PER_GUN) {
+      html += `<div style="background:#e6f4ea; border-radius:8px; padding:10px 14px; margin-top:12px; font-size:13px; color:#1e7e34;">
+        ✅ ${MAX_PER_GUN} nokta tanımlı. Sistem hazır.
+      </div>`;
+    } else {
+      html += `<div style="background:#fef7e0; border-radius:8px; padding:10px 14px; margin-top:12px; font-size:13px; color:#b06000;">
+        ⚠️ ${nobetNoktalar.length}/${MAX_PER_GUN} nokta tanımlı. ${MAX_PER_GUN - nobetNoktalar.length} nokta daha ekleyin.
+      </div>`;
+    }
+    container.innerHTML = html;
+  }
+
+  window.noktaEkle = async () => {
+    const ad = document.getElementById('yeniNoktaAd').value.trim();
+    if (!ad) { mesajGoster('noktaMesaj', 'Nokta adı girin.', 'hata'); return; }
+    if (nobetNoktalar.length >= MAX_PER_GUN) { mesajGoster('noktaMesaj', `Maksimum ${MAX_PER_GUN} nokta eklenebilir.`, 'hata'); return; }
+
+    await addDoc(collection(db, 'oto_nobet_noktalar'), {
+      ad, sira: nobetNoktalar.length + 1, olusturulma: serverTimestamp()
+    });
+    document.getElementById('yeniNoktaAd').value = '';
+    mesajGoster('noktaMesaj', 'Nokta eklendi.', 'basari');
+    noktaListesiGoster();
+  };
+
+  window.noktaSil = async (id) => {
+    if (!confirm('Bu noktayı silmek istediğinizden emin misiniz?')) return;
+    await deleteDoc(doc(db, 'oto_nobet_noktalar', id));
+    noktaListesiGoster();
+  };
+
+  // ── ÖĞRETMEN: İSTEK ──
+  async function istekSayfasiYukle() {
+    const container = document.getElementById('istekIcerik');
+    container.innerHTML = '<div class="yukleniyor">Yükleniyor...</div>';
+
+    const snap = await getDocs(query(collection(db, 'oto_nobet_haftalar'), where('durum', '==', 'acik')));
+    if (snap.empty) {
+      container.innerHTML = '<div class="kart"><h3>Nöbet İsteği</h3><div class="bos-mesaj">Şu an aktif nöbet haftası yok.</div></div>';
+      return;
+    }
+
+    const hafta = { id: snap.docs[0].id, ...snap.docs[0].data() };
+    const bas = new Date(hafta.baslangic + 'T12:00:00');
+    const bit = new Date(bas.getTime() + 4 * 86400000);
+    const basStr = bas.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' });
+    const bitStr = bit.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' });
+
+    // Mevcut istek kontrolü
+    let mevcutIstek = null;
+    if (aktifOgretmenDoc) {
+      const mevcutSnap = await getDocs(query(
+        collection(db, 'oto_nobet_istekler'),
+        where('hafta_id', '==', hafta.id),
+        where('ogretmen_id', '==', aktifOgretmenDoc.id)
+      ));
+      if (!mevcutSnap.empty) mevcutIstek = { id: mevcutSnap.docs[0].id, ...mevcutSnap.docs[0].data() };
+    }
+
+    let html = `<div class="kart">
+      <h3>📅 ${basStr} — ${bitStr} Haftası</h3>`;
+
+    if (mevcutIstek) {
+      html += `<div style="background:#e6f4ea; border-radius:10px; padding:14px 16px; margin-bottom:16px;">
+        <div style="font-weight:700; color:#1e7e34; margin-bottom:8px;">✅ İsteğiniz Kaydedildi</div>
+        <div>1. Öncelik: <strong>${mevcutIstek.oncelik1_ad}</strong></div>
+        <div style="margin-top:4px;">2. Öncelik: <strong>${mevcutIstek.oncelik2_ad}</strong></div>
+      </div>
+      <p style="font-size:13px; color:#666; margin-bottom:12px;">Değiştirmek istiyorsanız aşağıdan yeniden seçin:</p>`;
+    } else {
+      html += `<p style="font-size:13px; color:#666; margin-bottom:16px;">
+        Nöbet tutmak istediğiniz günleri seçin. 1. öncelik en çok tercih ettiğiniz gündür.
+      </p>`;
+    }
+
+    html += `<div class="form-group">
+        <label>1. Öncelik — En çok istediğiniz gün</label>
+        <select id="ogOncelik1" onchange="ogOncelikDegisti()" style="font-size:15px; padding:12px 14px;">
+          <option value="">Gün seçin...</option>
+          ${NOBET_GUN_KEYS.map((k, i) => `<option value="${k}">${NOBET_GUNLERI[i]}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>2. Öncelik — 2. tercihiniz</label>
+        <select id="ogOncelik2" style="font-size:15px; padding:12px 14px;">
+          <option value="">Gün seçin...</option>
+          ${NOBET_GUN_KEYS.map((k, i) => `<option value="${k}">${NOBET_GUNLERI[i]}</option>`).join('')}
+        </select>
+      </div>
+      <button class="btn btn-yesil" onclick="istekKaydet('${hafta.id}', '${mevcutIstek?.id || ''}')">
+        ${mevcutIstek ? '🔄 İsteği Güncelle' : '✅ İsteği Kaydet'}
+      </button>
+      <div class="mesaj" id="istekMesaj"></div>
+    </div>`;
+
+    container.innerHTML = html;
+
+    if (mevcutIstek) {
+      document.getElementById('ogOncelik1').value = mevcutIstek.oncelik1_key;
+      document.getElementById('ogOncelik2').value = mevcutIstek.oncelik2_key;
+      ogOncelikDegisti();
+    }
+  }
+
+  window.ogOncelikDegisti = () => {
+    const sec1 = document.getElementById('ogOncelik1')?.value;
+    const sec2 = document.getElementById('ogOncelik2');
+    if (!sec2) return;
+    Array.from(sec2.options).forEach(opt => {
+      opt.disabled = opt.value !== '' && opt.value === sec1;
+    });
+  };
+
+  window.istekKaydet = async (haftaId, mevcutId) => {
+    const oncelik1Key = document.getElementById('ogOncelik1').value;
+    const oncelik2Key = document.getElementById('ogOncelik2').value;
+
+    if (!oncelik1Key || !oncelik2Key) { mesajGoster('istekMesaj', 'Her iki önceliği de seçin.', 'hata'); return; }
+    if (oncelik1Key === oncelik2Key) { mesajGoster('istekMesaj', 'Farklı günler seçin.', 'hata'); return; }
+    if (!aktifOgretmenDoc) { mesajGoster('istekMesaj', 'Öğretmen bilgisi bulunamadı.', 'hata'); return; }
+
+    const oncelik1Ad = NOBET_GUNLERI[NOBET_GUN_KEYS.indexOf(oncelik1Key)];
+    const oncelik2Ad = NOBET_GUNLERI[NOBET_GUN_KEYS.indexOf(oncelik2Key)];
+
+    const veri = {
+      hafta_id: haftaId,
+      ogretmen_id: aktifOgretmenDoc.id,
+      ogretmen_ad: aktifOgretmenDoc.ad,
+      oncelik1_key: oncelik1Key, oncelik1_ad: oncelik1Ad,
+      oncelik2_key: oncelik2Key, oncelik2_ad: oncelik2Ad,
+      zaman: serverTimestamp()
+    };
+
+    try {
+      if (mevcutId) {
+        await updateDoc(doc(db, 'oto_nobet_istekler', mevcutId), veri);
+      } else {
+        await addDoc(collection(db, 'oto_nobet_istekler'), veri);
+      }
+      mesajGoster('istekMesaj', 'İsteğiniz kaydedildi!', 'basari');
+      setTimeout(istekSayfasiYukle, 1500);
+    } catch (err) {
+      mesajGoster('istekMesaj', 'Hata: ' + err.message, 'hata');
+    }
+  };
+
+  // ── ÖĞRETMEN: PROGRAMIM ──
+  async function programimYukle() {
+    const container = document.getElementById('programimIcerik');
+    container.innerHTML = '<div class="yukleniyor">Yükleniyor...</div>';
+    if (!aktifOgretmenDoc) { container.innerHTML = '<div class="bos-mesaj">Öğretmen bilgisi bulunamadı.</div>'; return; }
+
+    const snap = await getDocs(query(collection(db, 'oto_nobet_haftalar'), where('durum', '==', 'dagildi'), orderBy('olusturulma', 'desc'), limit(8)));
+    if (snap.empty) { container.innerHTML = '<div class="kart"><h3>Nöbet Programım</h3><div class="bos-mesaj">Henüz tamamlanmış nöbet haftası yok.</div></div>'; return; }
+
+    let html = '';
+    snap.forEach(d => {
+      const h = d.data();
+      if (!h.dagitim) return;
+
+      let benimGunum = null;
+      let benimNoktam = null;
+      NOBET_GUN_KEYS.forEach((g, gi) => {
+        const idx = (h.dagitim[g] || []).indexOf(aktifOgretmenDoc.ad);
+        if (idx !== -1) {
+          benimGunum = NOBET_GUNLERI[gi];
+          benimNoktam = nobetNoktalar[idx]?.ad || `${idx + 1}. Nokta`;
+        }
+      });
+
+      const bas = new Date(h.baslangic + 'T12:00:00');
+      const bit = new Date(bas.getTime() + 4 * 86400000);
+      const basStr = bas.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' });
+      const bitStr = bit.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' });
+
+      html += `<div class="kart">
+        <h3>${basStr} — ${bitStr}</h3>
+        ${benimGunum
+          ? `<div style="background:#e8f0fe; border-radius:10px; padding:14px 16px;">
+              <div style="font-size:15px; font-weight:700; color:#1a73e8; margin-bottom:4px;">📅 ${benimGunum}</div>
+              <div style="font-size:13px; color:#555;">Nöbet Noktası: <strong>${benimNoktam}</strong></div>
+            </div>`
+          : `<div class="bos-mesaj" style="padding:12px;">Bu hafta nöbet listenizde yer almıyorsunuz.</div>`
+        }
+      </div>`;
+    });
+
+    container.innerHTML = html || '<div class="bos-mesaj">Nöbet kaydı bulunamadı.</div>';
+  }
+
+  // ── YARDIMCI ──
+  function mesajGoster(id, metin, tip) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = metin;
+    el.className = 'mesaj mesaj-' + tip;
+    el.style.display = 'block';
+    if (tip !== 'bilgi') setTimeout(() => el.style.display = 'none', 4000);
+  }
+
+</script>
+</body>
+</html>
