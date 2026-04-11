@@ -6,6 +6,7 @@
   <title>Okul Yonetim Sistemi</title>
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
     :root {
       --mavi: #1a73e8; --mavi-koyu: #1557b0; --mavi-acik: #e8f0fe;
@@ -469,6 +470,121 @@
               <div id="ogretmenGorevListesi"><div class="yukleniyor">Yukleniyor...</div></div>
             </div>
           </div>
+          <!-- KAZANIM YONETİMİ (ADMIN) -->
+          <div class="sayfa" id="sayfa-kazanimlar">
+            <div class="sekme-bar">
+              <button class="sekme-btn aktif" onclick="kazanimSekme('dersler', this)">Dersler</button>
+              <button class="sekme-btn" onclick="kazanimSekme('kazanimlar', this)">Kazanimlar</button>
+              <button class="sekme-btn" onclick="kazanimSekme('takvim', this)">Takvim</button>
+              <button class="sekme-btn" onclick="kazanimSekme('tatil', this)">Tatil Gunleri</button>
+            </div>
+            <div class="sekme-icerik aktif" id="ksekme-dersler">
+              <div class="kart">
+                <div class="kart-baslik">Yeni Ders Tanimla</div>
+                <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">Her ders ve sinif seviyesi icin kazanim listesi ayri tutulur.</p>
+                <div class="form-grid">
+                  <div class="form-group"><label>Ders Adi</label><input type="text" id="kazDersAdi" placeholder="Sosyal Bilgiler"></div>
+                  <div class="form-group"><label>Sinif Seviyesi</label>
+                    <select id="kazDersSeviye">
+                      <option value="5">5. Sinif</option><option value="6">6. Sinif</option>
+                      <option value="7">7. Sinif</option><option value="8">8. Sinif</option>
+                    </select>
+                  </div>
+                </div>
+                <button class="btn btn-yesil" onclick="kazanimDersEkle()">+ Ders Ekle</button>
+                <div class="mesaj" id="kazDersMesaj"></div>
+              </div>
+              <div class="kart">
+                <div class="kart-baslik">Tanimli Dersler</div>
+                <div id="kazDersListesi"><div class="yukleniyor">Yukleniyor...</div></div>
+              </div>
+            </div>
+            <div class="sekme-icerik" id="ksekme-kazanimlar">
+              <div class="kart">
+                <div class="kart-baslik">Ders Sec</div>
+                <div class="form-group"><label>Ders</label><select id="kazDersSecim" onchange="kazanimListesiYukle()"><option value="">Ders secin...</option></select></div>
+              </div>
+              <div id="kazanimListeKarti" style="display:none;">
+                <div class="kart">
+                  <div class="kart-baslik">Excel ile Toplu Yukle</div>
+                  <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">Sutunlar: <strong>Hafta_No, Kazanim</strong> — Toplam 40 satir. Mevcut kazanimlar silinip yenisi yuklenir.</p>
+                  <div style="border:2px dashed var(--border);border-radius:10px;padding:24px;text-align:center;cursor:pointer;margin-bottom:12px;" onclick="document.getElementById('kazExcelDosya').click()">
+                    <input type="file" id="kazExcelDosya" accept=".xlsx,.xls" style="display:none" onchange="kazanimExcelOku(this)">
+                    <div style="font-size:24px;margin-bottom:8px;">📂</div>
+                    <div style="font-size:13px;color:var(--text2);">Tiklayin — <strong>.xlsx dosyasi secin</strong></div>
+                  </div>
+                  <div id="kazExcelOnizleme" style="display:none;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:12px;"></div>
+                  <button class="btn btn-mavi" id="kazExcelImportBtn" onclick="kazanimExcelImport()" disabled>Kazanimlari Yukle</button>
+                  <div class="mesaj" id="kazExcelMesaj"></div>
+                </div>
+                <div class="kart">
+                  <div class="kart-baslik" id="kazListeBaslik">Kazanim Listesi</div>
+                  <div id="kazAnimListesi"><div class="yukleniyor">Yukleniyor...</div></div>
+                </div>
+              </div>
+            </div>
+            <div class="sekme-icerik" id="ksekme-takvim">
+              <div class="kart">
+                <div class="kart-baslik">Egitim Yili Takvimi</div>
+                <p style="font-size:13px;color:var(--text2);margin-bottom:16px;">Her egitim yili basindan once 1. haftanin baslangic tarihini belirleyin.</p>
+                <div class="form-grid">
+                  <div class="form-group"><label>Egitim Yili</label><input type="text" id="kazTakvimYil" placeholder="2025-2026"></div>
+                  <div class="form-group"><label>1. Hafta Baslangici (Pazartesi)</label><input type="date" id="kazTakvimBaslangic"></div>
+                </div>
+                <button class="btn btn-yesil" onclick="kazanimTakvimKaydet()">Takvimi Kaydet</button>
+                <div class="mesaj" id="kazTakvimMesaj"></div>
+              </div>
+              <div class="kart" id="kazTakvimBilgiKarti" style="display:none;">
+                <div class="kart-baslik">Mevcut Takvim</div>
+                <div id="kazTakvimBilgi"></div>
+              </div>
+            </div>
+            <div class="sekme-icerik" id="ksekme-tatil">
+              <div class="kart">
+                <div class="kart-baslik">Tatil Ekle</div>
+                <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">Tatil haftalarinda hafta sayaci ilerlemez, kazanimlar kaymaz.</p>
+                <div class="form-grid">
+                  <div class="form-group"><label>Tatil Adi</label><input type="text" id="kazTatilAdi" placeholder="Sömstr Tatili"></div>
+                  <div class="form-group"></div>
+                  <div class="form-group"><label>Baslangic</label><input type="date" id="kazTatilBaslangic"></div>
+                  <div class="form-group"><label>Bitis</label><input type="date" id="kazTatilBitis"></div>
+                </div>
+                <button class="btn btn-yesil" onclick="kazanimTatilEkle()">+ Tatil Ekle</button>
+                <div class="mesaj" id="kazTatilMesaj"></div>
+              </div>
+              <div class="kart">
+                <div class="kart-baslik">Tatil Listesi</div>
+                <div id="kazTatilListesi"><div class="yukleniyor">Yukleniyor...</div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- KAZANIMLARİM (ÖĞRETMEN) -->
+          <div class="sayfa" id="sayfa-kazanimlarim">
+            <div class="kart">
+              <div class="kart-baslik">Bu Haftanin Kazanimlari</div>
+              <div id="kazAnimHaftaBilgi" style="background:var(--mavi-acik);border-radius:10px;padding:12px 16px;font-size:13px;color:var(--mavi);margin-bottom:16px;display:none;"></div>
+              <div id="kazAnimOtomatik"><div class="yukleniyor">Yukleniyor...</div></div>
+            </div>
+            <div class="kart">
+              <div class="kart-baslik">Baska Ders Sorgula</div>
+              <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">Baska bir sinifa veya derse giriyorsaniz asagidan secin.</p>
+              <div class="form-grid">
+                <div class="form-group"><label>Sinif Seviyesi</label>
+                  <select id="kazManuelSeviye" onchange="kazManuelSeviyeDegisti()">
+                    <option value="">Seviye secin...</option>
+                    <option value="5">5. Sinif</option><option value="6">6. Sinif</option>
+                    <option value="7">7. Sinif</option><option value="8">8. Sinif</option>
+                  </select>
+                </div>
+                <div class="form-group"><label>Ders</label><select id="kazManuelDers"><option value="">Once seviye secin...</option></select></div>
+              </div>
+              <button class="btn btn-mavi" onclick="kazanimManuelSorgula()">Kazanimi Goster</button>
+              <div id="kazManuelSonuc" style="margin-top:16px;"></div>
+            </div>
+          </div>
+
+
 
           <!-- RAPORLAR -->
           <div class="sayfa" id="sayfa-raporlar">
@@ -693,6 +809,8 @@
       { bolum: 'Sistem' },
       { id: 'ayarlar', ikon: '⚙️', ad: 'Ayarlar' },
       { id: 'fis-link', ikon: '🖨', ad: 'Yoklama Fisleri', dis: '/yoklama-fisi.html' },
+      { bolum: 'Kazanimlar' },
+      { id: 'kazanimlar', ikon: '📖', ad: 'Kazanim Yonetimi' },
     ];
 
     const ogretmenMenu = [
@@ -706,6 +824,7 @@
       { id: 'nobet', ikon: '🔔', ad: 'Nobet Programim' },
       { id: 'disiplin', ikon: '📝', ad: 'Disiplin Kaydi' },
       { id: 'oto-nobet-link', ikon: '📅', ad: 'Nobet Istegim', dis: '/oto-nobet.html' },
+      { id: 'kazanimlarim', ikon: '📖', ad: 'Kazanimlarim' },
     ];
 
     function menuOlustur(rol) {
@@ -744,6 +863,8 @@
       else if (id === 'disiplin') disiplinYukle();
       else if (id === 'gorev') gorevSayfasiBaslat();
       else if (id === 'gorevlerim') ogretmenGorevleriniYukle();
+      else if (id === 'kazanimlar') kazanimSayfasiYukle();
+      else if (id === 'kazanimlarim') kazanimlarimYukle();
     }
 
     function raporSayfasiBaslat() {
@@ -1622,6 +1743,284 @@
 
     window.sidebarAc = () => { document.getElementById('sidebar').classList.add('acik'); document.getElementById('sidebarOverlay').classList.add('aktif'); };
     window.sidebarKapat = () => { document.getElementById('sidebar').classList.remove('acik'); document.getElementById('sidebarOverlay').classList.remove('aktif'); };
+
+    // ── KAZANIM MODÜLÜ ──
+    let kazanimExcelVerisi = [];
+    let aktifKazanimDersId = null;
+
+    function kazanimSekme(id, el) {
+      document.querySelectorAll('#sayfa-kazanimlar .sekme-icerik').forEach(s => s.classList.remove('aktif'));
+      document.querySelectorAll('#sayfa-kazanimlar .sekme-btn').forEach(b => b.classList.remove('aktif'));
+      document.getElementById('ksekme-' + id).classList.add('aktif');
+      el.classList.add('aktif');
+      if (id === 'dersler') kazanimDersleriniYukle();
+      else if (id === 'kazanimlar') kazanimDersDoldur();
+      else if (id === 'takvim') kazanimTakvimYukle();
+      else if (id === 'tatil') kazanimTatilleriniYukle();
+    }
+
+    function kazanimSayfasiYukle() {
+      kazanimDersleriniYukle();
+      kazanimDersDoldur();
+      kazanimTakvimYukle();
+    }
+
+    async function kazanimDersleriniYukle() {
+      const container = document.getElementById('kazDersListesi');
+      const snap = await getDocs(query(collection(db, 'kazanim_dersler'), orderBy('sinif_seviyesi')));
+      if (snap.empty) { container.innerHTML = '<div class="bos-mesaj">Henuz ders tanimlanmamis.</div>'; return; }
+      const rows = [];
+      snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
+      let html = '<table><thead><tr><th>Ders Adi</th><th>Sinif Seviyesi</th><th>Kazanim Sayisi</th><th></th></tr></thead><tbody>';
+      for (const r of rows) {
+        const kSnap = await getDocs(query(collection(db, 'kazanim_listesi'), where('ders_id', '==', r.id)));
+        html += '<tr><td><strong>' + r.ders_adi + '</strong></td><td>' + r.sinif_seviyesi + '. Sinif</td><td><span class="rozet rozet-mavi">' + kSnap.size + ' kazanim</span></td><td><button class="btn btn-kirmizi btn-sm" onclick="kazanimDersSil(\'' + r.id + '\',\'' + r.ders_adi + '\')">Sil</button></td></tr>';
+      }
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    }
+
+    window.kazanimDersEkle = async () => {
+      const ad = document.getElementById('kazDersAdi').value.trim();
+      const seviye = document.getElementById('kazDersSeviye').value;
+      if (!ad) { mesajGoster('kazDersMesaj', 'Ders adi girin.', 'hata'); return; }
+      const kontrol = await getDocs(query(collection(db, 'kazanim_dersler'), where('ders_adi', '==', ad), where('sinif_seviyesi', '==', parseInt(seviye))));
+      if (!kontrol.empty) { mesajGoster('kazDersMesaj', 'Bu ders zaten tanimli.', 'hata'); return; }
+      await addDoc(collection(db, 'kazanim_dersler'), { ders_adi: ad, sinif_seviyesi: parseInt(seviye), olusturulma: serverTimestamp() });
+      mesajGoster('kazDersMesaj', 'Ders eklendi.', 'basari');
+      document.getElementById('kazDersAdi').value = '';
+      kazanimDersleriniYukle();
+      kazanimDersDoldur();
+    };
+
+    window.kazanimDersSil = async (id, ad) => {
+      if (!confirm('"' + ad + '" dersini ve tum kazanimlarini silmek istiyor musunuz?')) return;
+      const kSnap = await getDocs(query(collection(db, 'kazanim_listesi'), where('ders_id', '==', id)));
+      const silPromises = [];
+      kSnap.forEach(d => silPromises.push(deleteDoc(d.ref)));
+      await Promise.all(silPromises);
+      await deleteDoc(doc(db, 'kazanim_dersler', id));
+      kazanimDersleriniYukle();
+      kazanimDersDoldur();
+    };
+
+    async function kazanimDersDoldur() {
+      const select = document.getElementById('kazDersSecim');
+      if (!select) return;
+      const snap = await getDocs(query(collection(db, 'kazanim_dersler'), orderBy('sinif_seviyesi')));
+      select.innerHTML = '<option value="">Ders secin...</option>';
+      snap.forEach(d => {
+        const data = d.data();
+        select.innerHTML += '<option value="' + d.id + '">' + data.sinif_seviyesi + '. Sinif - ' + data.ders_adi + '</option>';
+      });
+    }
+
+    window.kazanimListesiYukle = async () => {
+      aktifKazanimDersId = document.getElementById('kazDersSecim').value;
+      if (!aktifKazanimDersId) { document.getElementById('kazanimListeKarti').style.display = 'none'; return; }
+      document.getElementById('kazanimListeKarti').style.display = 'block';
+      const dersDoc = await getDoc(doc(db, 'kazanim_dersler', aktifKazanimDersId));
+      const dersAdi = dersDoc.exists() ? dersDoc.data().sinif_seviyesi + '. Sinif - ' + dersDoc.data().ders_adi : '';
+      document.getElementById('kazListeBaslik').textContent = dersAdi + ' Kazanimlari';
+      const snap = await getDocs(query(collection(db, 'kazanim_listesi'), where('ders_id', '==', aktifKazanimDersId), orderBy('hafta_no')));
+      const container = document.getElementById('kazAnimListesi');
+      if (snap.empty) { container.innerHTML = '<div class="bos-mesaj">Bu ders icin kazanim girilmemis. Excel ile yukleyin.</div>'; return; }
+      let html = '<table><thead><tr><th>Hafta</th><th>Kazanim</th></tr></thead><tbody>';
+      snap.forEach(d => { const data = d.data(); html += '<tr><td style="white-space:nowrap;font-weight:700;">' + data.hafta_no + '. Hafta</td><td>' + data.kazanim + '</td></tr>'; });
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    };
+
+    window.kazanimExcelOku = (input) => {
+      if (!window.XLSX) { mesajGoster('kazExcelMesaj', 'Excel okuyucu yukleniyor, 3 saniye bekleyip tekrar deneyin.', 'bilgi'); return; }
+      const dosya = input.files[0];
+      if (!dosya) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data, { type: 'array' });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+        const veriRows = rows.slice(1).filter(r => r[0] && r[1]);
+        kazanimExcelVerisi = veriRows.map(r => ({ hafta_no: parseInt(r[0]), kazanim: String(r[1]).trim() })).filter(r => r.hafta_no && r.kazanim);
+        const max5 = kazanimExcelVerisi.slice(0, 5);
+        let onizleme = '<div style="padding:8px 12px;background:var(--bg);font-size:12px;color:var(--text2);border-bottom:1px solid var(--border);">' + kazanimExcelVerisi.length + ' kazanim bulundu</div><table><thead><tr><th>Hafta</th><th>Kazanim</th></tr></thead><tbody>';
+        max5.forEach(r => { onizleme += '<tr><td>' + r.hafta_no + '</td><td>' + r.kazanim + '</td></tr>'; });
+        onizleme += '</tbody></table>';
+        document.getElementById('kazExcelOnizleme').innerHTML = onizleme;
+        document.getElementById('kazExcelOnizleme').style.display = 'block';
+        document.getElementById('kazExcelImportBtn').disabled = kazanimExcelVerisi.length === 0;
+      };
+      reader.readAsArrayBuffer(dosya);
+    };
+
+    window.kazanimExcelImport = async () => {
+      if (!aktifKazanimDersId || !kazanimExcelVerisi.length) return;
+      mesajGoster('kazExcelMesaj', 'Yukleniyor...', 'bilgi');
+      const eskiSnap = await getDocs(query(collection(db, 'kazanim_listesi'), where('ders_id', '==', aktifKazanimDersId)));
+      const silPromises = [];
+      eskiSnap.forEach(d => silPromises.push(deleteDoc(d.ref)));
+      await Promise.all(silPromises);
+      for (let i = 0; i < kazanimExcelVerisi.length; i += 50) {
+        const grup = kazanimExcelVerisi.slice(i, i + 50);
+        await Promise.all(grup.map(k => addDoc(collection(db, 'kazanim_listesi'), { ders_id: aktifKazanimDersId, hafta_no: k.hafta_no, kazanim: k.kazanim, olusturulma: serverTimestamp() })));
+      }
+      mesajGoster('kazExcelMesaj', kazanimExcelVerisi.length + ' kazanim yuklendi.', 'basari');
+      kazanimExcelVerisi = [];
+      document.getElementById('kazExcelImportBtn').disabled = true;
+      document.getElementById('kazExcelDosya').value = '';
+      document.getElementById('kazExcelOnizleme').style.display = 'none';
+      kazanimListesiYukle();
+    };
+
+    async function kazanimTakvimYukle() {
+      const snap = await getDocs(collection(db, 'kazanim_takvim'));
+      if (snap.empty) { if (document.getElementById('kazTakvimBilgiKarti')) document.getElementById('kazTakvimBilgiKarti').style.display = 'none'; return; }
+      const veri = snap.docs[0].data();
+      if (document.getElementById('kazTakvimYil')) document.getElementById('kazTakvimYil').value = veri.egitim_yili || '';
+      if (document.getElementById('kazTakvimBaslangic')) document.getElementById('kazTakvimBaslangic').value = veri.baslangic_tarihi || '';
+      if (document.getElementById('kazTakvimBilgiKarti')) {
+        document.getElementById('kazTakvimBilgiKarti').style.display = 'block';
+        document.getElementById('kazTakvimBilgi').innerHTML = '<table><tbody><tr><td style="color:var(--text2);padding:8px 0;">Egitim Yili</td><td><strong>' + (veri.egitim_yili || '-') + '</strong></td></tr><tr><td style="color:var(--text2);padding:8px 0;">1. Hafta Baslangici</td><td><strong>' + (veri.baslangic_tarihi || '-') + '</strong></td></tr><tr><td style="color:var(--text2);padding:8px 0;">Bugun (tahmini)</td><td><strong style="color:var(--mavi);">' + haftaNoBasit(veri.baslangic_tarihi) + '. Hafta</strong></td></tr></tbody></table>';
+      }
+    }
+
+    window.kazanimTakvimKaydet = async () => {
+      const yil = document.getElementById('kazTakvimYil').value.trim();
+      const baslangic = document.getElementById('kazTakvimBaslangic').value;
+      if (!yil || !baslangic) { mesajGoster('kazTakvimMesaj', 'Tum alanlari doldurun.', 'hata'); return; }
+      const snap = await getDocs(collection(db, 'kazanim_takvim'));
+      if (!snap.empty) { await updateDoc(snap.docs[0].ref, { egitim_yili: yil, baslangic_tarihi: baslangic, guncelleme: serverTimestamp() }); }
+      else { await addDoc(collection(db, 'kazanim_takvim'), { egitim_yili: yil, baslangic_tarihi: baslangic, olusturulma: serverTimestamp() }); }
+      mesajGoster('kazTakvimMesaj', 'Takvim kaydedildi.', 'basari');
+      kazanimTakvimYukle();
+    };
+
+    async function kazanimTatilleriniYukle() {
+      const snap = await getDocs(query(collection(db, 'kazanim_tatil'), orderBy('baslangic')));
+      const container = document.getElementById('kazTatilListesi');
+      if (snap.empty) { container.innerHTML = '<div class="bos-mesaj">Tatil girilmemis.</div>'; return; }
+      let html = '<table><thead><tr><th>Tatil Adi</th><th>Baslangic</th><th>Bitis</th><th>Hafta</th><th></th></tr></thead><tbody>';
+      snap.forEach(d => { const data = d.data(); html += '<tr><td><strong>' + data.ad + '</strong></td><td>' + data.baslangic + '</td><td>' + data.bitis + '</td><td>' + data.hafta_sayisi + ' hafta</td><td><button class="btn btn-kirmizi btn-sm" onclick="kazanimTatilSil(\'' + d.id + '\')">Sil</button></td></tr>'; });
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    }
+
+    window.kazanimTatilEkle = async () => {
+      const ad = document.getElementById('kazTatilAdi').value.trim();
+      const bas = document.getElementById('kazTatilBaslangic').value;
+      const bit = document.getElementById('kazTatilBitis').value;
+      if (!ad || !bas || !bit) { mesajGoster('kazTatilMesaj', 'Tum alanlari doldurun.', 'hata'); return; }
+      const basDt = new Date(bas + 'T12:00:00');
+      const bitDt = new Date(bit + 'T12:00:00');
+      const fark = Math.max(1, Math.ceil((bitDt - basDt) / (7 * 86400000)) + 1);
+      await addDoc(collection(db, 'kazanim_tatil'), { ad, baslangic: bas, bitis: bit, hafta_sayisi: fark, olusturulma: serverTimestamp() });
+      mesajGoster('kazTatilMesaj', fark + ' haftalik tatil eklendi.', 'basari');
+      document.getElementById('kazTatilAdi').value = '';
+      kazanimTatilleriniYukle();
+    };
+
+    window.kazanimTatilSil = async (id) => {
+      if (!confirm('Bu tatili silmek istiyor musunuz?')) return;
+      await deleteDoc(doc(db, 'kazanim_tatil', id));
+      kazanimTatilleriniYukle();
+    };
+
+    function haftaNoBasit(baslangicStr) {
+      if (!baslangicStr) return '?';
+      const bas = new Date(baslangicStr + 'T12:00:00');
+      const bug = new Date(bugun + 'T12:00:00');
+      return Math.max(1, Math.floor((bug - bas) / (7 * 86400000)) + 1);
+    }
+
+    function haftaNoHesapla(baslangicStr, hedefStr, tatiller) {
+      const bas = new Date(baslangicStr + 'T12:00:00');
+      const hedef = new Date(hedefStr + 'T12:00:00');
+      let toplamHafta = Math.max(1, Math.floor((hedef - bas) / (7 * 86400000)) + 1);
+      tatiller.forEach(t => {
+        const tBas = new Date(t.baslangic + 'T12:00:00');
+        if (tBas <= hedef) toplamHafta = Math.max(1, toplamHafta - (t.hafta_sayisi || 0));
+      });
+      return toplamHafta;
+    }
+
+    async function kazanimlarimYukle() {
+      const otomatikContainer = document.getElementById('kazAnimOtomatik');
+      const haftaBilgi = document.getElementById('kazAnimHaftaBilgi');
+      otomatikContainer.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
+      const takvimSnap = await getDocs(collection(db, 'kazanim_takvim'));
+      if (takvimSnap.empty) { otomatikContainer.innerHTML = '<div class="bos-mesaj">Takvim henuz tanimlanmamis.</div>'; return; }
+      const takvim = takvimSnap.docs[0].data();
+      const tatilSnap = await getDocs(collection(db, 'kazanim_tatil'));
+      const tatiller = [];
+      tatilSnap.forEach(d => tatiller.push(d.data()));
+      const haftaNo = haftaNoHesapla(takvim.baslangic_tarihi, bugun, tatiller);
+      haftaBilgi.textContent = (takvim.egitim_yili || '') + ' egitim yili - Bugun ' + haftaNo + '. Hafta';
+      haftaBilgi.style.display = 'block';
+      if (!aktifOgretmenDoc) { otomatikContainer.innerHTML = '<div class="bos-mesaj">Ogretmen bilgisi bulunamadi.</div>'; return; }
+      const progSnap = await getDocs(query(collection(db, 'schedule'), where('teacher_id', '==', aktifOgretmenDoc.id)));
+      if (progSnap.empty) { otomatikContainer.innerHTML = '<div class="bos-mesaj">Ders programinizda ders bulunamadi.</div>'; return; }
+      const dersler = new Map();
+      progSnap.forEach(d => {
+        const veri = d.data();
+        const seviye = parseInt(veri.class_id.charAt(0));
+        if (!seviye || !veri.lesson_name) return;
+        const key = seviye + '|' + veri.lesson_name;
+        if (!dersler.has(key)) dersler.set(key, { sinif_seviyesi: seviye, ders_adi: veri.lesson_name, siniflar: new Set() });
+        dersler.get(key).siniflar.add(veri.class_id);
+      });
+      let html = '';
+      for (const [key, ders] of dersler) {
+        const dersSnap = await getDocs(query(collection(db, 'kazanim_dersler'), where('ders_adi', '==', ders.ders_adi), where('sinif_seviyesi', '==', ders.sinif_seviyesi)));
+        if (dersSnap.empty) continue;
+        const dersId = dersSnap.docs[0].id;
+        const kazSnap = await getDocs(query(collection(db, 'kazanim_listesi'), where('ders_id', '==', dersId), where('hafta_no', '==', haftaNo)));
+        const siniflar = [...ders.siniflar].sort().join(', ');
+        const kazanim = kazSnap.empty ? null : kazSnap.docs[0].data().kazanim;
+        html += '<div style="border:2px solid ' + (kazanim ? 'var(--yesil)' : 'var(--border)') + ';border-radius:12px;padding:16px;margin-bottom:12px;background:' + (kazanim ? '#f6fef8' : 'white') + ';">';
+        html += '<div style="font-size:13px;color:var(--text2);margin-bottom:4px;">' + ders.sinif_seviyesi + '. Sinif - ' + siniflar + '</div>';
+        html += '<div style="font-size:17px;font-weight:700;margin-bottom:8px;">' + ders.ders_adi + '</div>';
+        if (kazanim) {
+          html += '<div style="background:white;border-radius:8px;padding:12px 14px;font-size:15px;color:var(--text);margin-bottom:10px;border:1px solid var(--border);">' + kazanim + '</div>';
+          html += '<button class="btn btn-gri btn-sm" onclick="this.previousElementSibling.previousElementSibling && navigator.clipboard.writeText(this.previousElementSibling.textContent).then(()=>alert(\'Kopyalandi!\'))">Kopyala</button>';
+        } else {
+          html += '<div style="color:var(--text2);font-size:13px;">' + haftaNo + '. hafta icin kazanim girilmemis.</div>';
+        }
+        html += '</div>';
+      }
+      otomatikContainer.innerHTML = html || '<div class="bos-mesaj">Ders programinizla eslesen kazanim bulunamadi.</div>';
+    }
+
+    window.kazManuelSeviyeDegisti = async () => {
+      const seviye = document.getElementById('kazManuelSeviye').value;
+      const dersEl = document.getElementById('kazManuelDers');
+      if (!seviye) { dersEl.innerHTML = '<option value="">Once seviye secin...</option>'; return; }
+      dersEl.innerHTML = '<option value="">Yukleniyor...</option>';
+      const snap = await getDocs(query(collection(db, 'kazanim_dersler'), where('sinif_seviyesi', '==', parseInt(seviye))));
+      dersEl.innerHTML = '<option value="">Ders secin...</option>';
+      snap.forEach(d => { const data = d.data(); dersEl.innerHTML += '<option value="' + d.id + '">' + data.ders_adi + '</option>'; });
+    };
+
+    window.kazanimManuelSorgula = async () => {
+      const dersId = document.getElementById('kazManuelDers').value;
+      const container = document.getElementById('kazManuelSonuc');
+      if (!dersId) { container.innerHTML = '<div class="bos-mesaj">Ders secin.</div>'; return; }
+      container.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
+      const takvimSnap = await getDocs(collection(db, 'kazanim_takvim'));
+      if (takvimSnap.empty) { container.innerHTML = '<div class="bos-mesaj">Takvim tanimlanmamis.</div>'; return; }
+      const takvim = takvimSnap.docs[0].data();
+      const tatilSnap = await getDocs(collection(db, 'kazanim_tatil'));
+      const tatiller = [];
+      tatilSnap.forEach(d => tatiller.push(d.data()));
+      const haftaNo = haftaNoHesapla(takvim.baslangic_tarihi, bugun, tatiller);
+      const kazSnap = await getDocs(query(collection(db, 'kazanim_listesi'), where('ders_id', '==', dersId), where('hafta_no', '==', haftaNo)));
+      const dersDoc = await getDoc(doc(db, 'kazanim_dersler', dersId));
+      const dersAdi = dersDoc.exists() ? dersDoc.data().sinif_seviyesi + '. Sinif - ' + dersDoc.data().ders_adi : '';
+      if (kazSnap.empty) { container.innerHTML = '<div class="kart"><div class="kart-baslik">' + dersAdi + '</div><div class="bos-mesaj">' + haftaNo + '. hafta icin kazanim girilmemis.</div></div>'; return; }
+      const kazanim = kazSnap.docs[0].data().kazanim;
+      container.innerHTML = '<div class="kart"><div class="kart-baslik">' + dersAdi + ' - ' + haftaNo + '. Hafta</div><div style="font-size:15px;padding:14px;background:var(--bg);border-radius:10px;margin-bottom:12px;" id="kazManuelSonucMetin">' + kazanim + '</div><button class="btn btn-gri btn-sm" onclick="navigator.clipboard.writeText(document.getElementById(\'kazManuelSonucMetin\').textContent).then(()=>alert(\'Kopyalandi!\'))">Kopyala</button></div>';
+    };
+
 
     function mesajGoster(id, metin, tip) {
       const el = document.getElementById(id); if (!el) return;
