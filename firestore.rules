@@ -165,5 +165,13 @@ service cloud.firestore {
       allow read: if isLoggedIn();
       allow write: if isYonetim();
     }
+    match /ders_saatleri/{docId} {
+      allow read: if isLoggedIn();
+      allow write: if isYonetim();
+    }
+    match /ogretmen_devam/{docId} {
+      allow read: if isYonetim();
+      allow write: if isYonetim();
+    }
   }
 }
