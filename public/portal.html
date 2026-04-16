@@ -602,6 +602,7 @@
               <button class="sekme-btn aktif" onclick="raporSekme('gunluk', this)">Gunluk Devamsizlik</button>
               <button class="sekme-btn" onclick="raporSekme('gec', this)">Gec Giris</button>
               <button class="sekme-btn" onclick="raporSekme('istatistik', this)">Istatistikler</button>
+              <button class="sekme-btn" onclick="raporSekme('ogretmendevam', this)">Ogretmen Devam</button>
             </div>
             <div class="sekme-icerik aktif" id="rsekme-gunluk">
               <div class="kart">
@@ -627,6 +628,8 @@
               <div id="gecRaporIcerik"><div class="bos-mesaj">Tarih araligi secin</div></div>
             </div>
             <div class="sekme-icerik" id="rsekme-istatistik">
+
+
               <div class="kart">
                 <div class="kart-baslik">Istatistik Raporu</div>
                 <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
@@ -636,6 +639,19 @@
                 </div>
               </div>
               <div id="istatistikIcerik"><div class="bos-mesaj">Tarih araligi secin</div></div>
+
+<div class="sekme-icerik" id="rsekme-ogretmendevam">
+            <div class="kart">
+              <div class="kart-baslik">Ogretmen Devam Raporu</div>
+              <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+                <div class="form-group" style="margin-bottom:0;"><label>Baslangic</label><input type="date" id="devamBaslangic"></div>
+                <div class="form-group" style="margin-bottom:0;"><label>Bitis</label><input type="date" id="devamBitis"></div>
+                <button class="btn btn-mavi" onclick="ogretmenDevamRaporu()">Rapor Getir</button>
+                <button class="btn btn-gri" onclick="window.print()">Yazdir</button>
+              </div>
+            </div>
+            <div id="devamRaporIcerik"><div class="bos-mesaj">Tarih araligi secin</div></div>
+          </div>
             </div>
           </div>
 
@@ -1339,6 +1355,63 @@
       });
       html += '</div></div>'; container.innerHTML = html;
     };
+
+window.ogretmenDevamRaporu = async () => {
+      const bas = document.getElementById('devamBaslangic').value;
+      const bit = document.getElementById('devamBitis').value;
+      const container = document.getElementById('devamRaporIcerik');
+      if (!bas || !bit) { container.innerHTML = '<div class="bos-mesaj">Tarih araligi secin.</div>'; return; }
+      container.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
+
+      const snap = await getDocs(query(
+        collection(db, 'ogretmen_devam'),
+        where('tarih', '>=', bas),
+        where('tarih', '<=', bit)
+      ));
+
+      if (snap.empty) { container.innerHTML = '<div class="bos-mesaj">Bu tarih araliginda kayit yok.</div>'; return; }
+
+      // Ogretmen bazinda grupla
+      const ogretmenStat = {};
+      snap.forEach(d => {
+        const veri = d.data();
+        const id = veri.ogretmen_id;
+        if (!ogretmenStat[id]) ogretmenStat[id] = { ad: veri.ogretmen_ad, geldi: 0, gec: 0, gelmedi: 0, gecSaatler: [] };
+        if (veri.durum === 'geldi') ogretmenStat[id].geldi++;
+        else if (veri.durum === 'gec') { ogretmenStat[id].gec++; if (veri.gec_saat) ogretmenStat[id].gecSaatler.push(veri.tarih + ' ' + veri.gec_saat); }
+        else if (veri.durum === 'gelmedi') ogretmenStat[id].gelmedi++;
+      });
+
+      const sirali = Object.values(ogretmenStat).sort((a, b) => a.ad.localeCompare(b.ad, 'tr'));
+      const toplamGeldi = sirali.reduce((t, o) => t + o.geldi, 0);
+      const toplamGec = sirali.reduce((t, o) => t + o.gec, 0);
+      const toplamGelmedi = sirali.reduce((t, o) => t + o.gelmedi, 0);
+
+      let html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px;">';
+      html += '<div class="stat-kart"><div class="stat-sayi" style="color:var(--yesil)">' + toplamGeldi + '</div><div class="stat-etiket">Toplam Geldi</div></div>';
+      html += '<div class="stat-kart"><div class="stat-sayi" style="color:var(--turuncu)">' + toplamGec + '</div><div class="stat-etiket">Toplam Gec</div></div>';
+      html += '<div class="stat-kart"><div class="stat-sayi" style="color:var(--kirmizi)">' + toplamGelmedi + '</div><div class="stat-etiket">Toplam Gelmedi</div></div>';
+      html += '</div>';
+
+      html += '<div class="kart"><div class="kart-baslik">Ogretmen Detay</div>';
+      html += '<table><thead><tr><th>Ogretmen</th><th style="color:var(--yesil)">Geldi</th><th style="color:var(--turuncu)">Gec</th><th style="color:var(--kirmizi)">Gelmedi</th><th>Toplam Kayit</th></tr></thead><tbody>';
+
+      sirali.forEach(o => {
+        const toplam = o.geldi + o.gec + o.gelmedi;
+        const gecStr = o.gecSaatler.length ? '<br><small style="color:var(--text2);">' + o.gecSaatler.slice(0,3).join(', ') + (o.gecSaatler.length > 3 ? '...' : '') + '</small>' : '';
+        html += '<tr>' +
+          '<td><strong>' + o.ad + '</strong></td>' +
+          '<td style="color:var(--yesil);font-weight:700;">' + o.geldi + '</td>' +
+          '<td style="color:var(--turuncu);font-weight:700;">' + o.gec + gecStr + '</td>' +
+          '<td style="color:var(--kirmizi);font-weight:700;">' + o.gelmedi + '</td>' +
+          '<td>' + toplam + '</td>' +
+          '</tr>';
+      });
+
+      html += '</tbody></table></div>';
+      container.innerHTML = html;
+    };
+
     window.gecRaporGetir = async () => {
       const bas = document.getElementById('gecBaslangic').value; const bit = document.getElementById('gecBitis').value; const container = document.getElementById('gecRaporIcerik');
       container.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
@@ -1966,7 +2039,7 @@ window.dersSaatleriKaydet = async () => {
     let kazanimExcelVerisi = [];
     let aktifKazanimDersId = null;
 
-    function kazanimSekme(id, el) {
+    window.kazanimSekme = function(id, el) {
       document.querySelectorAll('#sayfa-kazanimlar .sekme-icerik').forEach(s => s.classList.remove('aktif'));
       document.querySelectorAll('#sayfa-kazanimlar .sekme-btn').forEach(b => b.classList.remove('aktif'));
       document.getElementById('ksekme-' + id).classList.add('aktif');
