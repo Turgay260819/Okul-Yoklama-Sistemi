@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ders Programı Talep Sistemi</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f0f4f8; color: #1a1d2e; }
+
+    .topbar {
+      background: #0d47a1; color: white;
+      padding: 13px 24px;
+      display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 10px;
+    }
+    .topbar h1 { font-size: 16px; font-weight: 700; }
+    .topbar-sag { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+    .btn {
+      padding: 8px 16px; border: none; border-radius: 8px;
+      font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
+      transition: all 0.15s;
+    }
+    .btn-beyaz { background: rgba(255,255,255,0.15); color: white; border: 1px solid rgba(255,255,255,0.3); }
+    .btn-beyaz:hover { background: rgba(255,255,255,0.25); }
+    .btn-mavi { background: #1a73e8; color: white; }
+    .btn-mavi:hover { background: #1557b0; }
+    .btn-yesil { background: #34a853; color: white; }
+    .btn-yesil:hover { background: #2d8f47; }
+    .btn-kirmizi { background: #ea4335; color: white; }
+    .btn-kirmizi:hover { background: #c5221f; }
+    .btn-gri { background: #666; color: white; }
+    .btn-gri:hover { background: #444; }
+    .btn-turuncu { background: #f9ab00; color: white; }
+    .btn-turuncu:hover { background: #e37400; }
+    .btn-sm { padding: 5px 12px; font-size: 12px; }
+
+    .icerik { max-width: 1200px; margin: 0 auto; padding: 20px; }
+
+    .kart {
+      background: white; border-radius: 12px; padding: 20px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 16px;
+    }
+    .kart-baslik {
+      font-size: 15px; font-weight: 700; color: #333;
+      margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid #f0f0f0;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+
+    .sekme-bar {
+      display: flex; gap: 4px; margin-bottom: 20px;
+      background: #f0f4f8; border-radius: 10px; padding: 4px; width: fit-content;
+    }
+    .sekme-btn {
+      padding: 8px 18px; border-radius: 8px; cursor: pointer;
+      font-size: 13px; font-weight: 600; color: #6b7280;
+      border: none; background: none; font-family: inherit; transition: all 0.15s;
+    }
+    .sekme-btn.aktif { background: white; color: #1a73e8; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .sekme-icerik { display: none; }
+    .sekme-icerik.aktif { display: block; }
+
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-size: 12px; font-weight: 700; color: #6b7280; margin-bottom: 5px; }
+    .form-group input, .form-group select {
+      width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0;
+      border-radius: 8px; font-size: 14px; font-family: inherit;
+      outline: none; transition: border-color 0.2s;
+    }
+    .form-group input:focus, .form-group select:focus { border-color: #1a73e8; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+    .durum-rozet {
+      display: inline-block; padding: 4px 12px; border-radius: 12px;
+      font-size: 12px; font-weight: 700;
+    }
+    .rozet-yesil { background: #e6f4ea; color: #1e7e34; }
+    .rozet-kirmizi { background: #fce8e6; color: #c5221f; }
+    .rozet-mavi { background: #e8f0fe; color: #1a73e8; }
+    .rozet-sari { background: #fef7e0; color: #b06000; }
+    .rozet-gri { background: #f1f3f4; color: #555; }
+
+    table { width: 100%; border-collapse: collapse; }
+    th { background: #f8f9fa; padding: 10px 14px; text-align: left; font-size: 12px; font-weight: 700; color: #6b7280; border-bottom: 2px solid #e0e0e0; }
+    td { padding: 10px 14px; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #fafbff; }
+
+    /* MATRİS */
+    .matris-wrap { overflow-x: auto; }
+    .matris {
+      border-collapse: collapse; font-size: 12px; min-width: 600px;
+    }
+    .matris th {
+      background: #0d47a1; color: white; padding: 10px 8px;
+      text-align: center; font-size: 12px; min-width: 100px;
+    }
+    .matris th:first-child { min-width: 60px; background: #1557b0; }
+    .matris td {
+      border: 1px solid #e0e0e0; padding: 4px; text-align: center;
+      vertical-align: middle; height: 52px; cursor: pointer;
+      transition: background 0.1s;
+    }
+    .matris td:first-child {
+      background: #f8f9fa; font-weight: 700; font-size: 11px;
+      color: #555; cursor: default; min-width: 60px;
+    }
+    .matris td.bos:hover { background: #e8f0fe; }
+    .matris td.x-li { background: #fce8e6; }
+    .matris td.x-li:hover { background: #f5b7b1; }
+
+    .blok {
+      border-radius: 6px; padding: 4px 6px; font-size: 11px;
+      font-weight: 600; line-height: 1.3; position: relative;
+      cursor: pointer; transition: opacity 0.15s;
+    }
+    .blok:hover { opacity: 0.8; }
+    .blok .blok-kaldir {
+      position: absolute; top: -4px; right: -4px;
+      width: 14px; height: 14px; border-radius: 50%;
+      background: #ea4335; color: white; font-size: 9px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; display: none;
+    }
+    .blok:hover .blok-kaldir { display: flex; }
+
+    /* ISI HARİTASI */
+    .isi-tablo { border-collapse: collapse; font-size: 12px; width: 100%; }
+    .isi-tablo th { background: #0d47a1; color: white; padding: 8px 10px; text-align: center; }
+    .isi-tablo th:first-child { text-align: left; min-width: 80px; }
+    .isi-tablo td { border: 1px solid #e0e0e0; padding: 6px 8px; text-align: center; font-weight: 700; font-size: 12px; }
+    .isi-tablo td:first-child { text-align: left; font-weight: 600; font-size: 11px; background: #f8f9fa; }
+
+    /* ISI RENKLERİ */
+    .isi-0 { background: #e8f5e9; color: #2e7d32; }
+    .isi-1 { background: #f9fbe7; color: #558b2f; }
+    .isi-2 { background: #fff9c4; color: #f57f17; }
+    .isi-3 { background: #ffe0b2; color: #e65100; }
+    .isi-4 { background: #ffccbc; color: #bf360c; }
+    .isi-5 { background: #ffcdd2; color: #b71c1c; }
+
+    .havuz-blok {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 12px; border-radius: 8px; margin: 4px;
+      cursor: pointer; font-size: 12px; font-weight: 600;
+      border: 2px solid; transition: all 0.15s; user-select: none;
+    }
+    .havuz-blok:hover { opacity: 0.85; transform: scale(1.02); }
+    .havuz-blok.secili { transform: scale(1.05); box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+    .havuz-blok.bitti { opacity: 0.4; cursor: not-allowed; }
+
+    .mesaj {
+      padding: 10px 14px; border-radius: 8px; font-size: 13px;
+      font-weight: 600; margin-top: 10px; display: none;
+    }
+    .mesaj-basari { background: #e6f4ea; color: #1e7e34; }
+    .mesaj-hata { background: #fce8e6; color: #c5221f; }
+    .mesaj-bilgi { background: #e8f0fe; color: #1a73e8; }
+
+    .yukleniyor { text-align: center; padding: 60px; color: #666; }
+
+    .ilerleme-bar-wrap { background: #f0f0f0; border-radius: 6px; height: 8px; overflow: hidden; margin-top: 4px; }
+    .ilerleme-bar { height: 100%; border-radius: 6px; transition: width 0.3s; background: #1a73e8; }
+
+    .yuzde-daire {
+      width: 80px; height: 80px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; font-weight: 800; margin: 0 auto 8px;
+    }
+
+    @media (max-width: 768px) {
+      .form-grid { grid-template-columns: 1fr; }
+      .icerik { padding: 12px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>📐 Ders Programı Talep Sistemi</h1>
+  <div class="topbar-sag">
+    <span id="donemDurum" class="durum-rozet rozet-kirmizi">Talep Kapalı</span>
+    <a href="/portal.html" class="btn btn-beyaz">Ana Sayfa</a>
+  </div>
+</div>
+
+<div class="icerik">
+  <div id="yukleniyor" class="yukleniyor">Yükleniyor...</div>
+  <div id="anaIcerik" style="display:none;"></div>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+  import {
+    getFirestore, doc, getDoc, setDoc, getDocs, addDoc, deleteDoc, updateDoc,
+    collection, query, where, serverTimestamp, onSnapshot
+  } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAHTCiicd4b94rG1-jN0STRbwcrLmkYudo",
+    authDomain: "okul-yoklama-sistemi-8081f.firebaseapp.com",
+    projectId: "okul-yoklama-sistemi-8081f",
+    storageBucket: "okul-yoklama-sistemi-8081f.firebasestorage.app",
+    messagingSenderId: "38230047763",
+    appId: "1:38230047763:web:dfab058df8928b66be13e6"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  const GUNLER = ['Pazartesi', 'Sali', 'Carsamba', 'Persembe', 'Cuma'];
+  const DERSLER = Array.from({length: 8}, (_, i) => (i + 1) + '. Ders');
+  const RENKLER = ['#1a73e8','#34a853','#ea4335','#f9ab00','#9c27b0','#00acc1','#ff7043','#8d6e63','#546e7a','#43a047'];
+
+  let aktifKullanici = null;
+  let aktifRol = null;
+  let aktifOgretmenId = null;
+  let dersProgramiDersler = []; // Admin tarafından tanımlanan dersler
+  let ayarlar = { donem_acik: false };
+  let ogretmenMatrisi = null; // Aktif öğretmenin matrisi
+  let seciliBlok = null; // Seçili havuz bloğu
+  let tumMatrisler = {}; // Tüm öğretmenlerin matrisleri (ısı haritası için)
+
+  // Renk atama
+  const dersRenkleri = {};
+  function dersRengi(dersId) {
+    if (!dersRenkleri[dersId]) {
+      dersRenkleri[dersId] = RENKLER[Object.keys(dersRenkleri).length % RENKLER.length];
+    }
+    return dersRenkleri[dersId];
+  }
+
+  // Bölünme seçeneklerini hesapla
+function bolunmeSecenekleri(toplamSaat) {
+    const secenekler = [];
+
+    // Önce 2'li bölünmeler
+    function ikiliPermutasyonlar(kalan, parcalar) {
+      if (kalan === 0) { secenekler.push(parcalar.join('+')); return; }
+      if (kalan <= 2) { secenekler.push([...parcalar, kalan].join('+')); return; }
+      if (kalan % 2 === 0) ikiliPermutasyonlar(kalan - 2, [...parcalar, 2]);
+      // 2'li bölünemiyorsa son parçayı 3 yap
+      if (kalan % 2 !== 0) ikiliPermutasyonlar(kalan - 3, [...parcalar, 3]);
+    }
+
+    // 2'li ağırlıklı bölünmeler
+    if (toplamSaat >= 2) {
+      const parcaSayisi = Math.floor(toplamSaat / 2);
+      for (let n = 2; n <= parcaSayisi; n++) {
+        const base = Math.floor(toplamSaat / n);
+        const kalan = toplamSaat % n;
+        if (kalan === 0) {
+          secenekler.push(Array(n).fill(base).join('+'));
+        } else {
+          const arr = Array(n).fill(base);
+          arr[0] += kalan;
+          secenekler.push(arr.join('+'));
+        }
+      }
+    }
+
+    // Sonra ikili gruplar (2+x, 2+2+x şeklinde)
+    for (let i = 1; i <= Math.floor(toplamSaat / 2); i++) {
+      const kalan = toplamSaat - i;
+      if (kalan >= i) {
+        const opt = i + '+' + kalan;
+        if (!secenekler.includes(opt)) secenekler.push(opt);
+      }
+    }
+
+    // Tek blok en sona
+    if (!secenekler.includes(toplamSaat + '')) secenekler.push(toplamSaat + '');
+
+    return [...new Set(secenekler)];
+  }
+
+  // Bölünmeden blok listesi
+  function bloklariOlustur(bolunme, dersId, dersAdi) {
+    const renk = dersRengi(dersId);
+    return bolunme.split('+').map(s => ({
+      dersId,
+      dersAdi,
+      saat: parseInt(s),
+      renk
+    }));
+  }
+
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) { window.location.href = '/portal.html'; return; }
+    const userDoc = await getDoc(doc(db, 'users', user.uid));
+    if (!userDoc.exists()) { window.location.href = '/portal.html'; return; }
+    aktifKullanici = userDoc.data();
+    aktifRol = aktifKullanici.rol;
+
+    // Öğretmen ID'sini bul
+    if (aktifRol === 'ogretmen') {
+      const ogSnap = await getDocs(query(collection(db, 'teachers'), where('uid', '==', user.uid)));
+      if (!ogSnap.empty) aktifOgretmenId = ogSnap.docs[0].id;
+    }
+
+    await ayarlariYukle();
+    await dersleriYukle();
+    await tumMatrisleriYukle();
+
+    document.getElementById('yukleniyor').style.display = 'none';
+    document.getElementById('anaIcerik').style.display = 'block';
+
+    if (aktifRol === 'admin' || aktifRol === 'mudur_yardimcisi') {
+      adminSayfasiGoster();
+    } else {
+      ogretmenSayfasiGoster();
+    }
+  });
+
+  async function ayarlariYukle() {
+    const snap = await getDoc(doc(db, 'program_talebi_ayarlar', 'genel'));
+    if (snap.exists()) ayarlar = snap.data();
+    const rozet = document.getElementById('donemDurum');
+    if (ayarlar.donem_acik) {
+      rozet.textContent = 'Talep Dönemi Açık';
+      rozet.className = 'durum-rozet rozet-yesil';
+    } else {
+      rozet.textContent = 'Talep Kapalı';
+      rozet.className = 'durum-rozet rozet-kirmizi';
+    }
+  }
+
+  async function dersleriYukle() {
+    const snap = await getDocs(collection(db, 'program_talebi_dersler'));
+    dersProgramiDersler = [];
+    snap.forEach(d => dersProgramiDersler.push({ id: d.id, ...d.data() }));
+    dersProgramiDersler.sort((a, b) => (a.ders_adi || '').localeCompare(b.ders_adi || '', 'tr'));
+  }
+
+  async function tumMatrisleriYukle() {
+    const snap = await getDocs(collection(db, 'program_talebi_matris'));
+    tumMatrisler = {};
+    snap.forEach(d => {
+      const veri = d.data();
+      tumMatrisler[d.id] = { ...veri, matris: matrisGeriYukle(veri.matris) };
+    });
+  }
+
+  // ─── ADMİN SAYFASI ───
+  function adminSayfasiGoster() {
+    document.getElementById('anaIcerik').innerHTML = `
+      <div class="sekme-bar">
+        <button class="sekme-btn aktif" onclick="adminSekme('dersler', this)">Ders Havuzu</button>
+        <button class="sekme-btn" onclick="adminSekme('izle', this)">Kim Ne Aldı</button>
+        <button class="sekme-btn" onclick="adminSekme('isi', this)">Isı Haritası</button>
+        <button class="sekme-btn" onclick="adminSekme('ayarlar', this)">Ayarlar</button>
+      </div>
+      <div class="sekme-icerik aktif" id="asekme-dersler"></div>
+      <div class="sekme-icerik" id="asekme-izle"></div>
+      <div class="sekme-icerik" id="asekme-isi"></div>
+      <div class="sekme-icerik" id="asekme-ayarlar"></div>
+    `;
+    adminDerslerGoster();
+  }
+
+  window.adminSekme = (id, el) => {
+    document.querySelectorAll('.sekme-btn').forEach(b => b.classList.remove('aktif'));
+    document.querySelectorAll('.sekme-icerik').forEach(s => s.classList.remove('aktif'));
+    el.classList.add('aktif');
+    document.getElementById('asekme-' + id).classList.add('aktif');
+    if (id === 'dersler') adminDerslerGoster();
+    else if (id === 'izle') adminIzleGoster();
+    else if (id === 'isi') isiHaritasiGoster();
+    else if (id === 'ayarlar') adminAyarlarGoster();
+  };
+
+  function adminDerslerGoster() {
+    const container = document.getElementById('asekme-dersler');
+
+    let tablo = '<div class="bos-mesaj" style="padding:20px;color:#999;">Henüz ders tanımlanmamış.</div>';
+    if (dersProgramiDersler.length) {
+      tablo = '<table><thead><tr><th>Ders Adı</th><th>Toplam Saat</th><th>Bölünme</th><th>Kalan</th><th></th></tr></thead><tbody>';
+      dersProgramiDersler.forEach(d => {
+        const alinan = hesaplaAlinanSaat(d.id);
+        const kalan = d.toplam_saat - alinan;
+        const renk = dersRengi(d.id);
+        tablo += '<tr>';
+        tablo += '<td><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + renk + ';margin-right:6px;"></span><strong>' + d.ders_adi + '</strong></td>';
+        tablo += '<td>' + (d.sube_saat || '?') + ' saat × ' + (d.sube_sayisi || '?') + ' şube = <strong>' + d.toplam_saat + '</strong></td>';
+        tablo += '<td><span class="durum-rozet rozet-mavi">' + d.bolunme + '</span></td>';
+        tablo += '<td>';
+        tablo += '<div style="font-weight:700;color:' + (kalan <= 0 ? '#34a853' : '#ea4335') + ';">' + kalan + ' saat</div>';
+        tablo += '<div class="ilerleme-bar-wrap"><div class="ilerleme-bar" style="width:' + Math.min(100, Math.round(alinan/d.toplam_saat*100)) + '%;background:' + renk + ';"></div></div>';
+        tablo += '</td>';
+        tablo += '<td><button class="btn btn-kirmizi btn-sm" onclick="dersSil(\'' + d.id + '\')">Sil</button></td>';
+        tablo += '</tr>';
+      });
+      tablo += '</tbody></table>';
+    }
+
+    container.innerHTML = `
+      <div class="kart">
+        <div class="kart-baslik">Yeni Ders Tanımla</div>
+        <div class="form-grid">
+          <div class="form-group"><label>Ders Adı</label><input type="text" id="yeniDersAdi" placeholder="7. Sınıf Sosyal Bilgiler"></div>
+          <div class="form-group"><label>Şube Başına Saat</label><input type="number" id="yeniSubeSaat" min="1" max="10" value="3" oninput="bolunmeGuncelle()"></div>
+          <div class="form-group"><label>Şube Sayısı</label><input type="number" id="yeniSubeSayisi" min="1" max="20" value="7" oninput="bolunmeGuncelle()"></div>
+          <div class="form-group"><label>Toplam Saat <span id="toplamSaatGoster" style="color:#1a73e8;font-weight:700;">(21 saat)</span></label>
+            <select id="yeniDersBolunme"><option value="2+1">2+1</option></select>
+          </div>
+        </div>
+        <button class="btn btn-yesil" onclick="dersEkle()">+ Ders Ekle</button>
+        <div class="mesaj" id="dersEkleMesaj"></div>
+      </div>
+      <div class="kart">
+        <div class="kart-baslik">Ders Havuzu <span class="durum-rozet rozet-mavi" style="font-size:12px;">${dersProgramiDersler.length} ders</span></div>
+        ${tablo}
+      </div>
+    `;
+
+    document.getElementById('yeniDersSaat').addEventListener('input', function() {
+      const saat = parseInt(this.value);
+      const select = document.getElementById('yeniDersBolunme');
+      select.innerHTML = '';
+      if (saat >= 1) {
+        bolunmeSecenekleri(saat).forEach(b => {
+          select.innerHTML += '<option value="' + b + '">' + b + '</option>';
+        });
+      }
+    });
+  }
+
+function hesaplaAlinanSaat(dersId) {
+    let toplam = 0;
+    // Diğer öğretmenlerin kayıtlı matrisleri
+    Object.entries(tumMatrisler).forEach(([id, m]) => {
+      if (id === aktifOgretmenId) return; // Aktif öğretmeni atla
+      (m.matris || []).forEach(gun => {
+        (gun || []).forEach(hucre => {
+          if (hucre && hucre.dersId === dersId) toplam += (hucre.saat || 1);
+        });
+      });
+    });
+    // Aktif öğretmenin anlık matrisi
+    (ogretmenMatrisi?.matris || []).forEach(gun => {
+      (gun || []).forEach(hucre => {
+        if (hucre && hucre.dersId === dersId) toplam += (hucre.saat || 1);
+      });
+    });
+    return toplam;
+  }
+
+  window.bolunmeGuncelle = () => {
+    const sube = parseInt(document.getElementById('yeniSubeSaat').value) || 0;
+    const sayi = parseInt(document.getElementById('yeniSubeSayisi').value) || 0;
+    const toplam = sube * sayi;
+    document.getElementById('toplamSaatGoster').textContent = '(' + toplam + ' saat)';
+    const select = document.getElementById('yeniDersBolunme');
+    select.innerHTML = '';
+    bolunmeSecenekleri(sube).forEach(b => { select.innerHTML += '<option value="' + b + '">' + b + '</option>'; });
+  };
+
+  window.dersEkle = async () => {
+    const ad = document.getElementById('yeniDersAdi').value.trim();
+    const subeSaat = parseInt(document.getElementById('yeniSubeSaat').value);
+    const subeSayisi = parseInt(document.getElementById('yeniSubeSayisi').value);
+    const bolunme = document.getElementById('yeniDersBolunme').value;
+    const toplam = subeSaat * subeSayisi;
+    if (!ad || !subeSaat || !subeSayisi || !bolunme) { mesajGosterEl('dersEkleMesaj', 'Tüm alanları doldurun.', 'hata'); return; }
+    await addDoc(collection(db, 'program_talebi_dersler'), { ders_adi: ad, sube_saat: subeSaat, sube_sayisi: subeSayisi, toplam_saat: toplam, bolunme, olusturulma: serverTimestamp() });
+    mesajGosterEl('dersEkleMesaj', 'Ders eklendi.', 'basari');
+    document.getElementById('yeniDersAdi').value = '';
+    await dersleriYukle();
+    adminDerslerGoster();
+  };
+
+  window.dersSil = async (id) => {
+    if (!confirm('Bu dersi silmek istiyor musunuz?')) return;
+    await deleteDoc(doc(db, 'program_talebi_dersler', id));
+    await dersleriYukle();
+    adminDerslerGoster();
+  };
+
+  // KİM NE ALDI
+  async function adminIzleGoster() {
+    const container = document.getElementById('asekme-izle');
+    container.innerHTML = '<div class="yukleniyor">Yükleniyor...</div>';
+    const ogSnap = await getDocs(collection(db, 'teachers'));
+    const ogretmenler = [];
+    ogSnap.forEach(d => ogretmenler.push({ id: d.id, ...d.data() }));
+    ogretmenler.sort((a, b) => (a.ad || '').localeCompare(b.ad || '', 'tr'));
+
+    let html = '<div class="kart"><div class="kart-baslik">Öğretmen Bazında Talep Durumu</div>';
+    html += '<table><thead><tr><th>Öğretmen</th>';
+    dersProgramiDersler.forEach(d => { html += '<th style="font-size:11px;">' + d.ders_adi + '</th>'; });
+    html += '<th>Toplam</th><th>Durum</th></tr></thead><tbody>';
+
+    ogretmenler.forEach(ogr => {
+      const matris = tumMatrisler[ogr.id];
+      if (!matris && !Object.keys(tumMatrisler).length) return;
+      const alinanlar = {};
+      let toplamAlinan = 0;
+      if (matris?.matris) {
+        matris.matris.forEach(gun => {
+          (gun || []).forEach(hucre => {
+            if (hucre) {
+              alinanlar[hucre.dersId] = (alinanlar[hucre.dersId] || 0) + (hucre.saat || 1);
+              toplamAlinan += (hucre.saat || 1);
+            }
+          });
+        });
+      }
+      if (!toplamAlinan && !matris) return;
+
+      html += '<tr><td><strong>' + ogr.ad + '</strong><br><span style="font-size:11px;color:#888;">' + (ogr.brans || '') + '</span></td>';
+      dersProgramiDersler.forEach(d => {
+        const alinan = alinanlar[d.id] || 0;
+        html += '<td style="text-align:center;">' + (alinan ? '<strong style="color:#1a73e8;">' + alinan + '</strong>' : '<span style="color:#ccc;">-</span>') + '</td>';
+      });
+      html += '<td style="text-align:center;font-weight:700;">' + toplamAlinan + '</td>';
+      const tamamladi = matris?.tamamlandi;
+      html += '<td>' + (tamamladi ? '<span class="durum-rozet rozet-yesil">Tamamlandı</span>' : '<span class="durum-rozet rozet-gri">Devam Ediyor</span>') + '</td>';
+      html += '</tr>';
+    });
+
+    html += '</tbody></table></div>';
+    container.innerHTML = html;
+  }
+
+  // ISI HARİTASI
+  function isiHaritasiGoster() {
+    const container = document.getElementById('asekme-isi');
+
+    // Her gün+saat kombinasyonu için toplam saat sayısını hesapla
+    const yogunluk = {};
+    let maxYogunluk = 0;
+    GUNLER.forEach((g, gi) => {
+      DERSLER.forEach((d, di) => {
+        let toplam = 0;
+        Object.values(tumMatrisler).forEach(m => {
+          const hucre = m?.matris?.[gi]?.[di];
+          if (hucre) toplam += (hucre.saat || 1);
+        });
+        yogunluk[gi + '-' + di] = toplam;
+        if (toplam > maxYogunluk) maxYogunluk = toplam;
+      });
+    });
+
+    // Yüzde hesapla
+    const ogretmenSayisi = Object.keys(tumMatrisler).length;
+    const tamamlayanlar = Object.values(tumMatrisler).filter(m => m.tamamlandi).length;
+    const toplamHucre = GUNLER.length * DERSLER.length;
+    let cakismaOrani = 0;
+    if (ogretmenSayisi > 0) {
+      let sorunluHucre = 0;
+      Object.values(yogunluk).forEach(v => { if (v > ogretmenSayisi * 0.3) sorunluHucre++; });
+      cakismaOrani = Math.max(0, 100 - Math.round(sorunluHucre / toplamHucre * 100));
+    }
+
+    const yuzdeRenk = cakismaOrani >= 80 ? '#34a853' : cakismaOrani >= 60 ? '#f9ab00' : '#ea4335';
+
+    // Isı haritası tablosu
+    let tablo = '<table class="isi-tablo"><thead><tr><th>Ders</th>';
+    GUNLER.forEach(g => { tablo += '<th>' + g + '</th>'; });
+    tablo += '</tr></thead><tbody>';
+
+    DERSLER.forEach((d, di) => {
+      tablo += '<tr><td>' + d + '</td>';
+      GUNLER.forEach((g, gi) => {
+        const v = yogunluk[gi + '-' + di] || 0;
+        const seviye = maxYogunluk > 0 ? Math.min(5, Math.floor(v / maxYogunluk * 5)) : 0;
+        tablo += '<td class="isi-' + seviye + '">' + (v || '') + '</td>';
+      });
+      tablo += '</tr>';
+    });
+    tablo += '</tbody></table>';
+
+    container.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:16px;">
+        <div class="kart" style="text-align:center;padding:16px;">
+          <div style="font-size:28px;font-weight:800;color:${yuzdeRenk};">${cakismaOrani}%</div>
+          <div style="font-size:12px;color:#888;margin-top:4px;">Uyum Skoru</div>
+        </div>
+        <div class="kart" style="text-align:center;padding:16px;">
+          <div style="font-size:28px;font-weight:800;color:#1a73e8;">${tamamlayanlar}/${ogretmenSayisi}</div>
+          <div style="font-size:12px;color:#888;margin-top:4px;">Tamamlayan</div>
+        </div>
+      </div>
+      <div class="kart">
+        <div class="kart-baslik">
+          Talep Yoğunluk Haritası
+          <button class="btn btn-gri btn-sm" onclick="window.print()">Yazdır</button>
+        </div>
+        <div style="font-size:12px;color:#888;margin-bottom:12px;">Kırmızı = Yoğun talep (çakışma riski yüksek) | Yeşil = Düşük talep</div>
+        <div class="matris-wrap">${tablo}</div>
+      </div>
+      <div class="kart">
+        <div class="kart-baslik">Renk Açıklaması</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;font-size:12px;">
+          <span class="isi-0" style="padding:4px 10px;border-radius:6px;">Düşük talep</span>
+          <span class="isi-2" style="padding:4px 10px;border-radius:6px;">Orta talep</span>
+          <span class="isi-4" style="padding:4px 10px;border-radius:6px;">Yüksek talep</span>
+          <span class="isi-5" style="padding:4px 10px;border-radius:6px;">Çok yüksek — çakışma riski!</span>
+        </div>
+      </div>
+    `;
+  }
+
+  // AYARLAR
+  function adminAyarlarGoster() {
+    const container = document.getElementById('asekme-ayarlar');
+    container.innerHTML = `
+      <div class="kart">
+        <div class="kart-baslik">Talep Dönemi</div>
+        <p style="font-size:13px;color:#666;margin-bottom:16px;">Talep dönemi açıkken öğretmenler matrislerini doldurabilir.</p>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <button class="btn btn-yesil" onclick="donemAc()" ${ayarlar.donem_acik ? 'disabled' : ''}>Dönemi Aç</button>
+          <button class="btn btn-kirmizi" onclick="donemKapat()" ${!ayarlar.donem_acik ? 'disabled' : ''}>Dönemi Kapat</button>
+          <span class="durum-rozet ${ayarlar.donem_acik ? 'rozet-yesil' : 'rozet-kirmizi'}">${ayarlar.donem_acik ? 'Açık' : 'Kapalı'}</span>
+        </div>
+        <div class="mesaj" id="donemMesaj"></div>
+      </div>
+      <div class="kart">
+        <div class="kart-baslik">Tüm Talepleri Sıfırla</div>
+        <p style="font-size:13px;color:#666;margin-bottom:16px;">Bu işlem tüm öğretmenlerin matrislerini siler. Geri alınamaz.</p>
+        <button class="btn btn-kirmizi" onclick="tumTalepleriSifirla()">Tüm Talepleri Sıfırla</button>
+        <div class="mesaj" id="sifirMesaj"></div>
+      </div>
+    `;
+  }
+
+  window.donemAc = async () => {
+    ayarlar.donem_acik = true;
+    await setDoc(doc(db, 'program_talebi_ayarlar', 'genel'), { ...ayarlar, guncelleme: serverTimestamp() });
+    await ayarlariYukle();
+    adminAyarlarGoster();
+  };
+
+  window.donemKapat = async () => {
+    ayarlar.donem_acik = false;
+    await setDoc(doc(db, 'program_talebi_ayarlar', 'genel'), { ...ayarlar, guncelleme: serverTimestamp() });
+    await ayarlariYukle();
+    adminAyarlarGoster();
+  };
+
+  window.tumTalepleriSifirla = async () => {
+    if (!confirm('Tüm öğretmenlerin talepleri silinecek. Emin misiniz?')) return;
+    const snap = await getDocs(collection(db, 'program_talebi_matris'));
+    const sil = [];
+    snap.forEach(d => sil.push(deleteDoc(d.ref)));
+    await Promise.all(sil);
+    tumMatrisler = {};
+    mesajGosterEl('sifirMesaj', 'Tüm talepler silindi.', 'basari');
+  };
+
+  // ─── ÖĞRETMEN SAYFASI ───
+  function ogretmenSayfasiGoster() {
+    if (!ayarlar.donem_acik) {
+      document.getElementById('anaIcerik').innerHTML = `
+        <div class="kart" style="text-align:center;padding:40px;">
+          <div style="font-size:40px;margin-bottom:16px;">🔒</div>
+          <div style="font-size:18px;font-weight:700;color:#333;margin-bottom:8px;">Talep Dönemi Kapalı</div>
+          <div style="font-size:14px;color:#888;">Ders programı talep dönemi henüz açılmadı. Yönetici ile iletişime geçin.</div>
+        </div>`;
+      return;
+    }
+
+    document.getElementById('anaIcerik').innerHTML = `
+      <div style="display:grid;grid-template-columns:280px 1fr;gap:16px;align-items:start;">
+
+        <!-- HAVUZ PANELİ -->
+        <div>
+          <div class="kart">
+            <div class="kart-baslik">Ders Havuzu</div>
+            <div style="font-size:12px;color:#888;margin-bottom:10px;">Bir blok seçip matristeki hücreye tıklayın.</div>
+            <div id="havuzIcerik"><div class="yukleniyor" style="padding:20px;">Yükleniyor...</div></div>
+          </div>
+          <div class="kart">
+            <div class="kart-baslik">Durum</div>
+            <div id="ogretmenDurum"></div>
+            <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="btn btn-yesil" onclick="matrisKaydet()">💾 Kaydet</button>
+              <button class="btn btn-mavi" onclick="tamamlamaIsareti()">✓ Tamamladım</button>
+            </div>
+            <div class="mesaj" id="ogretmenMesaj"></div>
+          </div>
+        </div>
+
+        <!-- MATRİS -->
+        <div class="kart">
+          <div class="kart-baslik">
+            Haftalık Program Matrisiniz
+            <button class="btn btn-gri btn-sm" onclick="matrisiSifirla()">Sıfırla</button>
+          </div>
+          <div style="font-size:12px;color:#888;margin-bottom:10px;">
+            🟦 Blok seçip hücreye tıklayın | ❌ Dolu hücreye tıklayın = kaldır | ✖ Boş hücreye sağ tıklayın = X koy
+          </div>
+          <div class="matris-wrap">
+            <table class="matris" id="matrisTablo"></table>
+          </div>
+          <div style="margin-top:12px;">
+            <div id="isiMiniHarita"></div>
+          </div>
+        </div>
+
+      </div>
+    `;
+
+    ogretmenMatrisiniYukle();
+  }
+
+  async function ogretmenMatrisiniYukle() {
+    if (!aktifOgretmenId) return;
+    const matrisDoc = await getDoc(doc(db, 'program_talebi_matris', aktifOgretmenId));
+    if (matrisDoc.exists()) {
+      const veri = matrisDoc.data();
+      ogretmenMatrisi = {
+        ...veri,
+        matris: matrisGeriYukle(veri.matris)
+      };
+    } else {
+      ogretmenMatrisi = {
+        ogretmen_id: aktifOgretmenId,
+        matris: Array(5).fill(null).map(() => Array(8).fill(null)),
+        tamamlandi: false
+      };
+    }
+    havuzGuncelle();
+    matrisGuncelle();
+    isiMiniGuncelle();
+    ogretmenDurumGuncelle();
+  }
+
+  function havuzGuncelle() {
+    const container = document.getElementById('havuzIcerik');
+    if (!container) return;
+
+    let html = '';
+    dersProgramiDersler.forEach(d => {
+      const alinanBu = hesaplaOgretmenAlinan(d.id);
+      const toplamAlinan = hesaplaAlinanSaat(d.id);
+      const kalan = d.toplam_saat - toplamAlinan;
+      const renk = dersRengi(d.id);
+
+      html += '<div style="margin-bottom:12px;">';
+      html += '<div style="font-size:12px;font-weight:700;color:#333;margin-bottom:4px;">' + d.ders_adi + '</div>';
+      html += '<div style="font-size:11px;color:#888;margin-bottom:6px;">Havuzda kalan: <strong>' + Math.max(0, kalan) + '</strong> saat | Sizin aldığınız: <strong>' + alinanBu + '</strong> saat</div>';
+
+      if (kalan <= 0) {
+        html += '<div style="font-size:11px;color:#34a853;font-weight:700;">✓ Havuz doldu</div>';
+      } else {
+        const bloklar = bloklariOlustur(d.bolunme, d.id, d.ders_adi);
+        bloklar.forEach((blok, bi) => {
+          const seciliMi = seciliBlok?.dersId === d.id && seciliBlok?.blokIdx === bi;
+          html += '<span class="havuz-blok ' + (seciliMi ? 'secili' : '') + '" ';
+          html += 'style="background:' + renk + '20;border-color:' + renk + ';color:' + renk + ';" ';
+          html += 'onclick="blokSec(\'' + d.id + '\',' + bi + ',\'' + d.ders_adi + '\',' + blok.saat + ',\'' + renk + '\')">';
+          html += blok.saat + ' saatlik blok';
+          html += '</span>';
+        });
+      }
+      html += '</div>';
+    });
+
+    container.innerHTML = html || '<div style="color:#888;font-size:13px;">Henüz ders tanımlanmamış.</div>';
+  }
+
+  function hesaplaOgretmenAlinan(dersId) {
+    let toplam = 0;
+    (ogretmenMatrisi?.matris || []).forEach(gun => {
+      (gun || []).forEach(hucre => {
+        if (hucre?.dersId === dersId) toplam += (hucre.saat || 1);
+      });
+    });
+    return toplam;
+  }
+
+  window.blokSec = (dersId, blokIdx, dersAdi, saat, renk) => {
+    if (seciliBlok?.dersId === dersId && seciliBlok?.blokIdx === blokIdx) {
+      seciliBlok = null;
+    } else {
+      seciliBlok = { dersId, blokIdx, dersAdi, saat, renk };
+    }
+    havuzGuncelle();
+    matrisGuncelle();
+  };
+
+  function matrisGuncelle() {
+    const tablo = document.getElementById('matrisTablo');
+    if (!tablo) return;
+
+    // Isı haritası verisini hesapla
+    const yogunluk = {};
+    GUNLER.forEach((g, gi) => {
+      DERSLER.forEach((d, di) => {
+        let toplam = 0;
+        Object.values(tumMatrisler).forEach(m => {
+          const hucre = m?.matris?.[gi]?.[di];
+          if (hucre) toplam++;
+        });
+        yogunluk[gi + '-' + di] = toplam;
+      });
+    });
+
+    const maxY = Math.max(...Object.values(yogunluk), 1);
+
+    let html = '<thead><tr><th>—</th>';
+    GUNLER.forEach(g => { html += '<th>' + g + '</th>'; });
+    html += '</tr></thead><tbody>';
+
+    DERSLER.forEach((d, di) => {
+      html += '<tr><td>' + d + '</td>';
+      GUNLER.forEach((g, gi) => {
+        const hucre = ogretmenMatrisi?.matris?.[gi]?.[di];
+        const y = yogunluk[gi + '-' + di] || 0;
+        const yogunlukOrani = y / maxY;
+        const isiBg = yogunlukOrani > 0.7 ? 'rgba(234,67,53,0.08)' : yogunlukOrani > 0.4 ? 'rgba(249,171,0,0.08)' : '';
+
+        if (hucre === 'X') {
+          html += '<td class="x-li" onclick="hucreTikla(' + gi + ',' + di + ')" oncontextmenu="event.preventDefault();hucreSagTikla(' + gi + ',' + di + ')">';
+          html += '<div style="color:#ea4335;font-weight:800;font-size:16px;">✕</div></td>';
+        } else if (hucre && typeof hucre === 'object') {
+          const renk = hucre.renk || '#1a73e8';
+          if (hucre.bas === false) {
+            // Devam hücresi — ders adı göster
+            html += '<td onclick="hucreTikla(' + gi + ',' + di + ')" style="background:' + renk + '20;border:1px solid ' + renk + '40;cursor:pointer;">';
+            html += '<div style="font-size:11px;font-weight:600;color:' + renk + ';padding:4px;">' + hucre.dersAdi + '</div>';
+            html += '</td>';
+          } else {
+            // Baş hücre — blok bilgisini göster
+            html += '<td onclick="hucreTikla(' + gi + ',' + di + ')" style="background:' + isiBg + '">';
+            html += '<div class="blok" style="background:' + renk + '20;border:1.5px solid ' + renk + ';color:' + renk + ';">';
+            html += '<div class="hucre-isim">' + hucre.dersAdi + '<br><strong>' + hucre.saat + ' saat</strong></div>';
+            html += '</div></td>';
+          }
+        } else {
+          html += '<td class="bos" onclick="hucreTikla(' + gi + ',' + di + ')" oncontextmenu="event.preventDefault();hucreSagTikla(' + gi + ',' + di + ')" style="background:' + isiBg + '">';
+          if (seciliBlok) html += '<span style="color:#1a73e8;font-size:18px;">+</span>';
+          html += '</td>';
+        }
+      });
+      html += '</tr>';
+    });
+
+    html += '</tbody>';
+    tablo.innerHTML = html;
+  }
+
+  window.hucreTikla = (gi, di) => {
+    const hucre = ogretmenMatrisi?.matris?.[gi]?.[di];
+    if (hucre && typeof hucre === 'object') {
+      // Dolu hücreye tıklama — tüm bloğu kaldır
+      const basDi = hucre.bas ? di : (hucre.basHucre ?? di);
+      const saat = hucre.saat || 1;
+      for (let k = 0; k < saat; k++) {
+        ogretmenMatrisi.matris[gi][basDi + k] = null;
+      }
+      havuzGuncelle();
+      matrisGuncelle();
+      isiMiniGuncelle();
+      ogretmenDurumGuncelle();
+    } else if (hucre === 'X') {
+      // X'e tıklama — kaldır
+      ogretmenMatrisi.matris[gi][di] = null;
+      matrisGuncelle();
+    } else if (seciliBlok) {
+      // Kaç hücre gerekiyor kontrol et
+      const gerekliSaat = seciliBlok.saat || 1;
+      // 8. dersten taşıyor mu kontrol et
+      if (di + gerekliSaat > 8) {
+        alert(gerekliSaat + ' saatlik blok ' + (di + 1) + '. dersten başlayamaz. Daha önceki bir derse yerleştirin.');
+        return;
+      }
+      // Hedef hücreler boş mu kontrol et
+      for (let k = 0; k < gerekliSaat; k++) {
+        if (ogretmenMatrisi.matris[gi][di + k]) {
+          alert('Yerleştirmek istediğiniz alanda dolu hücre var.');
+          return;
+        }
+      }
+      // İlk hücreye blok bilgisini yaz, diğerlerine referans yaz
+      ogretmenMatrisi.matris[gi][di] = { ...seciliBlok, bas: true };
+      for (let k = 1; k < gerekliSaat; k++) {
+        ogretmenMatrisi.matris[gi][di + k] = { ...seciliBlok, bas: false, basHucre: di };
+      }
+      seciliBlok = null;
+      havuzGuncelle();
+      matrisGuncelle();
+      isiMiniGuncelle();
+      ogretmenDurumGuncelle();
+    }
+  };
+
+  window.hucreSagTikla = (gi, di) => {
+    // Sağ tık — X koy/kaldır
+    const hucre = ogretmenMatrisi?.matris?.[gi]?.[di];
+    if (!hucre) {
+      ogretmenMatrisi.matris[gi][di] = 'X';
+    } else if (hucre === 'X') {
+      ogretmenMatrisi.matris[gi][di] = null;
+    }
+    matrisGuncelle();
+  };
+
+  function ogretmenDurumGuncelle() {
+    const container = document.getElementById('ogretmenDurum');
+    if (!container) return;
+
+    let toplamAlinan = 0;
+    dersProgramiDersler.forEach(d => { toplamAlinan += hesaplaOgretmenAlinan(d.id); });
+    const tamamladi = ogretmenMatrisi?.tamamlandi;
+
+    container.innerHTML = `
+      <div style="font-size:13px;color:#555;">Toplam yerleştirilen: <strong>${toplamAlinan} saat</strong></div>
+      <div style="margin-top:6px;">${tamamladi ? '<span class="durum-rozet rozet-yesil">✓ Tamamlandı</span>' : '<span class="durum-rozet rozet-gri">Devam Ediyor</span>'}</div>
+    `;
+  }
+
+  function isiMiniGuncelle() {
+    // Mini ısı haritası öğretmen için
+    const container = document.getElementById('isiMiniHarita');
+    if (!container) return;
+
+    const yogunluk = {};
+    let maxY = 0;
+    GUNLER.forEach((g, gi) => {
+      DERSLER.forEach((d, di) => {
+        let toplam = 0;
+        Object.values(tumMatrisler).forEach(m => {
+          const hucre = m?.matris?.[gi]?.[di];
+          if (hucre && hucre !== 'X') toplam++;
+        });
+        yogunluk[gi + '-' + di] = toplam;
+        if (toplam > maxY) maxY = toplam;
+      });
+    });
+
+    let html = '<div style="font-size:11px;color:#888;margin-bottom:6px;">Isı haritası (diğer öğretmenlerin yoğunluğu):</div>';
+    html += '<table class="isi-tablo" style="font-size:10px;"><thead><tr><th></th>';
+    GUNLER.forEach(g => { html += '<th style="font-size:10px;">' + g.substring(0,3) + '</th>'; });
+    html += '</tr></thead><tbody>';
+    DERSLER.forEach((d, di) => {
+      html += '<tr><td style="font-size:10px;">' + (di+1) + '</td>';
+      GUNLER.forEach((g, gi) => {
+        const v = yogunluk[gi + '-' + di] || 0;
+        const seviye = maxY > 0 ? Math.min(5, Math.floor(v / maxY * 5)) : 0;
+        html += '<td class="isi-' + seviye + '" style="font-size:10px;padding:4px;">' + (v || '') + '</td>';
+      });
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    container.innerHTML = html;
+  }
+
+  function matrisDuzlestir(matris) {
+    const duz = {};
+    (matris || []).forEach((gun, gi) => {
+      (gun || []).forEach((hucre, di) => {
+        duz['g' + gi + 'd' + di] = hucre || null;
+      });
+    });
+    return duz;
+  }
+
+  function matrisGeriYukle(duz) {
+    const matris = Array(5).fill(null).map(() => Array(8).fill(null));
+    Object.entries(duz || {}).forEach(([key, val]) => {
+      const gi = parseInt(key[1]);
+      const di = parseInt(key.substring(3));
+      if (!isNaN(gi) && !isNaN(di)) matris[gi][di] = val;
+    });
+    return matris;
+  }
+
+  window.matrisKaydet = async () => {
+    if (!aktifOgretmenId) return;
+    const kayitVerisi = {
+      ...ogretmenMatrisi,
+      matris: matrisDuzlestir(ogretmenMatrisi.matris),
+      son_guncelleme: serverTimestamp()
+    };
+    await setDoc(doc(db, 'program_talebi_matris', aktifOgretmenId), kayitVerisi);
+    tumMatrisler[aktifOgretmenId] = { ...ogretmenMatrisi };
+    mesajGosterEl('ogretmenMesaj', 'Matris kaydedildi.', 'basari');
+    isiMiniGuncelle();
+  };
+
+  window.tamamlamaIsareti = async () => {
+    if (!aktifOgretmenId) return;
+    if (!confirm('Talebinizi tamamladı olarak işaretlemek istiyor musunuz? Sonradan değiştirebilirsiniz.')) return;
+    ogretmenMatrisi.tamamlandi = true;
+    const kayitVerisi = {
+      ...ogretmenMatrisi,
+      matris: matrisDuzlestir(ogretmenMatrisi.matris),
+      son_guncelleme: serverTimestamp()
+    };
+    await setDoc(doc(db, 'program_talebi_matris', aktifOgretmenId), kayitVerisi);
+    tumMatrisler[aktifOgretmenId] = ogretmenMatrisi;
+    ogretmenDurumGuncelle();
+    mesajGosterEl('ogretmenMesaj', 'Talebiniz tamamlandı olarak işaretlendi.', 'basari');
+  };
+
+window.matrisiSifirla = () => {
+    if (!confirm('Matrisinizi sıfırlamak istiyor musunuz?')) return;
+    ogretmenMatrisi.matris = Array(5).fill(null).map(() => Array(8).fill(null));
+    ogretmenMatrisi.tamamlandi = false;
+    seciliBlok = null;
+    havuzGuncelle();
+    matrisGuncelle();
+    isiMiniGuncelle();
+    ogretmenDurumGuncelle();
+    // Sıfırlanmış matrisi kaydet
+    const kayitVerisi = {
+      ...ogretmenMatrisi,
+      matris: matrisDuzlestir(ogretmenMatrisi.matris),
+      son_guncelleme: serverTimestamp()
+    };
+    setDoc(doc(db, 'program_talebi_matris', aktifOgretmenId), kayitVerisi);
+    ogretmenMatrisi.tamamlandi = false;
+    seciliBlok = null;
+    havuzGuncelle();
+    matrisGuncelle();
+    isiMiniGuncelle();
+    ogretmenDurumGuncelle();
+  };
+
+  function mesajGosterEl(id, metin, tip) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = metin;
+    el.className = 'mesaj mesaj-' + tip;
+    el.style.display = 'block';
+    setTimeout(() => el.style.display = 'none', 3500);
+  };
+</script>
+</body>
+</html>

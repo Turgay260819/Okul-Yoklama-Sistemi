@@ -177,6 +177,18 @@ service cloud.firestore {
       allow read: if isLoggedIn();
       allow write: if isYonetim();
     }
+    match /program_talebi_dersler/{docId} {
+      allow read: if isLoggedIn();
+      allow write: if isYonetim();
+    }
+    match /program_talebi_matris/{docId} {
+      allow read: if isLoggedIn();
+      allow write: if isLoggedIn();
+    }
+    match /program_talebi_ayarlar/{docId} {
+      allow read: if isLoggedIn();
+      allow write: if isYonetim();
+    }
   }
-  
+
 }

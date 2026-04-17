@@ -1,14 +1,6 @@
 {
   "indexes": [
     {
-      "collectionGroup": "disiplin_kayitlar",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "tarih", "order": "ASCENDING" },
-        { "fieldPath": "tarih", "order": "DESCENDING" }
-      ]
-    },
-    {
       "collectionGroup": "attendance",
       "queryScope": "COLLECTION",
       "fields": [
@@ -54,14 +46,6 @@
       "fields": [
         { "fieldPath": "date", "order": "ASCENDING" },
         { "fieldPath": "course", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "schedule",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "day", "order": "ASCENDING" },
-        { "fieldPath": "lesson_number", "order": "ASCENDING" }
       ]
     }
   ],
