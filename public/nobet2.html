@@ -1,679 +1,1221 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="tr">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Gün Değişme Kurallı Nöbet Sistemi</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Segoe UI', sans-serif; background: #f0f4f8; }
-
-    .topbar {
-      background: #1557b0; color: white;
-      padding: 14px 24px;
-      display: flex; justify-content: space-between; align-items: center;
-      flex-wrap: wrap; gap: 10px;
-    }
-    .topbar h1 { font-size: 17px; font-weight: 700; }
-    .topbar-sag { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-
-    .btn {
-      padding: 8px 16px; border: none; border-radius: 8px;
-      font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
-    }
-    .btn-beyaz { background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); }
-    .btn-beyaz:hover { background: rgba(255,255,255,0.3); }
-    .btn-mavi { background: #1a73e8; color: white; }
-    .btn-mavi:hover { background: #1557b0; }
-    .btn-yesil { background: #34a853; color: white; }
-    .btn-yesil:hover { background: #2d8f47; }
-    .btn-turuncu { background: #f9ab00; color: white; }
-    .btn-turuncu:hover { background: #e37400; }
-    .btn-kirmizi { background: #ea4335; color: white; }
-    .btn-kirmizi:hover { background: #c5221f; }
-    .btn-gri { background: #666; color: white; }
-    .btn-gri:hover { background: #444; }
-    .btn:disabled { background: #ccc !important; cursor: not-allowed; }
-
-    .ana-layout {
-      display: flex; gap: 0; height: calc(100vh - 56px);
-    }
-
-    /* SAĞ PANEL - Öğretmen listesi */
-    .ogretmen-panel {
-      width: 240px; background: white; border-right: 1px solid #e0e0e0;
-      display: flex; flex-direction: column; flex-shrink: 0;
-    }
-    .panel-baslik {
-      padding: 14px 16px; font-size: 13px; font-weight: 700;
-      border-bottom: 1px solid #e0e0e0; color: #333;
-      background: #f8f9fa;
-    }
-    .panel-arama {
-      padding: 10px 12px; border-bottom: 1px solid #e0e0e0;
-    }
-    .panel-arama input {
-      width: 100%; padding: 7px 10px; border: 1px solid #ddd;
-      border-radius: 6px; font-size: 12px; font-family: inherit; outline: none;
-    }
-    .ogretmen-listesi {
-      flex: 1; overflow-y: auto; padding: 8px;
-    }
-    .ogretmen-kart {
-      padding: 8px 10px; border-radius: 8px; margin-bottom: 4px;
-      cursor: pointer; border: 1.5px solid #e0e0e0; background: white;
-      transition: all 0.15s;
-    }
-    .ogretmen-kart:hover { border-color: #1a73e8; background: #e8f0fe; }
-    .ogretmen-kart.secili { border-color: #1a73e8; background: #e8f0fe; }
-    .ogretmen-kart.yerlesik { background: #f1f3f4; border-color: #ccc; opacity: 0.6; }
-    .ogretmen-adi { font-size: 13px; font-weight: 600; color: #333; }
-    .ogretmen-brans { font-size: 11px; color: #888; margin-top: 1px; }
-    .sabitlik-sec {
-      display: flex; gap: 3px; margin-top: 6px; flex-wrap: wrap;
-    }
-    .sabitlik-btn {
-      padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 700;
-      cursor: pointer; border: 1px solid #ddd; background: white; color: #666;
-      transition: all 0.1s;
-    }
-    .sabitlik-btn.aktif-serbest { background: #f1f3f4; color: #333; border-color: #999; }
-    .sabitlik-btn.aktif-sg { background: #e8f0fe; color: #1a73e8; border-color: #1a73e8; }
-    .sabitlik-btn.aktif-sn { background: #e6f4ea; color: #1e7e34; border-color: #34a853; }
-    .sabitlik-btn.aktif-sgn { background: #fce8e6; color: #c5221f; border-color: #ea4335; }
-
-    /* ORTA - Nöbet tablosu */
-    .tablo-alan {
-      flex: 1; overflow: auto; padding: 16px;
-    }
-
-    .hafta-bar {
-      background: white; border-radius: 10px; padding: 12px 16px;
-      margin-bottom: 14px; display: flex; gap: 10px; align-items: center;
-      flex-wrap: wrap; box-shadow: 0 1px 4px rgba(0,0,0,0.08);
-    }
-    .hafta-tarih { flex: 1; font-size: 14px; font-weight: 700; color: #333; }
-    .durum-rozet {
-      padding: 4px 10px; border-radius: 10px; font-size: 11px; font-weight: 700;
-    }
-    .durum-aktif { background: #e6f4ea; color: #1e7e34; }
-    .durum-durduruldu { background: #fce8e6; color: #c5221f; }
-
-    .nobet-tablo-wrap {
-      background: white; border-radius: 10px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.08); overflow: hidden;
-    }
-
-    .nobet-tablo { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .nobet-tablo th {
-      background: #1557b0; color: white;
-      padding: 10px 12px; text-align: center; font-weight: 600; font-size: 12px;
-    }
-    .nobet-tablo th:first-child { text-align: left; width: 150px; }
-    .nobet-tablo td {
-      padding: 8px 10px; border-bottom: 1px solid #f0f0f0;
-      text-align: center; vertical-align: middle;
-    }
-    .nobet-tablo td:first-child {
-      text-align: left; font-weight: 600; font-size: 12px;
-      background: #f8f9fa; color: #555; border-right: 2px solid #e0e0e0;
-    }
-    .nobet-tablo tr:last-child td { border-bottom: none; }
-
-    .hucre {
-      min-height: 38px; border-radius: 6px; cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 12px; font-weight: 600; padding: 4px 6px;
-      transition: all 0.15s; position: relative;
-    }
-    .hucre.bos {
-      background: #f8f9fa; color: #ccc; border: 1.5px dashed #ddd;
-    }
-    .hucre.bos:hover { border-color: #1a73e8; background: #e8f0fe; color: #1a73e8; }
-    .hucre.bos.hedef { border-color: #1a73e8; background: #e8f0fe; color: #1a73e8; }
-    .hucre.dolu {
-      background: #e8f0fe; color: #1557b0; border: 1.5px solid #a8c5f5;
-    }
-    .hucre.dolu.sg { background: #e8f0fe; border-color: #1a73e8; }
-    .hucre.dolu.sn { background: #e6f4ea; color: #1e7e34; border-color: #34a853; }
-    .hucre.dolu.sgn { background: #fce8e6; color: #c5221f; border-color: #ea4335; }
-    .hucre.dolu:hover { opacity: 0.8; }
-    .hucre-isim { font-size: 11px; line-height: 1.2; text-align: center; }
-    .hucre-rozet {
-      position: absolute; top: 2px; right: 2px;
-      font-size: 8px; font-weight: 800; opacity: 0.7;
-    }
-
-    .mesaj {
-      position: fixed; bottom: 20px; right: 20px;
-      padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 600;
-      display: none; z-index: 9999; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    }
-    .mesaj-basari { background: #e6f4ea; color: #1e7e34; }
-    .mesaj-hata { background: #fce8e6; color: #c5221f; }
-    .mesaj-bilgi { background: #e8f0fe; color: #1a73e8; }
-
-    .yukleniyor { text-align: center; padding: 60px; color: #666; font-size: 15px; }
-
-    /* MODAL */
-    .modal-zemin {
-      display: none; position: fixed; inset: 0;
-      background: rgba(0,0,0,0.5); z-index: 1000;
-      align-items: center; justify-content: center;
-    }
-    .modal-zemin.aktif { display: flex; }
-    .modal-kutu {
-      background: white; border-radius: 12px; padding: 24px;
-      width: 90%; max-width: 520px; max-height: 85vh; overflow-y: auto;
-    }
-    .modal-baslik { font-size: 16px; font-weight: 700; margin-bottom: 16px; color: #333; }
-    .modal-butonlar { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; padding-top: 16px; border-top: 1px solid #f0f0f0; }
-
-    .nobetci-ozet {
-      background: #f8f9fa; border-radius: 8px; padding: 12px 14px;
-      font-size: 12px; color: #666; margin-bottom: 14px;
-    }
-    .nobetci-ozet strong { color: #333; }
-
-    @media (max-width: 768px) {
-      .ana-layout { flex-direction: column; height: auto; }
-      .ogretmen-panel { width: 100%; height: 200px; }
-    }
-  </style>
-</head>
-<body>
-
-<div class="topbar">
-  <h1>📋 Gün Değişme Kurallı Nöbet Sistemi</h1>
-  <div class="topbar-sag">
-    <span id="durumRozet" class="durum-rozet durum-aktif">Rotasyon Aktif</span>
-    <button class="btn btn-beyaz" onclick="nobetGeriAl()">◀ Geri</button>
-    <button class="btn btn-beyaz" onclick="nobetIleri()">İleri ▶</button>
-    <button class="btn btn-turuncu" onclick="rotasyonDurdur()" id="btnDurdur">Durdur</button>
-    <button class="btn btn-yesil" onclick="telegramGonder()">Telegram</button>
-    <button class="btn btn-beyaz" onclick="noktaYonetimiAc()">⚙ Noktalar</button>
-    <a href="/portal.html" class="btn btn-beyaz">Ana Sayfa</a>
-  </div>
-</div>
-
-<div id="yukleniyor" class="yukleniyor">Yükleniyor...</div>
-
-<div id="anaIcerik" style="display:none;">
-  <div class="ana-layout">
-
-    <!-- SOL PANEL -->
-    <div class="ogretmen-panel">
-      <div class="panel-baslik">
-        Öğretmenler
-        <span id="yerlesikSayac" style="font-size:11px;color:#888;font-weight:400;"></span>
-      </div>
-      <div class="panel-arama">
-        <input type="text" id="aramaInput" placeholder="Öğretmen ara..." oninput="ogretmenFiltrele()">
-      </div>
-      <div class="ogretmen-listesi" id="ogretmenListesi"></div>
-    </div>
-
-    <!-- TABLO ALANI -->
-    <div class="tablo-alan">
-      <div class="hafta-bar">
-        <div class="hafta-tarih" id="haftaTarih">—</div>
-        <div id="nobetciOzet" class="nobetci-ozet" style="margin:0;flex:1;"></div>
-        <button class="btn btn-kirmizi" onclick="nobetSifirla()" style="font-size:12px;padding:6px 12px;">Sıfırla</button>
-        <button class="btn btn-mavi" onclick="nobetKaydet()" style="font-size:12px;padding:6px 12px;">💾 Kaydet</button>
-      </div>
-
-      <div class="nobet-tablo-wrap">
-        <div id="nobetTablosu"><div class="yukleniyor">Yükleniyor...</div></div>
-      </div>
-    </div>
-
-  </div>
-</div>
-
-<!-- NÖBET NOKTALARI MODAL -->
-<div class="modal-zemin" id="noktaModal">
-  <div class="modal-kutu">
-    <div class="modal-baslik">⚙ Nöbet Noktaları</div>
-    <div style="font-size:12px;color:#888;margin-bottom:12px;">Nokta adlarını düzenleyin, ekleyin veya silin.</div>
-    <div id="noktaListesiModal"></div>
-    <div style="display:flex;gap:8px;margin-top:10px;">
-      <input type="text" id="yeniNoktaInput" placeholder="Yeni nokta adı..." style="flex:1;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;font-family:inherit;">
-      <button class="btn btn-yesil" onclick="noktaEkle()" style="font-size:12px;">+ Ekle</button>
-    </div>
-    <div class="modal-butonlar">
-      <button class="btn btn-gri" onclick="modalKapat('noktaModal')">İptal</button>
-      <button class="btn btn-mavi" onclick="noktalariKaydet()">Kaydet</button>
-    </div>
-  </div>
-</div>
-
-<div class="mesaj" id="mesajKutusu"></div>
-
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-  import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-  import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
-  import {
-    getFirestore, doc, getDoc, setDoc, getDocs,
-    collection, serverTimestamp
-  } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
-  const firebaseConfig = {
-    apiKey: "AIzaSyAHTCiicd4b94rG1-jN0STRbwcrLmkYudo",
-    authDomain: "okul-yoklama-sistemi-8081f.firebaseapp.com",
-    projectId: "okul-yoklama-sistemi-8081f",
-    storageBucket: "okul-yoklama-sistemi-8081f.firebasestorage.app",
-    messagingSenderId: "38230047763",
-    appId: "1:38230047763:web:dfab058df8928b66be13e6"
-  };
-
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-  const db = getFirestore(app);
-  const functions = getFunctions(app, 'us-central1');
-
-  const GUNLER = ["Pazartesi", "Sali", "Carsamba", "Persembe", "Cuma"];
-  const VARSAYILAN_NOKTALAR = [
-    "On Bahce Dis Kapi", "On Bahce Hali Saha Kapisi", "On Bahce Okul Girisi",
-    "Arka Bahce Dis Kapi", "Arka Bahce Okul Girisi",
-    "Zemin Kat Sag", "Zemin Kat Sol",
-    "1. Kat Sag", "1. Kat Sol",
-    "2. Kat Sag", "2. Kat Sol"
-  ];
-
-  let NOKTALAR = [];
-  let tumOgretmenler = [];
-  let nobetVerisi = null;
-  let seciliOgretmen = null; // { id, ad, brans, sabitlik }
-  let aktifRol = null;
-
-  // Nöbet verisi yapısı:
-  // gunler: [ { gun, nobetciler: [ { id, ad, sabitlik } | null ] } ]
-
-  async function init() {
-    // Noktaları yükle
-    const nokDoc = await getDoc(doc(db, 'nobet2_ayarlar', 'noktalar'));
-    if (!nokDoc.exists()) {
-      await setDoc(doc(db, 'nobet2_ayarlar', 'noktalar'), { liste: VARSAYILAN_NOKTALAR, guncelleme: serverTimestamp() });
-      NOKTALAR = [...VARSAYILAN_NOKTALAR];
-    } else {
-      NOKTALAR = nokDoc.data().liste || VARSAYILAN_NOKTALAR;
-    }
-
-    // Öğretmenleri yükle
-    const ogSnap = await getDocs(collection(db, 'teachers'));
-    tumOgretmenler = [];
-    ogSnap.forEach(d => tumOgretmenler.push({ id: d.id, ...d.data() }));
-    tumOgretmenler.sort((a, b) => (a.ad || '').localeCompare(b.ad || '', 'tr'));
-
-    // Nöbet verisini yükle
-    const nobetDoc = await getDoc(doc(db, 'nobet2_ayarlar', 'mevcut'));
-    if (!nobetDoc.exists()) {
-      nobetVerisi = boslaNobetOlustur();
-      await setDoc(doc(db, 'nobet2_ayarlar', 'mevcut'), { ...nobetVerisi, olusturulma: serverTimestamp() });
-    } else {
-      nobetVerisi = nobetDoc.data();
-      // Nokta sayısı değiştiyse güncelle
-      nobetVerisi.gunler = nobetVerisi.gunler.map(g => {
-        const n = [...(g.nobetciler || [])];
-        while (n.length < NOKTALAR.length) n.push(null);
-        return { ...g, nobetciler: n.slice(0, NOKTALAR.length) };
-      });
-    }
-
-    ogretmenListesiGoster();
-    tabloGoster();
-
-    document.getElementById('yukleniyor').style.display = 'none';
-    document.getElementById('anaIcerik').style.display = 'block';
-  }
-
-  function boslaNobetOlustur() {
-    const bugun = new Date();
-    const gun = bugun.getDay();
-    const fark = gun === 0 ? -6 : 1 - gun;
-    const pzt = new Date(bugun);
-    pzt.setDate(bugun.getDate() + fark);
-    return {
-      hafta_baslangic: pzt.toISOString().split('T')[0],
-      rotasyon_aktif: true,
-      rotasyon_sayaci: 0,
-      gunler: GUNLER.map(g => ({ gun: g, nobetciler: Array(NOKTALAR.length).fill(null) }))
-    };
-  }
-
-  function ogretmenListesiGoster(filtre = '') {
-    const container = document.getElementById('ogretmenListesi');
-    const yerlesikIds = new Set();
-    (nobetVerisi?.gunler || []).forEach(g => {
-      (g.nobetciler || []).forEach(n => { if (n?.id) yerlesikIds.add(n.id); });
-    });
-
-    const filtreliler = tumOgretmenler.filter(o =>
-      !filtre || (o.ad || '').toLowerCase().includes(filtre.toLowerCase()) ||
-      (o.brans || '').toLowerCase().includes(filtre.toLowerCase())
-    );
-
-    document.getElementById('yerlesikSayac').textContent = ' (' + yerlesikIds.size + '/' + tumOgretmenler.length + ')';
-
-    let html = '';
-    filtreliler.forEach(o => {
-      const yerlesik = yerlesikIds.has(o.id);
-      const seciliMi = seciliOgretmen?.id === o.id;
-      const sabitlik = seciliMi ? seciliOgretmen.sabitlik : 'serbest';
-      html += '<div class="ogretmen-kart ' + (yerlesik ? 'yerlesik' : '') + (seciliMi ? ' secili' : '') + '" onclick="ogretmenSec(\'' + o.id + '\')" id="okart-' + o.id + '">';
-      html += '<div class="ogretmen-adi">' + (o.ad || '') + '</div>';
-      html += '<div class="ogretmen-brans">' + (o.brans || '') + '</div>';
-      if (!yerlesik) {
-        html += '<div class="sabitlik-sec">';
-        html += '<button class="sabitlik-btn ' + (sabitlik === 'serbest' ? 'aktif-serbest' : '') + '" onclick="event.stopPropagation(); sabitlikAyarla(\'' + o.id + '\', \'serbest\')">Serbest</button>';
-        html += '<button class="sabitlik-btn ' + (sabitlik === 'sg' ? 'aktif-sg' : '') + '" onclick="event.stopPropagation(); sabitlikAyarla(\'' + o.id + '\', \'sg\')">S-G</button>';
-        html += '<button class="sabitlik-btn ' + (sabitlik === 'sn' ? 'aktif-sn' : '') + '" onclick="event.stopPropagation(); sabitlikAyarla(\'' + o.id + '\', \'sn\')">S-N</button>';
-        html += '<button class="sabitlik-btn ' + (sabitlik === 'sgn' ? 'aktif-sgn' : '') + '" onclick="event.stopPropagation(); sabitlikAyarla(\'' + o.id + '\', \'sgn\')">S-GN</button>';
-        html += '</div>';
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gün Değişme Kurallı Nöbet Sistemi</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
       }
-      html += '</div>';
-    });
-    container.innerHTML = html || '<div style="padding:20px;text-align:center;color:#999;font-size:12px;">Öğretmen bulunamadı</div>';
-  }
+      body {
+        font-family: "Segoe UI", sans-serif;
+        background: #f0f4f8;
+      }
 
-  window.ogretmenFiltrele = () => {
-    ogretmenListesiGoster(document.getElementById('aramaInput').value);
-  };
+      .topbar {
+        background: #1557b0;
+        color: white;
+        padding: 14px 24px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+      .topbar h1 {
+        font-size: 17px;
+        font-weight: 700;
+      }
+      .topbar-sag {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
 
-  window.ogretmenSec = (id) => {
-    const ogr = tumOgretmenler.find(o => o.id === id);
-    if (!ogr) return;
-    const yerlesikIds = new Set();
-    (nobetVerisi?.gunler || []).forEach(g => {
-      (g.nobetciler || []).forEach(n => { if (n?.id) yerlesikIds.add(n.id); });
-    });
-    if (yerlesikIds.has(id)) return; // Zaten yerleşik
+      .btn {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        font-family: inherit;
+      }
+      .btn-beyaz {
+        background: rgba(255, 255, 255, 0.2);
+        color: white;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+      }
+      .btn-beyaz:hover {
+        background: rgba(255, 255, 255, 0.3);
+      }
+      .btn-mavi {
+        background: #1a73e8;
+        color: white;
+      }
+      .btn-mavi:hover {
+        background: #1557b0;
+      }
+      .btn-yesil {
+        background: #34a853;
+        color: white;
+      }
+      .btn-yesil:hover {
+        background: #2d8f47;
+      }
+      .btn-turuncu {
+        background: #f9ab00;
+        color: white;
+      }
+      .btn-turuncu:hover {
+        background: #e37400;
+      }
+      .btn-kirmizi {
+        background: #ea4335;
+        color: white;
+      }
+      .btn-kirmizi:hover {
+        background: #c5221f;
+      }
+      .btn-gri {
+        background: #666;
+        color: white;
+      }
+      .btn-gri:hover {
+        background: #444;
+      }
+      .btn:disabled {
+        background: #ccc !important;
+        cursor: not-allowed;
+      }
 
-    if (seciliOgretmen?.id === id) {
-      seciliOgretmen = null;
-    } else {
-      seciliOgretmen = { id, ad: ogr.ad, brans: ogr.brans, sabitlik: seciliOgretmen?.id === id ? seciliOgretmen.sabitlik : 'serbest' };
-    }
-    ogretmenListesiGoster(document.getElementById('aramaInput').value);
-    tabloGoster();
-  };
+      .ana-layout {
+        display: flex;
+        gap: 0;
+        height: calc(100vh - 56px);
+      }
 
-  window.sabitlikAyarla = (id, sabitlik) => {
-    if (seciliOgretmen?.id === id) {
-      seciliOgretmen.sabitlik = sabitlik;
-    } else {
-      const ogr = tumOgretmenler.find(o => o.id === id);
-      if (ogr) seciliOgretmen = { id, ad: ogr.ad, brans: ogr.brans, sabitlik };
-    }
-    ogretmenListesiGoster(document.getElementById('aramaInput').value);
-  };
+      /* SAĞ PANEL - Öğretmen listesi */
+      .ogretmen-panel {
+        width: 240px;
+        background: white;
+        border-right: 1px solid #e0e0e0;
+        display: flex;
+        flex-direction: column;
+        flex-shrink: 0;
+      }
+      .panel-baslik {
+        padding: 14px 16px;
+        font-size: 13px;
+        font-weight: 700;
+        border-bottom: 1px solid #e0e0e0;
+        color: #333;
+        background: #f8f9fa;
+      }
+      .panel-arama {
+        padding: 10px 12px;
+        border-bottom: 1px solid #e0e0e0;
+      }
+      .panel-arama input {
+        width: 100%;
+        padding: 7px 10px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-size: 12px;
+        font-family: inherit;
+        outline: none;
+      }
+      .ogretmen-listesi {
+        flex: 1;
+        overflow-y: auto;
+        padding: 8px;
+      }
+      .ogretmen-kart {
+        padding: 8px 10px;
+        border-radius: 8px;
+        margin-bottom: 4px;
+        cursor: pointer;
+        border: 1.5px solid #e0e0e0;
+        background: white;
+        transition: all 0.15s;
+      }
+      .ogretmen-kart:hover {
+        border-color: #1a73e8;
+        background: #e8f0fe;
+      }
+      .ogretmen-kart.secili {
+        border-color: #1a73e8;
+        background: #e8f0fe;
+      }
+      .ogretmen-kart.yerlesik {
+        background: #f1f3f4;
+        border-color: #ccc;
+        opacity: 0.6;
+      }
+      .ogretmen-adi {
+        font-size: 13px;
+        font-weight: 600;
+        color: #333;
+      }
+      .ogretmen-brans {
+        font-size: 11px;
+        color: #888;
+        margin-top: 1px;
+      }
+      .sabitlik-sec {
+        display: flex;
+        gap: 3px;
+        margin-top: 6px;
+        flex-wrap: wrap;
+      }
+      .sabitlik-btn {
+        padding: 2px 7px;
+        border-radius: 4px;
+        font-size: 10px;
+        font-weight: 700;
+        cursor: pointer;
+        border: 1px solid #ddd;
+        background: white;
+        color: #666;
+        transition: all 0.1s;
+      }
+      .sabitlik-btn.aktif-serbest {
+        background: #f1f3f4;
+        color: #333;
+        border-color: #999;
+      }
+      .sabitlik-btn.aktif-sg {
+        background: #e8f0fe;
+        color: #1a73e8;
+        border-color: #1a73e8;
+      }
+      .sabitlik-btn.aktif-sn {
+        background: #e6f4ea;
+        color: #1e7e34;
+        border-color: #34a853;
+      }
+      .sabitlik-btn.aktif-sgn {
+        background: #fce8e6;
+        color: #c5221f;
+        border-color: #ea4335;
+      }
 
-  function tabloGoster() {
-    const baslangic = new Date(nobetVerisi.hafta_baslangic + 'T12:00:00');
-    const bitis = new Date(baslangic);
-    bitis.setDate(baslangic.getDate() + 4);
-    const fmt = d => d.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    document.getElementById('haftaTarih').textContent = fmt(baslangic) + ' — ' + fmt(bitis);
+      /* ORTA - Nöbet tablosu */
+      .tablo-alan {
+        flex: 1;
+        overflow: auto;
+        padding: 16px;
+      }
 
-    const rozet = document.getElementById('durumRozet');
-    rozet.textContent = nobetVerisi.rotasyon_aktif ? 'Rotasyon Aktif' : 'Rotasyon Durduruldu';
-    rozet.className = 'durum-rozet ' + (nobetVerisi.rotasyon_aktif ? 'durum-aktif' : 'durum-durduruldu');
-    document.getElementById('btnDurdur').textContent = nobetVerisi.rotasyon_aktif ? 'Durdur' : 'Başlat';
+      .hafta-bar {
+        background: white;
+        border-radius: 10px;
+        padding: 12px 16px;
+        margin-bottom: 14px;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+      }
+      .hafta-tarih {
+        flex: 1;
+        font-size: 14px;
+        font-weight: 700;
+        color: #333;
+      }
+      .durum-rozet {
+        padding: 4px 10px;
+        border-radius: 10px;
+        font-size: 11px;
+        font-weight: 700;
+      }
+      .durum-aktif {
+        background: #e6f4ea;
+        color: #1e7e34;
+      }
+      .durum-durduruldu {
+        background: #fce8e6;
+        color: #c5221f;
+      }
 
-    // Özet
-    let toplamYer = NOKTALAR.length * 5;
-    let dolmuYer = 0;
-    nobetVerisi.gunler.forEach(g => g.nobetciler.forEach(n => { if (n) dolmuYer++; }));
-    document.getElementById('nobetciOzet').innerHTML = '<strong>' + dolmuYer + '</strong>/' + toplamYer + ' yer dolu';
+      .nobet-tablo-wrap {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+        overflow: hidden;
+      }
 
-    let html = '<table class="nobet-tablo"><thead><tr><th>Nöbet Noktası</th>';
-    nobetVerisi.gunler.forEach((g, gi) => {
-      const gt = new Date(nobetVerisi.hafta_baslangic + 'T12:00:00');
-      gt.setDate(gt.getDate() + gi);
-      html += '<th>' + g.gun + '<br><small>' + gt.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit' }) + '</small></th>';
-    });
-    html += '</tr></thead><tbody>';
+      .nobet-tablo {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      .nobet-tablo th {
+        background: #1557b0;
+        color: white;
+        padding: 10px 12px;
+        text-align: center;
+        font-weight: 600;
+        font-size: 12px;
+      }
+      .nobet-tablo th:first-child {
+        text-align: left;
+        width: 150px;
+      }
+      .nobet-tablo td {
+        padding: 8px 10px;
+        border-bottom: 1px solid #f0f0f0;
+        text-align: center;
+        vertical-align: middle;
+      }
+      .nobet-tablo td:first-child {
+        text-align: left;
+        font-weight: 600;
+        font-size: 12px;
+        background: #f8f9fa;
+        color: #555;
+        border-right: 2px solid #e0e0e0;
+      }
+      .nobet-tablo tr:last-child td {
+        border-bottom: none;
+      }
 
-    NOKTALAR.forEach((nokta, ni) => {
-      html += '<tr><td>' + nokta + '</td>';
-      nobetVerisi.gunler.forEach((g, gi) => {
-        const nobetci = g.nobetciler[ni];
-        if (nobetci) {
-          const sb = nobetci.sabitlik || 'serbest';
-          const rozetMetin = sb === 'sg' ? 'S-G' : sb === 'sn' ? 'S-N' : sb === 'sgn' ? 'S-GN' : '';
-          html += '<td><div class="hucre dolu ' + sb + '" onclick="hucreKaldir(' + gi + ',' + ni + ')" title="Kaldırmak için tıklayın">';
-          html += '<div class="hucre-isim">' + nobetci.ad + '</div>';
-          if (rozetMetin) html += '<span class="hucre-rozet">' + rozetMetin + '</span>';
-          html += '</div></td>';
-        } else {
-          const hedef = seciliOgretmen ? ' hedef' : '';
-          html += '<td><div class="hucre bos' + hedef + '" onclick="hucreYerlestir(' + gi + ',' + ni + ')">' + (seciliOgretmen ? '+' : '') + '</div></td>';
+      .hucre {
+        min-height: 38px;
+        border-radius: 6px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: 600;
+        padding: 4px 6px;
+        transition: all 0.15s;
+        position: relative;
+      }
+      .hucre.bos {
+        background: #f8f9fa;
+        color: #ccc;
+        border: 1.5px dashed #ddd;
+      }
+      .hucre.bos:hover {
+        border-color: #1a73e8;
+        background: #e8f0fe;
+        color: #1a73e8;
+      }
+      .hucre.bos.hedef {
+        border-color: #1a73e8;
+        background: #e8f0fe;
+        color: #1a73e8;
+      }
+      .hucre.dolu {
+        background: #e8f0fe;
+        color: #1557b0;
+        border: 1.5px solid #a8c5f5;
+      }
+      .hucre.dolu.sg {
+        background: #e8f0fe;
+        border-color: #1a73e8;
+      }
+      .hucre.dolu.sn {
+        background: #e6f4ea;
+        color: #1e7e34;
+        border-color: #34a853;
+      }
+      .hucre.dolu.sgn {
+        background: #fce8e6;
+        color: #c5221f;
+        border-color: #ea4335;
+      }
+      .hucre.dolu:hover {
+        opacity: 0.8;
+      }
+      .hucre-isim {
+        font-size: 11px;
+        line-height: 1.2;
+        text-align: center;
+      }
+      .hucre-rozet {
+        position: absolute;
+        top: 2px;
+        right: 2px;
+        font-size: 8px;
+        font-weight: 800;
+        opacity: 0.7;
+      }
+
+      .mesaj {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        padding: 12px 20px;
+        border-radius: 10px;
+        font-size: 13px;
+        font-weight: 600;
+        display: none;
+        z-index: 9999;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      }
+      .mesaj-basari {
+        background: #e6f4ea;
+        color: #1e7e34;
+      }
+      .mesaj-hata {
+        background: #fce8e6;
+        color: #c5221f;
+      }
+      .mesaj-bilgi {
+        background: #e8f0fe;
+        color: #1a73e8;
+      }
+
+      .yukleniyor {
+        text-align: center;
+        padding: 60px;
+        color: #666;
+        font-size: 15px;
+      }
+
+      /* MODAL */
+      .modal-zemin {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+      }
+      .modal-zemin.aktif {
+        display: flex;
+      }
+      .modal-kutu {
+        background: white;
+        border-radius: 12px;
+        padding: 24px;
+        width: 90%;
+        max-width: 520px;
+        max-height: 85vh;
+        overflow-y: auto;
+      }
+      .modal-baslik {
+        font-size: 16px;
+        font-weight: 700;
+        margin-bottom: 16px;
+        color: #333;
+      }
+      .modal-butonlar {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+        margin-top: 20px;
+        padding-top: 16px;
+        border-top: 1px solid #f0f0f0;
+      }
+
+      .nobetci-ozet {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 12px 14px;
+        font-size: 12px;
+        color: #666;
+        margin-bottom: 14px;
+      }
+      .nobetci-ozet strong {
+        color: #333;
+      }
+
+      @media (max-width: 768px) {
+        .ana-layout {
+          flex-direction: column;
+          height: auto;
         }
-      });
-      html += '</tr>';
-    });
-
-    html += '</tbody></table>';
-    document.getElementById('nobetTablosu').innerHTML = html;
-  }
-
-  window.hucreYerlestir = (gunIdx, noktaIdx) => {
-    if (!seciliOgretmen) { mesajGoster('Önce sol panelden bir öğretmen seçin.', 'bilgi'); return; }
-    nobetVerisi.gunler[gunIdx].nobetciler[noktaIdx] = { ...seciliOgretmen };
-    seciliOgretmen = null;
-    ogretmenListesiGoster(document.getElementById('aramaInput').value);
-    tabloGoster();
-  };
-
-  window.hucreKaldir = (gunIdx, noktaIdx) => {
-    if (!confirm('Bu nöbetçiyi kaldırmak istiyor musunuz?')) return;
-    nobetVerisi.gunler[gunIdx].nobetciler[noktaIdx] = null;
-    ogretmenListesiGoster(document.getElementById('aramaInput').value);
-    tabloGoster();
-  };
-
-  window.nobetKaydet = async () => {
-    await setDoc(doc(db, 'nobet2_ayarlar', 'mevcut'), { ...nobetVerisi, son_guncelleme: serverTimestamp() });
-    mesajGoster('Nöbet kaydedildi.', 'basari');
-  };
-
-  window.nobetSifirla = async () => {
-    if (!confirm('Tüm nöbetçileri temizlemek istiyor musunuz?')) return;
-    nobetVerisi.gunler = nobetVerisi.gunler.map(g => ({ ...g, nobetciler: Array(NOKTALAR.length).fill(null) }));
-    ogretmenListesiGoster(document.getElementById('aramaInput').value);
-    tabloGoster();
-    mesajGoster('Nöbet sıfırlandı. Kaydetmeyi unutmayın.', 'bilgi');
-  };
-
-  // ROTASYON
-  function rotasyonUygula() {
-    return nobetVerisi.gunler.map((gun, gi) => {
-      const yeni = Array(NOKTALAR.length).fill(null);
-      gun.nobetciler.forEach((n, ni) => {
-        if (!n) return;
-        if (n.sabitlik === 'sgn') {
-          // Hem gün hem nokta sabit — yerinde kalır
-          yeni[ni] = n;
-        } else if (n.sabitlik === 'sg') {
-          // Gün sabit — nokta ilerler, aynı günde
-          const yeniNi = (ni + 1) % NOKTALAR.length;
-          yeni[yeniNi] = n;
-        } else if (n.sabitlik === 'sn') {
-          // Nokta sabit — gün ilerler, noktada kalır
-          // Bu öğretmen bir sonraki günde aynı noktaya yerleşir
-          yeni[ni] = null; // bu günden çıkar
-        } else {
-          // Serbest — hem gün hem nokta değişir (aşağıda işlenir)
-          yeni[ni] = null;
+        .ogretmen-panel {
+          width: 100%;
+          height: 200px;
         }
-      });
-      return { ...gun, nobetciler: yeni };
-    });
-  }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="topbar">
+      <h1>📋 Gün Değişme Kurallı Nöbet Sistemi</h1>
+      <div class="topbar-sag">
+        <span id="durumRozet" class="durum-rozet durum-aktif"
+          >Rotasyon Aktif</span
+        >
+        <button class="btn btn-beyaz" onclick="nobetGeriAl()">◀ Geri</button>
+        <button class="btn btn-beyaz" onclick="nobetIleri()">İleri ▶</button>
+        <button
+          class="btn btn-turuncu"
+          onclick="rotasyonDurdur()"
+          id="btnDurdur"
+        >
+          Durdur
+        </button>
+        <button class="btn btn-yesil" onclick="telegramGonder()">
+          Telegram
+        </button>
+        <button class="btn btn-beyaz" onclick="noktaYonetimiAc()">
+          ⚙ Noktalar
+        </button>
+        <a href="/portal.html" class="btn btn-beyaz">Ana Sayfa</a>
+      </div>
+    </div>
 
-  window.nobetIleri = async () => {
-    // Yeni günler dizisi oluştur
-    const yeniGunler = nobetVerisi.gunler.map((gun, gi) => ({
-      ...gun,
-      nobetciler: Array(NOKTALAR.length).fill(null)
-    }));
+    <div id="yukleniyor" class="yukleniyor">Yükleniyor...</div>
 
-    // Her öğretmeni rotasyon kuralına göre yerleştir
-    nobetVerisi.gunler.forEach((gun, gi) => {
-      gun.nobetciler.forEach((n, ni) => {
-        if (!n) return;
-        if (n.sabitlik === 'sgn') {
-          // Hem gün hem nokta sabit
-          yeniGunler[gi].nobetciler[ni] = n;
-        } else if (n.sabitlik === 'sg') {
-          // Gün sabit, nokta ilerler
-          const yeniNi = (ni + 1) % NOKTALAR.length;
-          yeniGunler[gi].nobetciler[yeniNi] = n;
-        } else if (n.sabitlik === 'sn') {
-          // Nokta sabit, gün ilerler
-          const yeniGi = (gi + 1) % 5;
-          yeniGunler[yeniGi].nobetciler[ni] = n;
+    <div id="anaIcerik" style="display: none">
+      <div class="ana-layout">
+        <!-- SOL PANEL -->
+        <div class="ogretmen-panel">
+          <div class="panel-baslik">
+            Öğretmenler
+            <span
+              id="yerlesikSayac"
+              style="font-size: 11px; color: #888; font-weight: 400"
+            ></span>
+          </div>
+          <div class="panel-arama">
+            <input
+              type="text"
+              id="aramaInput"
+              placeholder="Öğretmen ara..."
+              oninput="ogretmenFiltrele()"
+            />
+          </div>
+          <div class="ogretmen-listesi" id="ogretmenListesi"></div>
+        </div>
+
+        <!-- TABLO ALANI -->
+        <div class="tablo-alan">
+          <div class="hafta-bar">
+            <div class="hafta-tarih" id="haftaTarih">—</div>
+            <div
+              id="nobetciOzet"
+              class="nobetci-ozet"
+              style="margin: 0; flex: 1"
+            ></div>
+            <button
+              class="btn btn-kirmizi"
+              onclick="nobetSifirla()"
+              style="font-size: 12px; padding: 6px 12px"
+            >
+              Sıfırla
+            </button>
+            <button
+              class="btn btn-mavi"
+              onclick="nobetKaydet()"
+              style="font-size: 12px; padding: 6px 12px"
+            >
+              💾 Kaydet
+            </button>
+          </div>
+
+          <div class="nobet-tablo-wrap">
+            <div id="nobetTablosu">
+              <div class="yukleniyor">Yükleniyor...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- NÖBET NOKTALARI MODAL -->
+    <div class="modal-zemin" id="noktaModal">
+      <div class="modal-kutu">
+        <div class="modal-baslik">⚙ Nöbet Noktaları</div>
+        <div style="font-size: 12px; color: #888; margin-bottom: 12px">
+          Nokta adlarını düzenleyin, ekleyin veya silin.
+        </div>
+        <div id="noktaListesiModal"></div>
+        <div style="display: flex; gap: 8px; margin-top: 10px">
+          <input
+            type="text"
+            id="yeniNoktaInput"
+            placeholder="Yeni nokta adı..."
+            style="
+              flex: 1;
+              padding: 8px 10px;
+              border: 1px solid #ddd;
+              border-radius: 6px;
+              font-size: 13px;
+              font-family: inherit;
+            "
+          />
+          <button
+            class="btn btn-yesil"
+            onclick="noktaEkle()"
+            style="font-size: 12px"
+          >
+            + Ekle
+          </button>
+        </div>
+        <div class="modal-butonlar">
+          <button class="btn btn-gri" onclick="modalKapat('noktaModal')">
+            İptal
+          </button>
+          <button class="btn btn-mavi" onclick="noktalariKaydet()">
+            Kaydet
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="mesaj" id="mesajKutusu"></div>
+
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+      import {
+        getAuth,
+        onAuthStateChanged,
+      } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+      import {
+        getFunctions,
+        httpsCallable,
+      } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
+      import {
+        getFirestore,
+        doc,
+        getDoc,
+        setDoc,
+        getDocs,
+        collection,
+        serverTimestamp,
+      } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+      const firebaseConfig = {
+        apiKey: "AIzaSyAHTCiicd4b94rG1-jN0STRbwcrLmkYudo",
+        authDomain: "okul-yoklama-sistemi-8081f.firebaseapp.com",
+        projectId: "okul-yoklama-sistemi-8081f",
+        storageBucket: "okul-yoklama-sistemi-8081f.firebasestorage.app",
+        messagingSenderId: "38230047763",
+        appId: "1:38230047763:web:dfab058df8928b66be13e6",
+      };
+
+      const app = initializeApp(firebaseConfig);
+      const auth = getAuth(app);
+      const db = getFirestore(app);
+      const functions = getFunctions(app, "us-central1");
+
+      const GUNLER = ["Pazartesi", "Sali", "Carsamba", "Persembe", "Cuma"];
+      const VARSAYILAN_NOKTALAR = [
+        "On Bahce Dis Kapi",
+        "On Bahce Hali Saha Kapisi",
+        "On Bahce Okul Girisi",
+        "Arka Bahce Dis Kapi",
+        "Arka Bahce Okul Girisi",
+        "Zemin Kat Sag",
+        "Zemin Kat Sol",
+        "1. Kat Sag",
+        "1. Kat Sol",
+        "2. Kat Sag",
+        "2. Kat Sol",
+      ];
+
+      let NOKTALAR = [];
+      let tumOgretmenler = [];
+      let nobetVerisi = null;
+      let seciliOgretmen = null; // { id, ad, brans, sabitlik }
+      let aktifRol = null;
+
+      // Nöbet verisi yapısı:
+      // gunler: [ { gun, nobetciler: [ { id, ad, sabitlik } | null ] } ]
+
+      async function init() {
+        // Noktaları yükle
+        const nokDoc = await getDoc(doc(db, "nobet2_ayarlar", "noktalar"));
+        if (!nokDoc.exists()) {
+          await setDoc(doc(db, "nobet2_ayarlar", "noktalar"), {
+            liste: VARSAYILAN_NOKTALAR,
+            guncelleme: serverTimestamp(),
+          });
+          NOKTALAR = [...VARSAYILAN_NOKTALAR];
         } else {
-          // Serbest — hem gün hem nokta ilerler
-          const yeniGi = (gi + 1) % 5;
-          const yeniNi = (ni + 1) % NOKTALAR.length;
-          yeniGunler[yeniGi].nobetciler[yeniNi] = n;
+          NOKTALAR = nokDoc.data().liste || VARSAYILAN_NOKTALAR;
         }
-      });
-    });
 
-    const mevcutBas = new Date(nobetVerisi.hafta_baslangic + 'T12:00:00');
-    mevcutBas.setDate(mevcutBas.getDate() + 7);
-    nobetVerisi = { ...nobetVerisi, hafta_baslangic: mevcutBas.toISOString().split('T')[0], gunler: yeniGunler, rotasyon_sayaci: (nobetVerisi.rotasyon_sayaci || 0) + 1, son_guncelleme: serverTimestamp() };
-    await setDoc(doc(db, 'nobet2_ayarlar', 'mevcut'), nobetVerisi);
-    ogretmenListesiGoster(document.getElementById('aramaInput').value);
-    tabloGoster();
-    mesajGoster('Nöbet bir hafta ileri alındı.', 'basari');
-  };
+        // Öğretmenleri yükle
+        const ogSnap = await getDocs(collection(db, "teachers"));
+        tumOgretmenler = [];
+        ogSnap.forEach((d) => tumOgretmenler.push({ id: d.id, ...d.data() }));
+        tumOgretmenler.sort((a, b) =>
+          (a.ad || "").localeCompare(b.ad || "", "tr"),
+        );
 
-  window.nobetGeriAl = async () => {
-    const yeniGunler = nobetVerisi.gunler.map(gun => ({
-      ...gun, nobetciler: Array(NOKTALAR.length).fill(null)
-    }));
-
-    nobetVerisi.gunler.forEach((gun, gi) => {
-      gun.nobetciler.forEach((n, ni) => {
-        if (!n) return;
-        if (n.sabitlik === 'sgn') {
-          yeniGunler[gi].nobetciler[ni] = n;
-        } else if (n.sabitlik === 'sg') {
-          const yeniNi = (ni - 1 + NOKTALAR.length) % NOKTALAR.length;
-          yeniGunler[gi].nobetciler[yeniNi] = n;
-        } else if (n.sabitlik === 'sn') {
-          const yeniGi = (gi - 1 + 5) % 5;
-          yeniGunler[yeniGi].nobetciler[ni] = n;
+        // Nöbet verisini yükle
+        const nobetDoc = await getDoc(doc(db, "nobet2_ayarlar", "mevcut"));
+        if (!nobetDoc.exists()) {
+          nobetVerisi = boslaNobetOlustur();
+          await setDoc(doc(db, "nobet2_ayarlar", "mevcut"), {
+            ...nobetVerisi,
+            olusturulma: serverTimestamp(),
+          });
         } else {
-          const yeniGi = (gi - 1 + 5) % 5;
-          const yeniNi = (ni - 1 + NOKTALAR.length) % NOKTALAR.length;
-          yeniGunler[yeniGi].nobetciler[yeniNi] = n;
+          nobetVerisi = nobetDoc.data();
+          // Nokta sayısı değiştiyse güncelle
+          nobetVerisi.gunler = nobetVerisi.gunler.map((g) => {
+            const n = [...(g.nobetciler || [])];
+            while (n.length < NOKTALAR.length) n.push(null);
+            return { ...g, nobetciler: n.slice(0, NOKTALAR.length) };
+          });
         }
+
+        ogretmenListesiGoster();
+        tabloGoster();
+
+        document.getElementById("yukleniyor").style.display = "none";
+        document.getElementById("anaIcerik").style.display = "block";
+      }
+
+      function boslaNobetOlustur() {
+        const bugun = new Date();
+        const gun = bugun.getDay();
+        const fark = gun === 0 ? -6 : 1 - gun;
+        const pzt = new Date(bugun);
+        pzt.setDate(bugun.getDate() + fark);
+        return {
+          hafta_baslangic: pzt.toISOString().split("T")[0],
+          rotasyon_aktif: true,
+          rotasyon_sayaci: 0,
+          gunler: GUNLER.map((g) => ({
+            gun: g,
+            nobetciler: Array(NOKTALAR.length).fill(null),
+          })),
+        };
+      }
+
+      function ogretmenListesiGoster(filtre = "") {
+        const container = document.getElementById("ogretmenListesi");
+        const yerlesikIds = new Set();
+        (nobetVerisi?.gunler || []).forEach((g) => {
+          (g.nobetciler || []).forEach((n) => {
+            if (n?.id) yerlesikIds.add(n.id);
+          });
+        });
+
+        const filtreliler = tumOgretmenler.filter(
+          (o) =>
+            !filtre ||
+            (o.ad || "").toLowerCase().includes(filtre.toLowerCase()) ||
+            (o.brans || "").toLowerCase().includes(filtre.toLowerCase()),
+        );
+
+        document.getElementById("yerlesikSayac").textContent =
+          " (" + yerlesikIds.size + "/" + tumOgretmenler.length + ")";
+
+        let html = "";
+        filtreliler.forEach((o) => {
+          const yerlesik = yerlesikIds.has(o.id);
+          const seciliMi = seciliOgretmen?.id === o.id;
+          const sabitlik = seciliMi ? seciliOgretmen.sabitlik : "serbest";
+          html +=
+            '<div class="ogretmen-kart ' +
+            (yerlesik ? "yerlesik" : "") +
+            (seciliMi ? " secili" : "") +
+            '" onclick="ogretmenSec(\'' +
+            o.id +
+            '\')" id="okart-' +
+            o.id +
+            '">';
+          html += '<div class="ogretmen-adi">' + (o.ad || "") + "</div>";
+          html += '<div class="ogretmen-brans">' + (o.brans || "") + "</div>";
+          if (!yerlesik) {
+            html += '<div class="sabitlik-sec">';
+            html +=
+              '<button class="sabitlik-btn ' +
+              (sabitlik === "serbest" ? "aktif-serbest" : "") +
+              '" onclick="event.stopPropagation(); sabitlikAyarla(\'' +
+              o.id +
+              "', 'serbest')\">Serbest</button>";
+            html +=
+              '<button class="sabitlik-btn ' +
+              (sabitlik === "sg" ? "aktif-sg" : "") +
+              '" onclick="event.stopPropagation(); sabitlikAyarla(\'' +
+              o.id +
+              "', 'sg')\">S-G</button>";
+            html +=
+              '<button class="sabitlik-btn ' +
+              (sabitlik === "sn" ? "aktif-sn" : "") +
+              '" onclick="event.stopPropagation(); sabitlikAyarla(\'' +
+              o.id +
+              "', 'sn')\">S-N</button>";
+            html +=
+              '<button class="sabitlik-btn ' +
+              (sabitlik === "sgn" ? "aktif-sgn" : "") +
+              '" onclick="event.stopPropagation(); sabitlikAyarla(\'' +
+              o.id +
+              "', 'sgn')\">S-GN</button>";
+            html += "</div>";
+          }
+          html += "</div>";
+        });
+        container.innerHTML =
+          html ||
+          '<div style="padding:20px;text-align:center;color:#999;font-size:12px;">Öğretmen bulunamadı</div>';
+      }
+
+      window.ogretmenFiltrele = () => {
+        ogretmenListesiGoster(document.getElementById("aramaInput").value);
+      };
+
+      window.ogretmenSec = (id) => {
+        const ogr = tumOgretmenler.find((o) => o.id === id);
+        if (!ogr) return;
+        const yerlesikIds = new Set();
+        (nobetVerisi?.gunler || []).forEach((g) => {
+          (g.nobetciler || []).forEach((n) => {
+            if (n?.id) yerlesikIds.add(n.id);
+          });
+        });
+        if (yerlesikIds.has(id)) return; // Zaten yerleşik
+
+        if (seciliOgretmen?.id === id) {
+          seciliOgretmen = null;
+        } else {
+          seciliOgretmen = {
+            id,
+            ad: ogr.ad,
+            brans: ogr.brans,
+            sabitlik:
+              seciliOgretmen?.id === id ? seciliOgretmen.sabitlik : "serbest",
+          };
+        }
+        ogretmenListesiGoster(document.getElementById("aramaInput").value);
+        tabloGoster();
+      };
+
+      window.sabitlikAyarla = (id, sabitlik) => {
+        if (seciliOgretmen?.id === id) {
+          seciliOgretmen.sabitlik = sabitlik;
+        } else {
+          const ogr = tumOgretmenler.find((o) => o.id === id);
+          if (ogr)
+            seciliOgretmen = { id, ad: ogr.ad, brans: ogr.brans, sabitlik };
+        }
+        ogretmenListesiGoster(document.getElementById("aramaInput").value);
+      };
+
+      function tabloGoster() {
+        const baslangic = new Date(nobetVerisi.hafta_baslangic + "T12:00:00");
+        const bitis = new Date(baslangic);
+        bitis.setDate(baslangic.getDate() + 4);
+        const fmt = (d) =>
+          d.toLocaleDateString("tr-TR", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+          });
+        document.getElementById("haftaTarih").textContent =
+          fmt(baslangic) + " — " + fmt(bitis);
+
+        const rozet = document.getElementById("durumRozet");
+        rozet.textContent = nobetVerisi.rotasyon_aktif
+          ? "Rotasyon Aktif"
+          : "Rotasyon Durduruldu";
+        rozet.className =
+          "durum-rozet " +
+          (nobetVerisi.rotasyon_aktif ? "durum-aktif" : "durum-durduruldu");
+        document.getElementById("btnDurdur").textContent =
+          nobetVerisi.rotasyon_aktif ? "Durdur" : "Başlat";
+
+        // Özet
+        let toplamYer = NOKTALAR.length * 5;
+        let dolmuYer = 0;
+        nobetVerisi.gunler.forEach((g) =>
+          g.nobetciler.forEach((n) => {
+            if (n) dolmuYer++;
+          }),
+        );
+        document.getElementById("nobetciOzet").innerHTML =
+          "<strong>" + dolmuYer + "</strong>/" + toplamYer + " yer dolu";
+
+        let html =
+          '<table class="nobet-tablo"><thead><tr><th>Nöbet Noktası</th>';
+        nobetVerisi.gunler.forEach((g, gi) => {
+          const gt = new Date(nobetVerisi.hafta_baslangic + "T12:00:00");
+          gt.setDate(gt.getDate() + gi);
+          html +=
+            "<th>" +
+            g.gun +
+            "<br><small>" +
+            gt.toLocaleDateString("tr-TR", {
+              day: "2-digit",
+              month: "2-digit",
+            }) +
+            "</small></th>";
+        });
+        html += "</tr></thead><tbody>";
+
+        NOKTALAR.forEach((nokta, ni) => {
+          html += "<tr><td>" + nokta + "</td>";
+          nobetVerisi.gunler.forEach((g, gi) => {
+            const nobetci = g.nobetciler[ni];
+            if (nobetci) {
+              const sb = nobetci.sabitlik || "serbest";
+              const rozetMetin =
+                sb === "sg"
+                  ? "S-G"
+                  : sb === "sn"
+                    ? "S-N"
+                    : sb === "sgn"
+                      ? "S-GN"
+                      : "";
+              html +=
+                '<td><div class="hucre dolu ' +
+                sb +
+                '" onclick="hucreKaldir(' +
+                gi +
+                "," +
+                ni +
+                ')" title="Kaldırmak için tıklayın">';
+              html += '<div class="hucre-isim">' + nobetci.ad + "</div>";
+              if (rozetMetin)
+                html += '<span class="hucre-rozet">' + rozetMetin + "</span>";
+              html += "</div></td>";
+            } else {
+              const hedef = seciliOgretmen ? " hedef" : "";
+              html +=
+                '<td><div class="hucre bos' +
+                hedef +
+                '" onclick="hucreYerlestir(' +
+                gi +
+                "," +
+                ni +
+                ')">' +
+                (seciliOgretmen ? "+" : "") +
+                "</div></td>";
+            }
+          });
+          html += "</tr>";
+        });
+
+        html += "</tbody></table>";
+        document.getElementById("nobetTablosu").innerHTML = html;
+      }
+
+      window.hucreYerlestir = (gunIdx, noktaIdx) => {
+        if (!seciliOgretmen) {
+          mesajGoster("Önce sol panelden bir öğretmen seçin.", "bilgi");
+          return;
+        }
+        nobetVerisi.gunler[gunIdx].nobetciler[noktaIdx] = { ...seciliOgretmen };
+        seciliOgretmen = null;
+        ogretmenListesiGoster(document.getElementById("aramaInput").value);
+        tabloGoster();
+      };
+
+      window.hucreKaldir = (gunIdx, noktaIdx) => {
+        if (!confirm("Bu nöbetçiyi kaldırmak istiyor musunuz?")) return;
+        nobetVerisi.gunler[gunIdx].nobetciler[noktaIdx] = null;
+        ogretmenListesiGoster(document.getElementById("aramaInput").value);
+        tabloGoster();
+      };
+
+      window.nobetKaydet = async () => {
+        await setDoc(doc(db, "nobet2_ayarlar", "mevcut"), {
+          ...nobetVerisi,
+          son_guncelleme: serverTimestamp(),
+        });
+        mesajGoster("Nöbet kaydedildi.", "basari");
+      };
+
+      window.nobetSifirla = async () => {
+        if (!confirm("Tüm nöbetçileri temizlemek istiyor musunuz?")) return;
+        nobetVerisi.gunler = nobetVerisi.gunler.map((g) => ({
+          ...g,
+          nobetciler: Array(NOKTALAR.length).fill(null),
+        }));
+        ogretmenListesiGoster(document.getElementById("aramaInput").value);
+        tabloGoster();
+        mesajGoster("Nöbet sıfırlandı. Kaydetmeyi unutmayın.", "bilgi");
+      };
+
+      // ROTASYON
+      function rotasyonUygula() {
+        return nobetVerisi.gunler.map((gun, gi) => {
+          const yeni = Array(NOKTALAR.length).fill(null);
+          gun.nobetciler.forEach((n, ni) => {
+            if (!n) return;
+            if (n.sabitlik === "sgn") {
+              // Hem gün hem nokta sabit — yerinde kalır
+              yeni[ni] = n;
+            } else if (n.sabitlik === "sg") {
+              // Gün sabit — nokta ilerler, aynı günde
+              const yeniNi = (ni + 1) % NOKTALAR.length;
+              yeni[yeniNi] = n;
+            } else if (n.sabitlik === "sn") {
+              // Nokta sabit — gün ilerler, noktada kalır
+              // Bu öğretmen bir sonraki günde aynı noktaya yerleşir
+              yeni[ni] = null; // bu günden çıkar
+            } else {
+              // Serbest — hem gün hem nokta değişir (aşağıda işlenir)
+              yeni[ni] = null;
+            }
+          });
+          return { ...gun, nobetciler: yeni };
+        });
+      }
+
+      window.nobetIleri = async () => {
+        const yeniGunler = nobetVerisi.gunler.map((g) => ({
+          ...g,
+          nobetciler: Array(NOKTALAR.length).fill(null),
+        }));
+
+        // Once sabit olanlari yerleştir
+        nobetVerisi.gunler.forEach((gun, gi) => {
+          gun.nobetciler.forEach((n, ni) => {
+            if (!n) return;
+            if (n.sabitlik === "sgn") {
+              yeniGunler[gi].nobetciler[ni] = n;
+            } else if (n.sabitlik === "sg") {
+              const yeniNi = (ni + 1) % NOKTALAR.length;
+              yeniGunler[gi].nobetciler[yeniNi] = n;
+            } else if (n.sabitlik === "sn") {
+              const yeniGi = (gi + 1) % 5;
+              yeniGunler[yeniGi].nobetciler[ni] = n;
+            }
+          });
+        });
+
+        // Serbest olanlari sirasyla topla
+        const serbestler = [];
+        nobetVerisi.gunler.forEach((gun, gi) => {
+          gun.nobetciler.forEach((n, ni) => {
+            if ((n && !n.sabitlik) || (n && n.sabitlik === "serbest")) {
+              serbestler.push({ n, gi, ni });
+            }
+          });
+        });
+
+        // Listeyi bir ileri kaydir (son eleman basa gelir)
+        if (serbestler.length > 0) {
+          const sonEleman = serbestler[serbestler.length - 1];
+          const kaydirilan = [sonEleman, ...serbestler.slice(0, -1)];
+
+          // Ayni pozisyonlara yeni ogretmenleri yerlestir
+          kaydirilan.forEach((item, idx) => {
+            const hedef = serbestler[idx];
+            yeniGunler[hedef.gi].nobetciler[hedef.ni] = item.n;
+          });
+        }
+
+        const mevcutBas = new Date(nobetVerisi.hafta_baslangic + "T12:00:00");
+        mevcutBas.setDate(mevcutBas.getDate() + 7);
+        nobetVerisi = {
+          ...nobetVerisi,
+          hafta_baslangic: mevcutBas.toISOString().split("T")[0],
+          gunler: yeniGunler,
+          rotasyon_sayaci: (nobetVerisi.rotasyon_sayaci || 0) + 1,
+          son_guncelleme: serverTimestamp(),
+        };
+        await setDoc(doc(db, "nobet2_ayarlar", "mevcut"), nobetVerisi);
+        ogretmenListesiGoster(document.getElementById("aramaInput").value);
+        tabloGoster();
+        mesajGoster("Nöbet bir hafta ileri alındı.", "basari");
+      };
+
+      window.nobetGeriAl = async () => {
+        const yeniGunler = nobetVerisi.gunler.map((g) => ({
+          ...g,
+          nobetciler: Array(NOKTALAR.length).fill(null),
+        }));
+
+        // Once sabit olanlari yerleştir
+        nobetVerisi.gunler.forEach((gun, gi) => {
+          gun.nobetciler.forEach((n, ni) => {
+            if (!n) return;
+            if (n.sabitlik === "sgn") {
+              yeniGunler[gi].nobetciler[ni] = n;
+            } else if (n.sabitlik === "sg") {
+              const yeniNi = (ni - 1 + NOKTALAR.length) % NOKTALAR.length;
+              yeniGunler[gi].nobetciler[yeniNi] = n;
+            } else if (n.sabitlik === "sn") {
+              const yeniGi = (gi - 1 + 5) % 5;
+              yeniGunler[yeniGi].nobetciler[ni] = n;
+            }
+          });
+        });
+
+        // Serbest olanlari sirasyla topla
+        const serbestler = [];
+        nobetVerisi.gunler.forEach((gun, gi) => {
+          gun.nobetciler.forEach((n, ni) => {
+            if (n && (!n.sabitlik || n.sabitlik === "serbest")) {
+              serbestler.push({ n, gi, ni });
+            }
+          });
+        });
+
+        // Listeyi bir geri kaydir (ilk eleman sona gelir)
+        if (serbestler.length > 0) {
+          const ilkEleman = serbestler[0];
+          const kaydirilan = [...serbestler.slice(1), ilkEleman];
+
+          kaydirilan.forEach((item, idx) => {
+            const hedef = serbestler[idx];
+            yeniGunler[hedef.gi].nobetciler[hedef.ni] = item.n;
+          });
+        }
+
+        const mevcutBas = new Date(nobetVerisi.hafta_baslangic + "T12:00:00");
+        mevcutBas.setDate(mevcutBas.getDate() - 7);
+        nobetVerisi = {
+          ...nobetVerisi,
+          hafta_baslangic: mevcutBas.toISOString().split("T")[0],
+          gunler: yeniGunler,
+          rotasyon_sayaci: (nobetVerisi.rotasyon_sayaci || 0) - 1,
+          son_guncelleme: serverTimestamp(),
+        };
+        await setDoc(doc(db, "nobet2_ayarlar", "mevcut"), nobetVerisi);
+        ogretmenListesiGoster(document.getElementById("aramaInput").value);
+        tabloGoster();
+        mesajGoster("Nöbet bir hafta geri alındı.", "basari");
+      };
+
+      window.rotasyonDurdur = async () => {
+        nobetVerisi.rotasyon_aktif = !nobetVerisi.rotasyon_aktif;
+        await setDoc(doc(db, "nobet2_ayarlar", "mevcut"), {
+          ...nobetVerisi,
+          son_guncelleme: serverTimestamp(),
+        });
+        tabloGoster();
+        mesajGoster(
+          nobetVerisi.rotasyon_aktif
+            ? "Rotasyon başlatıldı."
+            : "Rotasyon durduruldu.",
+          "bilgi",
+        );
+      };
+
+      window.telegramGonder = async () => {
+        mesajGoster("Telegram gönderimi hazırlanıyor...", "bilgi");
+        try {
+          const fn = httpsCallable(functions, "nobetTelegramGonder");
+          await fn({ tip: "nobet2" });
+          mesajGoster("Telegram'a gönderildi!", "basari");
+        } catch (err) {
+          mesajGoster("Hata: " + err.message, "hata");
+        }
+      };
+
+      // NÖBET NOKTALARI YÖNETİMİ
+      window.noktaYonetimiAc = () => {
+        const liste = document.getElementById("noktaListesiModal");
+        let html = "";
+        NOKTALAR.forEach((nokta, idx) => {
+          html +=
+            '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f0f0f0;" id="noktaRow' +
+            idx +
+            '">';
+          html +=
+            '<span style="font-size:12px;color:#888;min-width:20px;">' +
+            (idx + 1) +
+            ".</span>";
+          html +=
+            '<input type="text" value="' +
+            nokta +
+            '" data-idx="' +
+            idx +
+            '" style="flex:1;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;font-family:inherit;">';
+          html +=
+            '<button onclick="noktaSilModal(this)" style="padding:4px 10px;border:none;border-radius:6px;background:#fce8e6;color:#c5221f;cursor:pointer;font-size:12px;font-weight:600;">Sil</button>';
+          html += "</div>";
+        });
+        liste.innerHTML = html;
+        document.getElementById("noktaModal").classList.add("aktif");
+      };
+
+      window.noktaSilModal = (btn) => {
+        btn.closest("div").remove();
+      };
+
+      window.noktaEkle = () => {
+        const input = document.getElementById("yeniNoktaInput");
+        const ad = input.value.trim();
+        if (!ad) return;
+        const liste = document.getElementById("noktaListesiModal");
+        const idx = liste.children.length;
+        const div = document.createElement("div");
+        div.style.cssText =
+          "display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f0f0f0;";
+        div.innerHTML =
+          '<span style="font-size:12px;color:#888;min-width:20px;">' +
+          (idx + 1) +
+          ".</span>" +
+          '<input type="text" value="' +
+          ad +
+          '" style="flex:1;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;font-family:inherit;">' +
+          '<button onclick="noktaSilModal(this)" style="padding:4px 10px;border:none;border-radius:6px;background:#fce8e6;color:#c5221f;cursor:pointer;font-size:12px;font-weight:600;">Sil</button>';
+        liste.appendChild(div);
+        input.value = "";
+      };
+
+      window.noktalariKaydet = async () => {
+        const inputs = document.querySelectorAll(
+          '#noktaListesiModal input[type="text"]',
+        );
+        const yeniListe = [];
+        inputs.forEach((inp) => {
+          const v = inp.value.trim();
+          if (v) yeniListe.push(v);
+        });
+        if (!yeniListe.length) {
+          alert("En az 1 nokta olmalı.");
+          return;
+        }
+        await setDoc(doc(db, "nobet2_ayarlar", "noktalar"), {
+          liste: yeniListe,
+          guncelleme: serverTimestamp(),
+        });
+        NOKTALAR = yeniListe;
+        // Mevcut veriyi güncelle
+        nobetVerisi.gunler = nobetVerisi.gunler.map((g) => {
+          const n = [...(g.nobetciler || [])];
+          while (n.length < NOKTALAR.length) n.push(null);
+          return { ...g, nobetciler: n.slice(0, NOKTALAR.length) };
+        });
+        modalKapat("noktaModal");
+        tabloGoster();
+        mesajGoster(yeniListe.length + " nöbet noktası kaydedildi.", "basari");
+      };
+
+      window.modalKapat = (id) => {
+        document.getElementById(id).classList.remove("aktif");
+      };
+
+      function mesajGoster(metin, tip) {
+        const el = document.getElementById("mesajKutusu");
+        el.textContent = metin;
+        el.className = "mesaj mesaj-" + tip;
+        el.style.display = "block";
+        setTimeout(() => (el.style.display = "none"), 3500);
+      }
+
+      onAuthStateChanged(auth, async (user) => {
+        if (!user) {
+          window.location.href = "/portal.html";
+          return;
+        }
+        const userDoc = await getDoc(doc(db, "users", user.uid));
+        if (!userDoc.exists()) {
+          window.location.href = "/portal.html";
+          return;
+        }
+        aktifRol = userDoc.data().rol;
+        if (aktifRol !== "admin" && aktifRol !== "mudur_yardimcisi") {
+          document.getElementById("yukleniyor").textContent =
+            "Bu sayfaya erişim yetkiniz yok.";
+          return;
+        }
+        await init();
       });
-    });
-
-    const mevcutBas = new Date(nobetVerisi.hafta_baslangic + 'T12:00:00');
-    mevcutBas.setDate(mevcutBas.getDate() - 7);
-    nobetVerisi = { ...nobetVerisi, hafta_baslangic: mevcutBas.toISOString().split('T')[0], gunler: yeniGunler, rotasyon_sayaci: (nobetVerisi.rotasyon_sayaci || 0) - 1, son_guncelleme: serverTimestamp() };
-    await setDoc(doc(db, 'nobet2_ayarlar', 'mevcut'), nobetVerisi);
-    ogretmenListesiGoster(document.getElementById('aramaInput').value);
-    tabloGoster();
-    mesajGoster('Nöbet bir hafta geri alındı.', 'basari');
-  };
-
-  window.rotasyonDurdur = async () => {
-    nobetVerisi.rotasyon_aktif = !nobetVerisi.rotasyon_aktif;
-    await setDoc(doc(db, 'nobet2_ayarlar', 'mevcut'), { ...nobetVerisi, son_guncelleme: serverTimestamp() });
-    tabloGoster();
-    mesajGoster(nobetVerisi.rotasyon_aktif ? 'Rotasyon başlatıldı.' : 'Rotasyon durduruldu.', 'bilgi');
-  };
-
-  window.telegramGonder = async () => {
-    mesajGoster('Telegram gönderimi hazırlanıyor...', 'bilgi');
-    try {
-      const fn = httpsCallable(functions, 'nobetTelegramGonder');
-      await fn({ tip: 'nobet2' });
-      mesajGoster('Telegram\'a gönderildi!', 'basari');
-    } catch (err) {
-      mesajGoster('Hata: ' + err.message, 'hata');
-    }
-  };
-
-  // NÖBET NOKTALARI YÖNETİMİ
-  window.noktaYonetimiAc = () => {
-    const liste = document.getElementById('noktaListesiModal');
-    let html = '';
-    NOKTALAR.forEach((nokta, idx) => {
-      html += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f0f0f0;" id="noktaRow' + idx + '">';
-      html += '<span style="font-size:12px;color:#888;min-width:20px;">' + (idx + 1) + '.</span>';
-      html += '<input type="text" value="' + nokta + '" data-idx="' + idx + '" style="flex:1;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;font-family:inherit;">';
-      html += '<button onclick="noktaSilModal(this)" style="padding:4px 10px;border:none;border-radius:6px;background:#fce8e6;color:#c5221f;cursor:pointer;font-size:12px;font-weight:600;">Sil</button>';
-      html += '</div>';
-    });
-    liste.innerHTML = html;
-    document.getElementById('noktaModal').classList.add('aktif');
-  };
-
-  window.noktaSilModal = (btn) => { btn.closest('div').remove(); };
-
-  window.noktaEkle = () => {
-    const input = document.getElementById('yeniNoktaInput');
-    const ad = input.value.trim();
-    if (!ad) return;
-    const liste = document.getElementById('noktaListesiModal');
-    const idx = liste.children.length;
-    const div = document.createElement('div');
-    div.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f0f0f0;';
-    div.innerHTML = '<span style="font-size:12px;color:#888;min-width:20px;">' + (idx + 1) + '.</span>' +
-      '<input type="text" value="' + ad + '" style="flex:1;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;font-family:inherit;">' +
-      '<button onclick="noktaSilModal(this)" style="padding:4px 10px;border:none;border-radius:6px;background:#fce8e6;color:#c5221f;cursor:pointer;font-size:12px;font-weight:600;">Sil</button>';
-    liste.appendChild(div);
-    input.value = '';
-  };
-
-  window.noktalariKaydet = async () => {
-    const inputs = document.querySelectorAll('#noktaListesiModal input[type="text"]');
-    const yeniListe = [];
-    inputs.forEach(inp => { const v = inp.value.trim(); if (v) yeniListe.push(v); });
-    if (!yeniListe.length) { alert('En az 1 nokta olmalı.'); return; }
-    await setDoc(doc(db, 'nobet2_ayarlar', 'noktalar'), { liste: yeniListe, guncelleme: serverTimestamp() });
-    NOKTALAR = yeniListe;
-    // Mevcut veriyi güncelle
-    nobetVerisi.gunler = nobetVerisi.gunler.map(g => {
-      const n = [...(g.nobetciler || [])];
-      while (n.length < NOKTALAR.length) n.push(null);
-      return { ...g, nobetciler: n.slice(0, NOKTALAR.length) };
-    });
-    modalKapat('noktaModal');
-    tabloGoster();
-    mesajGoster(yeniListe.length + ' nöbet noktası kaydedildi.', 'basari');
-  };
-
-  window.modalKapat = (id) => { document.getElementById(id).classList.remove('aktif'); };
-
-  function mesajGoster(metin, tip) {
-    const el = document.getElementById('mesajKutusu');
-    el.textContent = metin;
-    el.className = 'mesaj mesaj-' + tip;
-    el.style.display = 'block';
-    setTimeout(() => el.style.display = 'none', 3500);
-  }
-
-  onAuthStateChanged(auth, async (user) => {
-    if (!user) { window.location.href = '/portal.html'; return; }
-    const userDoc = await getDoc(doc(db, 'users', user.uid));
-    if (!userDoc.exists()) { window.location.href = '/portal.html'; return; }
-    aktifRol = userDoc.data().rol;
-    if (aktifRol !== 'admin' && aktifRol !== 'mudur_yardimcisi') {
-      document.getElementById('yukleniyor').textContent = 'Bu sayfaya erişim yetkiniz yok.';
-      return;
-    }
-    await init();
-  });
-</script>
-</body>
+    </script>
+  </body>
 </html>
