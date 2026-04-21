@@ -3510,6 +3510,18 @@
           .forEach((b) => b.classList.remove("aktif"));
         document.getElementById("rsekme-" + id).classList.add("aktif");
         el.classList.add("aktif");
+        if (id === "ogretmendevam") {
+          const bugun = new Date();
+          const ayBas = new Date(bugun.getFullYear(), bugun.getMonth(), 1)
+            .toISOString()
+            .split("T")[0];
+          const ayBit = bugun.toISOString().split("T")[0];
+          const b = document.getElementById("devamBaslangic");
+          const e = document.getElementById("devamBitis");
+          if (b && !b.value) b.value = ayBas;
+          if (e && !e.value) e.value = ayBit;
+          ogretmenDevamRaporu();
+        }
       };
       window.gunlukRaporGetir = async () => {
         const tarih = document.getElementById("gunlukTarih").value;

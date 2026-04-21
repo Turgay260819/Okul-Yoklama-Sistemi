@@ -189,6 +189,22 @@ service cloud.firestore {
       allow read: if isLoggedIn();
       allow write: if isYonetim();
     }
+    match /program_talep_tanimlar/{docId} {
+      allow read: if isLoggedIn();
+      allow write: if isYonetim();
+    }
+    match /program_talep_sube_toplam/{docId} {
+      allow read: if isLoggedIn();
+      allow write: if isYonetim();
+    }
+    match /program_talep_matris/{docId} {
+      allow read: if isLoggedIn();
+      allow write: if isLoggedIn();
+    }
+    match /program_talep_ayarlar/{docId} {
+      allow read: if isLoggedIn();
+      allow write: if isYonetim();
+    }
   }
 
 }
