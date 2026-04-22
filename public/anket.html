@@ -1,0 +1,1751 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Anket & Form Sistemi</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: "Segoe UI", sans-serif;
+        background: #f0f4f8;
+        color: #1a1d2e;
+      }
+      .topbar {
+        background: #1557b0;
+        color: white;
+        padding: 13px 24px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+      .topbar h1 {
+        font-size: 16px;
+        font-weight: 700;
+      }
+      .topbar-sag {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .btn {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        font-family: inherit;
+        transition: all 0.15s;
+      }
+      .btn-beyaz {
+        background: rgba(255, 255, 255, 0.15);
+        color: white;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+      }
+      .btn-beyaz:hover {
+        background: rgba(255, 255, 255, 0.25);
+      }
+      .btn-mavi {
+        background: #1a73e8;
+        color: white;
+      }
+      .btn-mavi:hover {
+        background: #1557b0;
+      }
+      .btn-yesil {
+        background: #34a853;
+        color: white;
+      }
+      .btn-yesil:hover {
+        background: #2d8f47;
+      }
+      .btn-kirmizi {
+        background: #ea4335;
+        color: white;
+      }
+      .btn-turuncu {
+        background: #f9ab00;
+        color: #333;
+      }
+      .btn-gri {
+        background: #666;
+        color: white;
+      }
+      .btn-mor {
+        background: #7c4dff;
+        color: white;
+      }
+      .btn-sm {
+        padding: 5px 12px;
+        font-size: 12px;
+      }
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .icerik {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .kart {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+        margin-bottom: 16px;
+      }
+      .kart-baslik {
+        font-size: 15px;
+        font-weight: 700;
+        color: #333;
+        margin-bottom: 14px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #f0f0f0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .sekme-bar {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 20px;
+        background: white;
+        border-radius: 12px;
+        padding: 6px;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+        flex-wrap: wrap;
+      }
+      .sekme-btn {
+        padding: 8px 18px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 600;
+        color: #6b7280;
+        border: none;
+        background: none;
+        font-family: inherit;
+        transition: all 0.15s;
+      }
+      .sekme-btn.aktif {
+        background: #1557b0;
+        color: white;
+      }
+      .sekme-icerik {
+        display: none;
+      }
+      .sekme-icerik.aktif {
+        display: block;
+      }
+      .rozet {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 700;
+      }
+      .rozet-yesil {
+        background: #e6f4ea;
+        color: #1e7e34;
+      }
+      .rozet-kirmizi {
+        background: #fce8e6;
+        color: #c5221f;
+      }
+      .rozet-mavi {
+        background: #e8f0fe;
+        color: #1a73e8;
+      }
+      .rozet-sari {
+        background: #fef7e0;
+        color: #b06000;
+      }
+      .rozet-gri {
+        background: #f1f3f4;
+        color: #555;
+      }
+      .rozet-mor {
+        background: #ede7f6;
+        color: #5e35b1;
+      }
+      .form-group {
+        margin-bottom: 14px;
+      }
+      .form-group label {
+        display: block;
+        font-size: 12px;
+        font-weight: 700;
+        color: #6b7280;
+        margin-bottom: 5px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      .form-group input,
+      .form-group select,
+      .form-group textarea {
+        width: 100%;
+        padding: 10px 12px;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        font-size: 14px;
+        font-family: inherit;
+        outline: none;
+        transition: border-color 0.15s;
+      }
+      .form-group input:focus,
+      .form-group select:focus,
+      .form-group textarea:focus {
+        border-color: #1a73e8;
+      }
+      .form-group textarea {
+        resize: vertical;
+        min-height: 80px;
+      }
+      .form-grid-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+      }
+      .mesaj {
+        padding: 10px 14px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        margin-top: 10px;
+        display: none;
+      }
+      .mesaj-basari {
+        background: #e6f4ea;
+        color: #1e7e34;
+        display: block;
+      }
+      .mesaj-hata {
+        background: #fce8e6;
+        color: #c5221f;
+        display: block;
+      }
+      .mesaj-bilgi {
+        background: #e8f0fe;
+        color: #1a73e8;
+        display: block;
+      }
+      .yukleniyor {
+        text-align: center;
+        padding: 60px;
+        color: #666;
+        font-size: 15px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th {
+        background: #f8f9fa;
+        padding: 10px 14px;
+        text-align: left;
+        font-size: 12px;
+        font-weight: 700;
+        color: #6b7280;
+        border-bottom: 2px solid #e0e0e0;
+      }
+      td {
+        padding: 10px 14px;
+        border-bottom: 1px solid #f0f0f0;
+        font-size: 13px;
+        vertical-align: middle;
+      }
+      tr:last-child td {
+        border-bottom: none;
+      }
+      tr:hover td {
+        background: #fafafa;
+      }
+
+      /* ANKET KARTI */
+      .anket-kart {
+        background: white;
+        border-radius: 12px;
+        padding: 18px;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+        margin-bottom: 12px;
+        border-left: 4px solid #1a73e8;
+        transition: box-shadow 0.15s;
+      }
+      .anket-kart:hover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+      }
+      .anket-kart.kapali {
+        border-left-color: #ea4335;
+      }
+      .anket-kart.taslak {
+        border-left-color: #f9ab00;
+      }
+      .anket-kart.tamamlandi {
+        border-left-color: #34a853;
+      }
+      .anket-kart-baslik {
+        font-size: 15px;
+        font-weight: 700;
+        color: #333;
+        margin-bottom: 6px;
+      }
+      .anket-kart-alt {
+        font-size: 12px;
+        color: #888;
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 10px;
+      }
+      .anket-kart-butonlar {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+
+      /* SORU OLUŞTURMA */
+      .soru-kart {
+        background: #f8f9fa;
+        border-radius: 10px;
+        padding: 16px;
+        margin-bottom: 10px;
+        border: 2px solid #e0e0e0;
+        position: relative;
+      }
+      .soru-kart-ust {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        margin-bottom: 10px;
+      }
+      .soru-no {
+        background: #1557b0;
+        color: white;
+        border-radius: 50%;
+        width: 28px;
+        height: 28px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: 700;
+        flex-shrink: 0;
+        margin-top: 8px;
+      }
+      .soru-tip-sec {
+        padding: 8px 10px;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        font-size: 13px;
+        font-family: inherit;
+        background: white;
+        outline: none;
+        min-width: 160px;
+      }
+      .secenekler-wrap {
+        margin-top: 8px;
+      }
+      .secenek-item {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 6px;
+        align-items: center;
+      }
+      .secenek-input {
+        flex: 1;
+        padding: 7px 10px;
+        border: 1.5px solid #e0e0e0;
+        border-radius: 6px;
+        font-size: 13px;
+        font-family: inherit;
+        outline: none;
+      }
+      .secenek-sil {
+        background: none;
+        border: none;
+        color: #ea4335;
+        cursor: pointer;
+        font-size: 18px;
+        line-height: 1;
+        padding: 0 4px;
+      }
+      .soru-sil-btn {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background: none;
+        border: none;
+        color: #ea4335;
+        cursor: pointer;
+        font-size: 20px;
+      }
+
+      /* FORM DOLDURMA */
+      .yanit-soru {
+        margin-bottom: 20px;
+        padding: 16px;
+        background: #f8f9fa;
+        border-radius: 10px;
+      }
+      .yanit-soru-metin {
+        font-size: 14px;
+        font-weight: 700;
+        color: #333;
+        margin-bottom: 10px;
+      }
+      .yanit-soru-metin .zorunlu {
+        color: #ea4335;
+        margin-left: 4px;
+      }
+      .yanit-input {
+        width: 100%;
+        padding: 10px 12px;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        font-size: 14px;
+        font-family: inherit;
+        outline: none;
+      }
+      .yanit-input:focus {
+        border-color: #1a73e8;
+      }
+      .yanit-textarea {
+        width: 100%;
+        padding: 10px 12px;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        font-size: 14px;
+        font-family: inherit;
+        outline: none;
+        resize: vertical;
+        min-height: 90px;
+      }
+      .yanit-textarea:focus {
+        border-color: #1a73e8;
+      }
+      .radio-grup,
+      .checkbox-grup {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .radio-item,
+      .checkbox-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+      }
+      .radio-item input,
+      .checkbox-item input {
+        width: 16px;
+        height: 16px;
+        cursor: pointer;
+      }
+      .puan-grup {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .puan-btn {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        border: 2px solid #e0e0e0;
+        background: white;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+      .puan-btn:hover {
+        border-color: #1a73e8;
+        color: #1a73e8;
+      }
+      .puan-btn.secili {
+        background: #1a73e8;
+        border-color: #1a73e8;
+        color: white;
+      }
+
+      /* İSTATİSTİK */
+      .stat-bar-wrap {
+        margin-top: 6px;
+      }
+      .stat-bar-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 6px;
+      }
+      .stat-bar-label {
+        font-size: 12px;
+        color: #555;
+        min-width: 120px;
+      }
+      .stat-bar {
+        flex: 1;
+        height: 18px;
+        background: #f0f0f0;
+        border-radius: 9px;
+        overflow: hidden;
+      }
+      .stat-bar-dolgu {
+        height: 100%;
+        background: #1a73e8;
+        border-radius: 9px;
+        transition: width 0.3s;
+      }
+      .stat-bar-sayi {
+        font-size: 12px;
+        font-weight: 700;
+        color: #333;
+        min-width: 40px;
+        text-align: right;
+      }
+
+      /* SÜRE SAYACI */
+      .sure-sayaci {
+        background: #fff3e0;
+        border: 1px solid #ffcc80;
+        border-radius: 8px;
+        padding: 8px 14px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #e65100;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .sure-sayaci.acil {
+        background: #fce8e6;
+        border-color: #f5c6c6;
+        color: #c5221f;
+        animation: yanip-sone 1s infinite;
+      }
+      @keyframes yanip-sone {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
+      }
+
+      /* HEDEF KİTLE */
+      .hedef-chip-wrap {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 8px;
+      }
+      .hedef-chip {
+        padding: 5px 12px;
+        border-radius: 16px;
+        font-size: 12px;
+        font-weight: 600;
+        background: #e8f0fe;
+        color: #1a73e8;
+        cursor: pointer;
+        border: 1.5px solid #a8c5f5;
+        transition: all 0.15s;
+      }
+      .hedef-chip.secili {
+        background: #1a73e8;
+        color: white;
+        border-color: #1a73e8;
+      }
+      .hedef-chip.ogretmen-chip {
+        background: #f1f3f4;
+        color: #555;
+        border-color: #e0e0e0;
+      }
+      .hedef-chip.ogretmen-chip.secili {
+        background: #34a853;
+        color: white;
+        border-color: #34a853;
+      }
+
+      .bos-mesaj {
+        text-align: center;
+        padding: 40px;
+        color: #888;
+        font-size: 14px;
+      }
+      .ilerleme-bar {
+        height: 6px;
+        background: #e0e0e0;
+        border-radius: 3px;
+        margin-bottom: 20px;
+        overflow: hidden;
+      }
+      .ilerleme-dolgu {
+        height: 100%;
+        background: #1a73e8;
+        border-radius: 3px;
+        transition: width 0.3s;
+      }
+
+      .ai-ozet-kutu {
+        background: #f3e5f5;
+        border: 1px solid #ce93d8;
+        border-radius: 10px;
+        padding: 16px;
+        margin-top: 14px;
+      }
+      .ai-ozet-kutu h4 {
+        color: #6a1b9a;
+        font-size: 13px;
+        margin-bottom: 8px;
+      }
+      .ai-ozet-metin {
+        font-size: 13px;
+        color: #333;
+        line-height: 1.6;
+        white-space: pre-wrap;
+      }
+
+      .kopyala-btn {
+        background: #f1f3f4;
+        border: none;
+        border-radius: 6px;
+        padding: 6px 12px;
+        font-size: 12px;
+        cursor: pointer;
+        font-family: inherit;
+        font-weight: 600;
+      }
+      .kopyala-btn:hover {
+        background: #e0e0e0;
+      }
+
+      @media (max-width: 768px) {
+        .icerik {
+          padding: 12px;
+        }
+        .form-grid-2 {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="topbar">
+      <h1>📋 Anket & Form Sistemi</h1>
+      <div class="topbar-sag">
+        <a href="/portal.html" class="btn btn-beyaz">← Ana Sayfa</a>
+      </div>
+    </div>
+
+    <div class="icerik">
+      <div id="yukleniyor" class="yukleniyor">⏳ Yükleniyor...</div>
+      <div id="anaIcerik" style="display: none"></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+      import {
+        getAuth,
+        onAuthStateChanged,
+      } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+      import {
+        getFirestore,
+        doc,
+        getDoc,
+        setDoc,
+        addDoc,
+        updateDoc,
+        deleteDoc,
+        getDocs,
+        collection,
+        query,
+        where,
+        orderBy,
+        serverTimestamp,
+      } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+      const firebaseConfig = {
+        apiKey: "AIzaSyAHTCiicd4b94rG1-jN0STRbwcrLmkYudo",
+        authDomain: "okul-yoklama-sistemi-8081f.firebaseapp.com",
+        projectId: "okul-yoklama-sistemi-8081f",
+        storageBucket: "okul-yoklama-sistemi-8081f.firebasestorage.app",
+        messagingSenderId: "38230047763",
+        appId: "1:38230047763:web:dfab058df8928b66be13e6",
+      };
+
+      const app = initializeApp(firebaseConfig);
+      const auth = getAuth(app);
+      const db = getFirestore(app);
+
+      let aktifRol = null;
+      let aktifUid = null;
+      let aktifOgretmenId = null;
+      let aktifOgretmenAd = null;
+      let tumOgretmenler = [];
+      let seciliHedefler = new Set();
+      let soruSayaci = 0;
+      let duzenlenenAnketId = null;
+      let aktifFormSorular = [];
+
+      // ── AUTH ──
+      onAuthStateChanged(auth, async (user) => {
+        if (!user) {
+          window.location.href = "/portal.html";
+          return;
+        }
+        aktifUid = user.uid;
+        const ud = await getDoc(doc(db, "users", user.uid));
+        if (!ud.exists()) {
+          window.location.href = "/portal.html";
+          return;
+        }
+        aktifRol = ud.data().rol;
+
+        if (aktifRol === "ogretmen") {
+          const ogSnap = await getDocs(
+            query(collection(db, "teachers"), where("uid", "==", user.uid)),
+          );
+          if (!ogSnap.empty) {
+            aktifOgretmenId = ogSnap.docs[0].id;
+            aktifOgretmenAd = ogSnap.docs[0].data().ad;
+          }
+        }
+
+        await ogretmenleriYukle();
+        document.getElementById("yukleniyor").style.display = "none";
+        document.getElementById("anaIcerik").style.display = "block";
+
+        if (aktifRol === "admin" || aktifRol === "mudur_yardimcisi") {
+          adminSayfasi();
+        } else {
+          ogretmenSayfasi();
+        }
+      });
+
+      async function ogretmenleriYukle() {
+        const snap = await getDocs(collection(db, "teachers"));
+        tumOgretmenler = [];
+        snap.forEach((d) => tumOgretmenler.push({ id: d.id, ...d.data() }));
+        tumOgretmenler.sort((a, b) =>
+          (a.ad || "").localeCompare(b.ad || "", "tr"),
+        );
+      }
+
+      // ── YARDIMCI ──
+      function simdi() {
+        return new Date().toISOString().split("T")[0];
+      }
+      function sure(sonTarih) {
+        const kalan = new Date(sonTarih) - new Date();
+        if (kalan <= 0) return null;
+        const gun = Math.floor(kalan / 86400000);
+        const saat = Math.floor((kalan % 86400000) / 3600000);
+        return gun > 0 ? gun + " gün " + saat + " saat" : saat + " saat";
+      }
+      function anketDurum(anket) {
+        if (anket.durum === "taslak") return "taslak";
+        if (!anket.son_tarih) return "aktif";
+        return new Date(anket.son_tarih) > new Date() ? "aktif" : "kapali";
+      }
+
+      // Hedef kitleye göre öğretmenleri filtrele
+      function hedefOgretmenleri(hedef) {
+        if (!hedef || hedef.tip === "hepsi")
+          return tumOgretmenler.map((o) => o.id);
+        if (hedef.tip === "zumre")
+          return tumOgretmenler
+            .filter((o) => o.brans === hedef.deger)
+            .map((o) => o.id);
+        if (hedef.tip === "sinif_rehberi")
+          return tumOgretmenler
+            .filter((o) => o.sinifSeviye === hedef.deger)
+            .map((o) => o.id);
+        if (hedef.tip === "sube_rehberi")
+          return tumOgretmenler
+            .filter((o) => o.rehberSube === hedef.deger)
+            .map((o) => o.id);
+        if (hedef.tip === "manuel") return hedef.ogretmenler || [];
+        return tumOgretmenler.map((o) => o.id);
+      }
+
+      // ── ÖĞRETMEN SAYFASI ──
+      async function ogretmenSayfasi() {
+        const c = document.getElementById("anaIcerik");
+        // Aktif anketleri getir
+        const snap = await getDocs(
+          query(collection(db, "anketler"), where("durum", "==", "aktif")),
+        );
+        const anketler = [];
+        snap.forEach((d) => anketler.push({ id: d.id, ...d.data() }));
+
+        // Bana ait olanları filtrele
+        const benimAnketler = anketler.filter((a) => {
+          const hedefIds = hedefOgretmenleri(a.hedef_kitle);
+          return hedefIds.includes(aktifOgretmenId);
+        });
+
+        // Yanıtlarımı getir
+        const yanSnap = await getDocs(
+          query(
+            collection(db, "anket_yanitlar"),
+            where("ogretmen_id", "==", aktifOgretmenId),
+          ),
+        );
+        const yanıtliIds = new Set();
+        yanSnap.forEach((d) => yanıtliIds.add(d.data().anket_id));
+
+        let html =
+          '<h2 style="font-size:18px;font-weight:700;color:#333;margin-bottom:16px;">📋 Formlarım</h2>';
+
+        if (!benimAnketler.length) {
+          html +=
+            '<div class="kart"><div class="bos-mesaj">Şu an aktif form bulunmuyor.</div></div>';
+          c.innerHTML = html;
+          return;
+        }
+
+        benimAnketler.forEach((a) => {
+          const tamamlandi = yanıtliIds.has(a.id);
+          const kalanSure = a.son_tarih ? sure(a.son_tarih) : null;
+          const acil =
+            kalanSure &&
+            kalanSure.includes("saat") &&
+            !kalanSure.includes("gün");
+          html += `<div class="anket-kart ${tamamlandi ? "tamamlandi" : ""}">
+            <div class="anket-kart-baslik">${a.baslik}</div>
+            <div class="anket-kart-alt">
+              <span>📝 ${(a.sorular || []).length} soru</span>
+              ${a.son_tarih ? `<span>⏰ Son tarih: ${a.son_tarih}</span>` : ""}
+              ${kalanSure ? `<span class="sure-sayaci ${acil ? "acil" : ""}">⏳ ${kalanSure} kaldı</span>` : ""}
+              ${a.anonim ? '<span class="rozet rozet-mor">Anonim</span>' : ""}
+            </div>
+            ${a.aciklama ? `<div style="font-size:13px;color:#555;margin-bottom:10px;">${a.aciklama}</div>` : ""}
+            <div class="anket-kart-butonlar">
+              ${
+                tamamlandi
+                  ? '<span class="rozet rozet-yesil">✓ Yanıtlandı</span>'
+                  : `<button class="btn btn-mavi btn-sm" onclick="formDoldur('${a.id}')">Formu Doldur</button>`
+              }
+            </div>
+          </div>`;
+        });
+
+        c.innerHTML = html;
+      }
+
+      // Form doldurma
+      window.formDoldur = async (anketId) => {
+        const anketDoc = await getDoc(doc(db, "anketler", anketId));
+        if (!anketDoc.exists()) return;
+        const anket = { id: anketDoc.id, ...anketDoc.data() };
+        const sorular = anket.sorular || [];
+        aktifFormSorular = sorular;
+
+        const c = document.getElementById("anaIcerik");
+        let html = `
+          <button class="btn btn-gri btn-sm" onclick="ogretmenSayfasi()" style="margin-bottom:16px;">← Geri</button>
+          <div class="kart">
+            <h2 style="font-size:18px;font-weight:700;color:#333;margin-bottom:6px;">${anket.baslik}</h2>
+            ${anket.aciklama ? `<p style="font-size:13px;color:#666;margin-bottom:16px;">${anket.aciklama}</p>` : ""}
+            ${anket.son_tarih ? `<div style="font-size:12px;color:#888;margin-bottom:16px;">Son tarih: ${anket.son_tarih}</div>` : ""}
+            <div class="ilerleme-bar"><div class="ilerleme-dolgu" id="ilerlemeDolgu" style="width:0%"></div></div>
+            <div id="sorularWrap">`;
+
+        sorular.forEach((s, idx) => {
+          html += `<div class="yanit-soru" id="soru_${idx}">
+            <div class="yanit-soru-metin">${idx + 1}. ${s.metin}${s.zorunlu ? '<span class="zorunlu">*</span>' : ""}</div>`;
+
+          if (s.tip === "kisa_metin") {
+            html += `<input type="text" class="yanit-input" id="yanit_${idx}" placeholder="Yanıtınızı yazın...">`;
+          } else if (s.tip === "uzun_metin") {
+            html += `<textarea class="yanit-textarea" id="yanit_${idx}" placeholder="Yanıtınızı yazın..."></textarea>`;
+          } else if (s.tip === "sayi") {
+            html += `<input type="number" class="yanit-input" id="yanit_${idx}" placeholder="Sayı girin...">`;
+          } else if (s.tip === "tarih") {
+            html += `<input type="date" class="yanit-input" id="yanit_${idx}">`;
+          } else if (s.tip === "puan") {
+            html += `<div class="puan-grup" id="yanit_${idx}">`;
+            for (let p = 1; p <= 10; p++) {
+              html += `<button type="button" class="puan-btn" onclick="puanSec(${idx}, ${p})" data-puan="${p}">${p}</button>`;
+            }
+            html += `</div>`;
+          } else if (s.tip === "tek_secim") {
+            html += `<div class="radio-grup">`;
+            (s.secenekler || []).forEach((sec, si) => {
+              html += `<label class="radio-item"><input type="radio" name="yanit_${idx}" value="${sec}" onchange="ilerlemeGuncelle()"> ${sec}</label>`;
+            });
+            html += `</div>`;
+          } else if (s.tip === "coklu_secim") {
+            html += `<div class="checkbox-grup" id="yanit_${idx}">`;
+            (s.secenekler || []).forEach((sec, si) => {
+              html += `<label class="checkbox-item"><input type="checkbox" value="${sec}" onchange="ilerlemeGuncelle()"> ${sec}</label>`;
+            });
+            html += `</div>`;
+          }
+          html += `</div>`;
+        });
+
+        html += `</div>
+            <div id="formMesaj"></div>
+            <div style="margin-top:20px;display:flex;gap:10px;">
+              <button class="btn btn-yesil" onclick="formGonder('${anketId}')">Gönder</button>
+              <button class="btn btn-gri" onclick="ogretmenSayfasi()">İptal</button>
+            </div>
+          </div>`;
+
+        c.innerHTML = html;
+        ilerlemeGuncelle();
+      };
+
+      window.puanSec = (idx, puan) => {
+        document.querySelectorAll(`#yanit_${idx} .puan-btn`).forEach((b) => {
+          b.classList.toggle("secili", parseInt(b.dataset.puan) === puan);
+        });
+        ilerlemeGuncelle();
+      };
+
+      window.ilerlemeGuncelle = () => {
+        const sorular = document.querySelectorAll(".yanit-soru");
+        let dolu = 0;
+        sorular.forEach((s, idx) => {
+          const input = document.getElementById("yanit_" + idx);
+          const radio = document.querySelector(
+            `input[name="yanit_${idx}"]:checked`,
+          );
+          const puan = document.querySelector(`#yanit_${idx} .puan-btn.secili`);
+          if ((input && input.value) || radio || puan) dolu++;
+        });
+        const yuzde =
+          sorular.length > 0 ? Math.round((dolu / sorular.length) * 100) : 0;
+        const dolgu = document.getElementById("ilerlemeDolgu");
+        if (dolgu) dolgu.style.width = yuzde + "%";
+      };
+
+      window.formGonder = async (anketId) => {
+        const sorular = aktifFormSorular;
+        const yanitlar = {};
+        let eksik = false;
+
+        sorular.forEach((s, idx) => {
+          if (s.tip === "tek_secim") {
+            const radio = document.querySelector(
+              `input[name="yanit_${idx}"]:checked`,
+            );
+            yanitlar["s" + idx] = radio ? radio.value : "";
+            if (s.zorunlu && !radio) eksik = true;
+          } else if (s.tip === "coklu_secim") {
+            const checked = document.querySelectorAll(
+              `#yanit_${idx} input:checked`,
+            );
+            yanitlar["s" + idx] = Array.from(checked).map((c) => c.value);
+            if (s.zorunlu && !checked.length) eksik = true;
+          } else if (s.tip === "puan") {
+            const puan = document.querySelector(
+              `#yanit_${idx} .puan-btn.secili`,
+            );
+            yanitlar["s" + idx] = puan ? parseInt(puan.dataset.puan) : null;
+            if (s.zorunlu && !puan) eksik = true;
+          } else {
+            const el = document.getElementById("yanit_" + idx);
+            yanitlar["s" + idx] = el ? el.value : "";
+            if (s.zorunlu && el && !el.value.trim()) eksik = true;
+          }
+        });
+
+        if (eksik) {
+          mesajGoster("formMesaj", "Zorunlu alanları doldurun.", "hata");
+          return;
+        }
+
+        await addDoc(collection(db, "anket_yanitlar"), {
+          anket_id: anketId,
+          ogretmen_id: aktifOgretmenId,
+          ogretmen_ad: aktifOgretmenAd,
+          yanitlar,
+          tarih: serverTimestamp(),
+        });
+
+        mesajGoster("formMesaj", "Yanıtınız kaydedildi!", "basari");
+        setTimeout(() => ogretmenSayfasi(), 1500);
+      };
+
+      // ── ADMİN SAYFASI ──
+      function adminSayfasi() {
+        document.getElementById("anaIcerik").innerHTML = `
+          <div class="sekme-bar">
+            <button class="sekme-btn aktif" onclick="adminSekme('formlar', this)">📋 Formlar</button>
+            <button class="sekme-btn" onclick="adminSekme('olustur', this)">➕ Form Oluştur</button>
+            <button class="sekme-btn" onclick="adminSekme('sablonlar', this)">📁 Şablonlar</button>
+          </div>
+          <div class="sekme-icerik aktif" id="asekme-formlar"></div>
+          <div class="sekme-icerik" id="asekme-olustur"></div>
+          <div class="sekme-icerik" id="asekme-sablonlar"></div>`;
+        adminFormlarGoster();
+      }
+
+      window.adminSekme = (id, el) => {
+        document
+          .querySelectorAll(".sekme-btn")
+          .forEach((b) => b.classList.remove("aktif"));
+        document
+          .querySelectorAll(".sekme-icerik")
+          .forEach((s) => s.classList.remove("aktif"));
+        el.classList.add("aktif");
+        document.getElementById("asekme-" + id).classList.add("aktif");
+        if (id === "formlar") adminFormlarGoster();
+        else if (id === "olustur") {
+          duzenlenenAnketId = null;
+          adminFormOlustur();
+        } else if (id === "sablonlar") adminSablonlarGoster();
+      };
+
+      async function adminFormlarGoster() {
+        const c = document.getElementById("asekme-formlar");
+        c.innerHTML = '<div class="yukleniyor">Yükleniyor...</div>';
+
+        const snap = await getDocs(collection(db, "anketler"));
+        const anketler = [];
+        snap.forEach((d) => anketler.push({ id: d.id, ...d.data() }));
+
+        if (!anketler.length) {
+          c.innerHTML =
+            '<div class="kart"><div class="bos-mesaj">Henüz form oluşturulmamış.</div></div>';
+          return;
+        }
+
+        let html = "";
+        for (const a of anketler) {
+          const durum = anketDurum(a);
+          const durumRenk =
+            durum === "aktif"
+              ? "rozet-yesil"
+              : durum === "taslak"
+                ? "rozet-sari"
+                : "rozet-kirmizi";
+          const durumMetin =
+            durum === "aktif"
+              ? "Aktif"
+              : durum === "taslak"
+                ? "Taslak"
+                : "Kapandı";
+
+          // Yanıt sayısı
+          const yanSnap = await getDocs(
+            query(
+              collection(db, "anket_yanitlar"),
+              where("anket_id", "==", a.id),
+            ),
+          );
+          const yanıtSayisi = yanSnap.size;
+          const hedefIds = hedefOgretmenleri(a.hedef_kitle);
+          const toplamHedef = hedefIds.length;
+
+          html += `<div class="anket-kart ${durum}">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;">
+              <div>
+                <div class="anket-kart-baslik">${a.baslik}</div>
+                <div class="anket-kart-alt">
+                  <span class="rozet ${durumRenk}">${durumMetin}</span>
+                  <span>📝 ${(a.sorular || []).length} soru</span>
+                  <span>👥 ${yanıtSayisi}/${toplamHedef} yanıt</span>
+                  ${a.son_tarih ? `<span>⏰ ${a.son_tarih}</span>` : ""}
+                  ${a.anonim ? '<span class="rozet rozet-mor">Anonim</span>' : ""}
+                </div>
+              </div>
+            </div>
+            <div class="anket-kart-butonlar" style="margin-top:10px;">
+              <button class="btn btn-mavi btn-sm" onclick="adminSonuclar('${a.id}')">📊 Sonuçlar</button>
+              <button class="btn btn-gri btn-sm" onclick="adminDuzenle('${a.id}')">✏️ Düzenle</button>
+              ${durum === "taslak" ? `<button class="btn btn-yesil btn-sm" onclick="anketYayinla('${a.id}')">🚀 Yayınla</button>` : ""}
+              ${durum === "aktif" ? `<button class="btn btn-turuncu btn-sm" onclick="anketKapat('${a.id}')">🔒 Kapat</button>` : ""}
+              <button class="btn btn-kirmizi btn-sm" onclick="anketSil('${a.id}')">🗑</button>
+            </div>
+          </div>`;
+        }
+        c.innerHTML = html;
+      }
+
+      // ── FORM OLUŞTURMA ──
+      function adminFormOlustur(sablon) {
+        const c = document.getElementById("asekme-olustur");
+        soruSayaci = 0;
+        seciliHedefler = new Set();
+
+        const branlar = [
+          ...new Set(tumOgretmenler.map((o) => o.brans).filter(Boolean)),
+        ].sort();
+        const sinifler = ["5", "6", "7", "8"];
+        const subeler = [
+          ...new Set(tumOgretmenler.map((o) => o.rehberSube).filter(Boolean)),
+        ].sort();
+
+        c.innerHTML = `
+          <div class="kart">
+            <div class="kart-baslik">${duzenlenenAnketId ? "Formu Düzenle" : "Yeni Form Oluştur"}</div>
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label>Form Başlığı *</label>
+                <input type="text" id="formBaslik" placeholder="Form başlığını yazın..." value="${sablon?.baslik || ""}">
+              </div>
+              <div class="form-group">
+                <label>Son Tarih (boş = süresiz)</label>
+                <input type="date" id="formSonTarih" value="${sablon?.son_tarih || ""}">
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Açıklama</label>
+              <textarea id="formAciklama" placeholder="Form hakkında kısa bir açıklama...">${sablon?.aciklama || ""}</textarea>
+            </div>
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label><input type="checkbox" id="formAnonim" ${sablon?.anonim ? "checked" : ""}> Anonim Yanıtlar</label>
+                <small style="color:#888;">Yanıtlar kimlerin gönderdiğini göstermez</small>
+              </div>
+              <div class="form-group">
+                <label><input type="checkbox" id="formSablon"> Şablon olarak kaydet</label>
+              </div>
+            </div>
+          </div>
+
+          <div class="kart">
+            <div class="kart-baslik">Hedef Kitle</div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+              <button type="button" class="btn btn-sm btn-mavi" onclick="hedefSec('hepsi')">Tüm Öğretmenler</button>
+              <button type="button" class="btn btn-sm btn-gri" onclick="hedefSec('zumre')">Zümreye Göre</button>
+              <button type="button" class="btn btn-sm btn-gri" onclick="hedefSec('sinif')">Sınıf Rehberine Göre</button>
+              <button type="button" class="btn btn-sm btn-gri" onclick="hedefSec('sube')">Şube Rehberine Göre</button>
+              <button type="button" class="btn btn-sm btn-gri" onclick="hedefSec('manuel')">Manuel Seçim</button>
+            </div>
+            <div id="hedefDetay"></div>
+            <div id="hedefSayac" style="font-size:13px;color:#888;margin-top:8px;"></div>
+          </div>
+
+          <div class="kart">
+            <div class="kart-baslik">
+              Sorular
+              <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                <button type="button" class="btn btn-sm btn-mavi" onclick="soruEkle('kisa_metin')">+ Kısa Metin</button>
+                <button type="button" class="btn btn-sm btn-mavi" onclick="soruEkle('uzun_metin')">+ Uzun Metin</button>
+                <button type="button" class="btn btn-sm btn-mavi" onclick="soruEkle('sayi')">+ Sayı</button>
+                <button type="button" class="btn btn-sm btn-mavi" onclick="soruEkle('puan')">+ Puan</button>
+                <button type="button" class="btn btn-sm btn-mavi" onclick="soruEkle('tek_secim')">+ Tek Seçim</button>
+                <button type="button" class="btn btn-sm btn-mavi" onclick="soruEkle('coklu_secim')">+ Çoklu Seçim</button>
+                <button type="button" class="btn btn-sm btn-mavi" onclick="soruEkle('tarih')">+ Tarih</button>
+              </div>
+            </div>
+            <div id="sorularContainer"></div>
+            <div id="soruYok" style="text-align:center;padding:30px;color:#888;">Henüz soru eklenmedi. Yukarıdan soru tipi seçin.</div>
+          </div>
+
+          <div style="display:flex;gap:10px;margin-bottom:20px;">
+            <button class="btn btn-yesil" onclick="formuKaydet('taslak')">💾 Taslak Kaydet</button>
+            <button class="btn btn-mavi" onclick="formuKaydet('aktif')">🚀 Yayınla</button>
+            <button class="btn btn-gri" onclick="adminFormlarGoster(); adminSekme('formlar', document.querySelector('.sekme-btn'))">İptal</button>
+          </div>
+          <div class="mesaj" id="olusturMesaj"></div>`;
+
+        // Şablondan sorular yükle
+        if (sablon?.sorular) {
+          sablon.sorular.forEach((s) => soruEkle(s.tip, s));
+        }
+
+        hedefSec("hepsi");
+      }
+
+      let seciliHedefTip = "hepsi";
+      let seciliZumre = "";
+      let seciliSinif = "";
+      let seciliSube = "";
+      let seciliOgretmenler = new Set();
+
+      window.hedefSec = (tip) => {
+        seciliHedefTip = tip;
+        const branlar = [
+          ...new Set(tumOgretmenler.map((o) => o.brans).filter(Boolean)),
+        ].sort();
+        const sinifler = ["5", "6", "7", "8"];
+        const subeler = [
+          ...new Set(tumOgretmenler.map((o) => o.rehberSube).filter(Boolean)),
+        ].sort();
+        const det = document.getElementById("hedefDetay");
+
+        if (tip === "hepsi") {
+          det.innerHTML =
+            '<span class="rozet rozet-yesil">Tüm öğretmenler seçildi</span>';
+          hedefSayacGuncelle();
+        } else if (tip === "zumre") {
+          det.innerHTML = `<div class="hedef-chip-wrap">${branlar.map((b) => `<span class="hedef-chip" onclick="zumreSec('${b}', this)">${b}</span>`).join("")}</div>`;
+        } else if (tip === "sinif") {
+          det.innerHTML = `<div class="hedef-chip-wrap">${sinifler.map((s) => `<span class="hedef-chip" onclick="sinifSec('${s}', this)">${s}. Sınıf Rehberleri</span>`).join("")}</div>`;
+        } else if (tip === "sube") {
+          det.innerHTML = subeler.length
+            ? `<div class="hedef-chip-wrap">${subeler.map((s) => `<span class="hedef-chip" onclick="subeSec('${s}', this)">${s} Rehberi</span>`).join("")}</div>`
+            : '<div style="color:#888;font-size:13px;">Şube rehber öğretmeni tanımlanmamış.</div>';
+        } else if (tip === "manuel") {
+          det.innerHTML = `<div class="hedef-chip-wrap">${tumOgretmenler.map((o) => `<span class="hedef-chip ogretmen-chip ${seciliOgretmenler.has(o.id) ? "secili" : ""}" onclick="ogretmenToggle('${o.id}', this)">${o.ad}</span>`).join("")}</div>`;
+          hedefSayacGuncelle();
+        }
+      };
+
+      window.zumreSec = (brans, el) => {
+        seciliZumre = brans;
+        document
+          .querySelectorAll("#hedefDetay .hedef-chip")
+          .forEach((c) => c.classList.remove("secili"));
+        el.classList.add("secili");
+        hedefSayacGuncelle();
+      };
+      window.sinifSec = (sinif, el) => {
+        seciliSinif = sinif;
+        document
+          .querySelectorAll("#hedefDetay .hedef-chip")
+          .forEach((c) => c.classList.remove("secili"));
+        el.classList.add("secili");
+        hedefSayacGuncelle();
+      };
+      window.subeSec = (sube, el) => {
+        seciliSube = sube;
+        document
+          .querySelectorAll("#hedefDetay .hedef-chip")
+          .forEach((c) => c.classList.remove("secili"));
+        el.classList.add("secili");
+        hedefSayacGuncelle();
+      };
+      window.ogretmenToggle = (id, el) => {
+        if (seciliOgretmenler.has(id)) {
+          seciliOgretmenler.delete(id);
+          el.classList.remove("secili");
+        } else {
+          seciliOgretmenler.add(id);
+          el.classList.add("secili");
+        }
+        hedefSayacGuncelle();
+      };
+
+      function hedefSayacGuncelle() {
+        const hedef = hedefObjesi();
+        const ids = hedefOgretmenleri(hedef);
+        const el = document.getElementById("hedefSayac");
+        if (el) el.textContent = ids.length + " öğretmen seçildi";
+      }
+
+      function hedefObjesi() {
+        if (seciliHedefTip === "hepsi") return { tip: "hepsi" };
+        if (seciliHedefTip === "zumre")
+          return { tip: "zumre", deger: seciliZumre };
+        if (seciliHedefTip === "sinif")
+          return { tip: "sinif_rehberi", deger: seciliSinif };
+        if (seciliHedefTip === "sube")
+          return { tip: "sube_rehberi", deger: seciliSube };
+        if (seciliHedefTip === "manuel")
+          return { tip: "manuel", ogretmenler: Array.from(seciliOgretmenler) };
+        return { tip: "hepsi" };
+      }
+
+      // ── SORU YÖNETİMİ ──
+      window.soruEkle = (tip, mevcut) => {
+        const container = document.getElementById("sorularContainer");
+        const yok = document.getElementById("soruYok");
+        if (yok) yok.style.display = "none";
+
+        const id = "soru_" + ++soruSayaci;
+        const tipIsimleri = {
+          kisa_metin: "Kısa Metin",
+          uzun_metin: "Uzun Metin",
+          sayi: "Sayı",
+          puan: "Puan (1-10)",
+          tek_secim: "Tek Seçim",
+          coklu_secim: "Çoklu Seçim",
+          tarih: "Tarih",
+        };
+
+        const div = document.createElement("div");
+        div.className = "soru-kart";
+        div.id = id;
+        div.innerHTML = `
+          <button type="button" class="soru-sil-btn" onclick="soruSil('${id}')">×</button>
+          <div class="soru-kart-ust">
+            <div class="soru-no">${soruSayaci}</div>
+            <div style="flex:1;">
+              <input type="text" placeholder="Soru metnini yazın..." value="${mevcut?.metin || ""}"
+                style="width:100%;padding:10px;border:2px solid #e0e0e0;border-radius:8px;font-size:14px;font-family:inherit;outline:none;margin-bottom:8px;"
+                data-alan="metin">
+              <div style="display:flex;gap:8px;align-items:center;">
+                <span style="font-size:12px;color:#888;">${tipIsimleri[tip] || tip}</span>
+                <label style="font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:4px;">
+                  <input type="checkbox" data-alan="zorunlu" ${mevcut?.zorunlu ? "checked" : ""}> Zorunlu
+                </label>
+              </div>
+            </div>
+          </div>
+          <input type="hidden" data-alan="tip" value="${tip}">
+          ${
+            tip === "tek_secim" || tip === "coklu_secim"
+              ? `
+          <div class="secenekler-wrap">
+            <div id="${id}_secenekler">${(mevcut?.secenekler || ["", ""]).map((s) => secenek_html(s)).join("")}</div>
+            <button type="button" class="btn btn-sm btn-gri" style="margin-top:6px;" onclick="secenek_ekle('${id}_secenekler')">+ Seçenek Ekle</button>
+          </div>`
+              : ""
+          }`;
+
+        container.appendChild(div);
+      };
+
+      function secenek_html(deger) {
+        return `<div class="secenek-item"><input type="text" class="secenek-input" placeholder="Seçenek..." value="${deger}"><button type="button" class="secenek-sil" onclick="this.parentElement.remove()">×</button></div>`;
+      }
+
+      window.secenek_ekle = (containerId) => {
+        document
+          .getElementById(containerId)
+          .insertAdjacentHTML("beforeend", secenek_html(""));
+      };
+
+      window.soruSil = (id) => {
+        document.getElementById(id)?.remove();
+        const container = document.getElementById("sorularContainer");
+        if (!container.children.length)
+          document.getElementById("soruYok").style.display = "block";
+        // Numaraları güncelle
+        container
+          .querySelectorAll(".soru-no")
+          .forEach((el, i) => (el.textContent = i + 1));
+      };
+
+      function sorulariOku() {
+        const sorular = [];
+        document.querySelectorAll(".soru-kart").forEach((kart) => {
+          const metin = kart
+            .querySelector('[data-alan="metin"]')
+            ?.value?.trim();
+          const tip = kart.querySelector('[data-alan="tip"]')?.value;
+          const zorunlu =
+            kart.querySelector('[data-alan="zorunlu"]')?.checked || false;
+          if (!metin) return;
+          const s = { metin, tip, zorunlu };
+          if (tip === "tek_secim" || tip === "coklu_secim") {
+            s.secenekler = Array.from(kart.querySelectorAll(".secenek-input"))
+              .map((i) => i.value.trim())
+              .filter(Boolean);
+          }
+          sorular.push(s);
+        });
+        return sorular;
+      }
+
+      window.formuKaydet = async (durum) => {
+        const baslik = document.getElementById("formBaslik")?.value?.trim();
+        if (!baslik) {
+          mesajGoster("olusturMesaj", "Form başlığı zorunlu.", "hata");
+          return;
+        }
+
+        const sorular = sorulariOku();
+        if (!sorular.length) {
+          mesajGoster("olusturMesaj", "En az 1 soru ekleyin.", "hata");
+          return;
+        }
+
+        const veri = {
+          baslik,
+          aciklama:
+            document.getElementById("formAciklama")?.value?.trim() || "",
+          son_tarih: document.getElementById("formSonTarih")?.value || null,
+          anonim: document.getElementById("formAnonim")?.checked || false,
+          hedef_kitle: hedefObjesi(),
+          sorular,
+          durum,
+          olusturan: aktifUid,
+          olusturma_tarihi: serverTimestamp(),
+        };
+
+        // Şablon olarak kaydet
+        if (document.getElementById("formSablon")?.checked) {
+          await addDoc(collection(db, "anket_sablonlar"), {
+            baslik,
+            sorular,
+            kategori: "genel",
+            tarih: serverTimestamp(),
+          });
+        }
+
+        if (duzenlenenAnketId) {
+          await updateDoc(doc(db, "anketler", duzenlenenAnketId), veri);
+          mesajGoster("olusturMesaj", "Form güncellendi.", "basari");
+        } else {
+          await addDoc(collection(db, "anketler"), veri);
+          mesajGoster(
+            "olusturMesaj",
+            durum === "aktif" ? "Form yayınlandı!" : "Taslak kaydedildi.",
+            "basari",
+          );
+        }
+
+        setTimeout(() => {
+          adminFormlarGoster();
+          document.querySelector(".sekme-btn").click();
+        }, 1500);
+      };
+
+      window.anketYayinla = async (id) => {
+        await updateDoc(doc(db, "anketler", id), { durum: "aktif" });
+        adminFormlarGoster();
+      };
+
+      window.anketKapat = async (id) => {
+        if (!confirm("Formu kapatmak istiyor musunuz?")) return;
+        await updateDoc(doc(db, "anketler", id), { durum: "kapali" });
+        adminFormlarGoster();
+      };
+
+      window.anketSil = async (id) => {
+        if (!confirm("Bu formu ve tüm yanıtları silmek istiyor musunuz?"))
+          return;
+        await deleteDoc(doc(db, "anketler", id));
+        const yanSnap = await getDocs(
+          query(collection(db, "anket_yanitlar"), where("anket_id", "==", id)),
+        );
+        await Promise.all(yanSnap.docs.map((d) => deleteDoc(d.ref)));
+        adminFormlarGoster();
+      };
+
+      window.adminDuzenle = async (id) => {
+        duzenlenenAnketId = id;
+        const anketDoc = await getDoc(doc(db, "anketler", id));
+        const anket = { id: anketDoc.id, ...anketDoc.data() };
+        document
+          .querySelector("[onclick=\"adminSekme('olustur', this)\"]")
+          .click();
+        adminFormOlustur(anket);
+        document.getElementById("formBaslik").value = anket.baslik;
+        document.getElementById("formAciklama").value = anket.aciklama || "";
+        document.getElementById("formSonTarih").value = anket.son_tarih || "";
+        document.getElementById("formAnonim").checked = anket.anonim || false;
+      };
+
+      // ── SONUÇLAR ──
+      window.adminSonuclar = async (anketId) => {
+        const c = document.getElementById("asekme-formlar");
+        c.innerHTML = '<div class="yukleniyor">Yükleniyor...</div>';
+
+        const anketDoc = await getDoc(doc(db, "anketler", anketId));
+        const anket = { id: anketDoc.id, ...anketDoc.data() };
+        const sorular = anket.sorular || [];
+
+        const yanSnap = await getDocs(
+          query(
+            collection(db, "anket_yanitlar"),
+            where("anket_id", "==", anketId),
+          ),
+        );
+        const yanitlar = [];
+        yanSnap.forEach((d) => yanitlar.push(d.data()));
+
+        const hedefIds = hedefOgretmenleri(anket.hedef_kitle);
+        const yanıtliIds = new Set(yanitlar.map((y) => y.ogretmen_id));
+        const yanıtlamayanlar = hedefIds
+          .filter((id) => !yanıtliIds.has(id))
+          .map((id) => tumOgretmenler.find((o) => o.id === id)?.ad)
+          .filter(Boolean);
+
+        let html = `
+          <button class="btn btn-gri btn-sm" onclick="adminFormlarGoster()" style="margin-bottom:16px;">← Geri</button>
+          <div class="kart">
+            <div class="kart-baslik">${anket.baslik} — Sonuçlar</div>
+            <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
+              <span class="rozet rozet-yesil">✓ ${yanitlar.length} yanıt</span>
+              <span class="rozet rozet-kirmizi">✗ ${yanıtlamayanlar.length} yanıtlamadı</span>
+              <span class="rozet rozet-mavi">👥 ${hedefIds.length} hedef</span>
+            </div>`;
+
+        // Yanıtlamayanlar listesi
+        if (yanıtlamayanlar.length) {
+          // Yanıt verenler accordion
+          if (!anket.anonim && yanitlar.length) {
+            html += `<div style="background:#e6f4ea;border-radius:8px;padding:12px;margin-bottom:14px;">
+            <div style="font-size:13px;font-weight:700;color:#1e7e34;margin-bottom:8px;">✓ Yanıtlayan Öğretmenler (${yanitlar.length})</div>`;
+            yanitlar.forEach((y, yi) => {
+              html += `<div style="margin-bottom:4px;">
+              <div style="cursor:pointer;padding:6px 10px;background:white;border-radius:6px;font-size:13px;font-weight:600;color:#333;" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
+                📋 ${y.ogretmen_ad || "Bilinmiyor"} <span style="color:#888;font-size:11px;">▼</span>
+              </div>
+              <div style="display:none;background:white;border-radius:6px;padding:10px;margin-top:2px;">`;
+              sorular.forEach((s, idx) => {
+                const val = y.yanitlar?.["s" + idx];
+                if (val === undefined || val === null || val === "") return;
+                const gosterVal = Array.isArray(val) ? val.join(", ") : val;
+                html += `<div style="margin-bottom:5px;font-size:13px;"><span style="color:#888;">${idx + 1}. ${s.metin}:</span> <strong>${gosterVal}</strong></div>`;
+              });
+              html += `</div></div>`;
+            });
+            html += "</div>";
+          }
+
+          html += `<div style="background:#fce8e6;border-radius:8px;padding:12px;margin-bottom:14px;">
+            <div style="font-size:13px;font-weight:700;color:#c5221f;margin-bottom:6px;">Yanıtlamayan Öğretmenler:</div>
+            <div style="font-size:13px;color:#333;">${yanıtlamayanlar.join(", ")}</div>
+            <button class="kopyala-btn" style="margin-top:8px;" onclick="kopyala('${yanıtlamayanlar.join(", ")}')">📋 Kopyala</button>
+          </div>`;
+        }
+        html += "</div>";
+
+        // Soru bazında istatistikler
+        sorular.forEach((s, idx) => {
+          const soruYanitlari = yanitlar
+            .map((y) => y.yanitlar?.["s" + idx])
+            .filter((y) => y !== undefined && y !== null && y !== "");
+
+          html += `<div class="kart"><div class="kart-baslik" style="font-size:14px;">${idx + 1}. ${s.metin}</div>`;
+
+          if (s.tip === "kisa_metin" || s.tip === "uzun_metin") {
+            html += `<div style="font-size:13px;color:#888;margin-bottom:8px;">${soruYanitlari.length} yanıt</div>`;
+
+            soruYanitlari.forEach((y) => {
+              html += `<div style="background:#f8f9fa;border-radius:6px;padding:8px 12px;margin-bottom:6px;font-size:13px;">${y}</div>`;
+            });
+            if (soruYanitlari.length >= 3) {
+              html += `<button class="btn btn-mor btn-sm" style="margin-top:10px;" onclick="aiOzetle('${anketId}', ${idx})">🤖 Yapay Zeka ile Özetle</button>`;
+              html += `<div id="aiOzet_${idx}"></div>`;
+            }
+          } else if (s.tip === "sayi") {
+            if (soruYanitlari.length) {
+              const sayilar = soruYanitlari
+                .map(Number)
+                .filter((n) => !isNaN(n));
+              const ort = (
+                sayilar.reduce((a, b) => a + b, 0) / sayilar.length
+              ).toFixed(1);
+              const min = Math.min(...sayilar);
+              const max = Math.max(...sayilar);
+              html += `<div style="display:flex;gap:16px;flex-wrap:wrap;">
+                <span>Ortalama: <strong>${ort}</strong></span>
+                <span>Min: <strong>${min}</strong></span>
+                <span>Max: <strong>${max}</strong></span>
+                <span>Yanıt: <strong>${sayilar.length}</strong></span>
+              </div>`;
+            }
+          } else if (s.tip === "puan") {
+            if (soruYanitlari.length) {
+              const puanlar = soruYanitlari
+                .map(Number)
+                .filter((n) => !isNaN(n));
+              const ort = (
+                puanlar.reduce((a, b) => a + b, 0) / puanlar.length
+              ).toFixed(1);
+              html += `<div style="margin-bottom:8px;">Ortalama puan: <strong style="color:#1a73e8;font-size:16px;">${ort}/10</strong></div>`;
+              html += '<div class="stat-bar-wrap">';
+              for (let p = 1; p <= 10; p++) {
+                const sayi = puanlar.filter((x) => x === p).length;
+                const yuzde =
+                  sayi > 0 ? Math.round((sayi / puanlar.length) * 100) : 0;
+                html += `<div class="stat-bar-item">
+                  <div class="stat-bar-label">${p} puan</div>
+                  <div class="stat-bar"><div class="stat-bar-dolgu" style="width:${yuzde}%"></div></div>
+                  <div class="stat-bar-sayi">${sayi} (${yuzde}%)</div>
+                </div>`;
+              }
+              html += "</div>";
+            }
+          } else if (s.tip === "tek_secim" || s.tip === "coklu_secim") {
+            const sayimlar = {};
+            soruYanitlari.forEach((y) => {
+              const degerler = Array.isArray(y) ? y : [y];
+              degerler.forEach((d) => {
+                sayimlar[d] = (sayimlar[d] || 0) + 1;
+              });
+            });
+            const toplam = soruYanitlari.length || 1;
+            html += '<div class="stat-bar-wrap">';
+            (s.secenekler || []).forEach((sec) => {
+              const sayi = sayimlar[sec] || 0;
+              const yuzde = Math.round((sayi / toplam) * 100);
+              html += `<div class="stat-bar-item">
+                <div class="stat-bar-label">${sec}</div>
+                <div class="stat-bar"><div class="stat-bar-dolgu" style="width:${yuzde}%"></div></div>
+                <div class="stat-bar-sayi">${sayi} (${yuzde}%)</div>
+              </div>`;
+            });
+            html += "</div>";
+          }
+
+          html += "</div>";
+        });
+
+        // Excel export
+        html += `<button class="btn btn-yesil" onclick="excelExport('${anketId}')">📥 Excel İndir</button>`;
+
+        c.innerHTML = html;
+      };
+
+      // AI ÖZET
+      window.aiOzetle = async (anketId, soruIdx) => {
+        const el = document.getElementById("aiOzet_" + soruIdx);
+        el.innerHTML =
+          '<div style="color:#7c4dff;font-size:13px;padding:10px;">🤖 Yapay zeka analiz yapıyor...</div>';
+
+        const yanSnap = await getDocs(
+          query(
+            collection(db, "anket_yanitlar"),
+            where("anket_id", "==", anketId),
+          ),
+        );
+        const yanitlar = [];
+        yanSnap.forEach((d) => {
+          const y = d.data().yanitlar?.["s" + soruIdx];
+          if (y) yanitlar.push(y);
+        });
+
+        if (!yanitlar.length) {
+          el.innerHTML = '<div style="color:#888;">Yeterli yanıt yok.</div>';
+          return;
+        }
+
+        const prompt = `Aşağıda bir okuldaki öğretmenlerin bir soruya verdiği yanıtlar var. Bu yanıtları analiz et ve:
+      1. Benzer görüşleri birleştir
+      2. Madde madde özetle
+      3. En çok tekrarlanan temayı vurgula
+      4. Dikkat çeken farklı görüşleri belirt
+
+      Yanıtlar:
+      ${yanitlar.map((y, i) => `${i + 1}. ${y}`).join("\n")}
+
+      Türkçe olarak madde madde özetle.`;
+
+        try {
+          const response = await fetch(
+            "https://api.anthropic.com/v1/messages",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                model: "claude-sonnet-4-20250514",
+                max_tokens: 1000,
+                messages: [{ role: "user", content: prompt }],
+              }),
+            },
+          );
+          const data = await response.json();
+          const ozet = data.content?.[0]?.text || "Özet oluşturulamadı.";
+          el.innerHTML = `<div class="ai-ozet-kutu"><h4>🤖 Yapay Zeka Özeti</h4><div class="ai-ozet-metin">${ozet}</div></div>`;
+        } catch (err) {
+          el.innerHTML =
+            '<div style="color:#ea4335;">Özet alınamadı: ' +
+            err.message +
+            "</div>";
+        }
+      };
+
+      // EXCEL EXPORT
+      window.excelExport = async (anketId) => {
+        const anketDoc = await getDoc(doc(db, "anketler", anketId));
+        const anket = anketDoc.data();
+        const sorular = anket.sorular || [];
+
+        const yanSnap = await getDocs(
+          query(
+            collection(db, "anket_yanitlar"),
+            where("anket_id", "==", anketId),
+          ),
+        );
+        const rows = [["Öğretmen", ...sorular.map((s) => s.metin)]];
+        yanSnap.forEach((d) => {
+          const y = d.data();
+          const satir = [y.ogretmen_ad || "Anonim"];
+          sorular.forEach((s, idx) => {
+            const val = y.yanitlar?.["s" + idx];
+            satir.push(Array.isArray(val) ? val.join(", ") : val || "");
+          });
+          rows.push(satir);
+        });
+
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Yanıtlar");
+        XLSX.writeFile(wb, anket.baslik + "_sonuclar.xlsx");
+      };
+
+      window.kopyala = (metin) => {
+        navigator.clipboard.writeText(metin);
+        alert("Kopyalandı!");
+      };
+
+      // ŞABLONLAR
+      async function adminSablonlarGoster() {
+        const c = document.getElementById("asekme-sablonlar");
+        const snap = await getDocs(collection(db, "anket_sablonlar"));
+        const sablonlar = [];
+        snap.forEach((d) => sablonlar.push({ id: d.id, ...d.data() }));
+
+        if (!sablonlar.length) {
+          c.innerHTML =
+            '<div class="kart"><div class="bos-mesaj">Henüz şablon kaydedilmemiş.<br>Form oluştururken "Şablon olarak kaydet" seçeneğini kullanın.</div></div>';
+          return;
+        }
+
+        c.innerHTML = sablonlar
+          .map(
+            (s) => `
+          <div class="anket-kart">
+            <div class="anket-kart-baslik">${s.baslik}</div>
+            <div class="anket-kart-alt"><span>${(s.sorular || []).length} soru</span></div>
+            <div class="anket-kart-butonlar">
+              <button class="btn btn-mavi btn-sm" onclick="sablondanOlustur('${s.id}')">Bu Şablondan Form Oluştur</button>
+              <button class="btn btn-kirmizi btn-sm" onclick="sablonSil('${s.id}')">Sil</button>
+            </div>
+          </div>`,
+          )
+          .join("");
+      }
+
+      window.sablondanOlustur = async (id) => {
+        const snap = await getDoc(doc(db, "anket_sablonlar", id));
+        const sablon = snap.data();
+        document
+          .querySelector("[onclick=\"adminSekme('olustur', this)\"]")
+          .click();
+        adminFormOlustur(sablon);
+      };
+
+      window.sablonSil = async (id) => {
+        if (!confirm("Şablonu silmek istiyor musunuz?")) return;
+        await deleteDoc(doc(db, "anket_sablonlar", id));
+        adminSablonlarGoster();
+      };
+
+      function mesajGoster(id, metin, tip) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.textContent = metin;
+        el.className = "mesaj mesaj-" + tip;
+        if (tip !== "bilgi") setTimeout(() => (el.className = "mesaj"), 4000);
+      }
+
+      // Otomatik kapanma kontrolü (her 5 dakikada)
+      setInterval(async () => {
+        const snap = await getDocs(
+          query(collection(db, "anketler"), where("durum", "==", "aktif")),
+        );
+        snap.forEach(async (d) => {
+          const a = d.data();
+          if (a.son_tarih && new Date(a.son_tarih) < new Date()) {
+            await updateDoc(d.ref, { durum: "kapali" });
+          }
+        });
+      }, 300000);
+    </script>
+  </body>
+</html>

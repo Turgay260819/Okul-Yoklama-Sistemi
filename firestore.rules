@@ -205,6 +205,17 @@ service cloud.firestore {
       allow read: if isLoggedIn();
       allow write: if isYonetim();
     }
+    match /anketler/{docId} {
+      allow read: if isLoggedIn();
+      allow write: if isYonetim();
+    }
+    match /anket_yanitlar/{docId} {
+      allow read: if isLoggedIn();
+      allow write: if isLoggedIn();
+    }
+    match /anket_sablonlar/{docId} {
+      allow read, write: if isYonetim();
+    }
   }
 
 }
