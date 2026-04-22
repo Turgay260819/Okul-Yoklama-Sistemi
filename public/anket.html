@@ -989,10 +989,12 @@
             <button class="sekme-btn aktif" onclick="adminSekme('formlar', this)">📋 Formlar</button>
             <button class="sekme-btn" onclick="adminSekme('olustur', this)">➕ Form Oluştur</button>
             <button class="sekme-btn" onclick="adminSekme('sablonlar', this)">📁 Şablonlar</button>
+            <button class="sekme-btn" onclick="adminSekme('ogretmenler', this)">👥 Öğretmen Ayarları</button>
           </div>
           <div class="sekme-icerik aktif" id="asekme-formlar"></div>
           <div class="sekme-icerik" id="asekme-olustur"></div>
-          <div class="sekme-icerik" id="asekme-sablonlar"></div>`;
+          <div class="sekme-icerik" id="asekme-sablonlar"></div>
+          <div class="sekme-icerik" id="asekme-ogretmenler"></div>`;
         adminFormlarGoster();
       }
 
@@ -1010,6 +1012,7 @@
           duzenlenenAnketId = null;
           adminFormOlustur();
         } else if (id === "sablonlar") adminSablonlarGoster();
+        else if (id === "ogretmenler") adminOgretmenlerGoster();
       };
 
       async function adminFormlarGoster() {
@@ -1718,6 +1721,93 @@
           .querySelector("[onclick=\"adminSekme('olustur', this)\"]")
           .click();
         adminFormOlustur(sablon);
+      };
+
+      window.adminOgretmenlerGoster = async () => {
+        const c = document.getElementById("asekme-ogretmenler");
+        c.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
+        const subeler = [];
+        for (const sinif of ["5", "6", "7", "8"]) {
+          for (const sube of ["A", "B", "C", "D", "E", "F", "G", "H"]) {
+            subeler.push(sinif + sube);
+          }
+        }
+        let html =
+          '<div class="kart"><div class="kart-baslik">Ogretmen Rehber Sube Atamalari</div>';
+        html +=
+          '<p style="font-size:13px;color:#888;margin-bottom:16px;">Her ogretmene rehber oldugu subeyi atayın.</p>';
+        html +=
+          "<table><thead><tr><th>Ogretmen</th><th>Brans</th><th>Rehber Sube</th><th>Sinif Seviyesi</th><th></th></tr></thead><tbody>";
+        tumOgretmenler.forEach((o) => {
+          const subeOptions =
+            '<option value="">-- Yok --</option>' +
+            subeler
+              .map(
+                (s) =>
+                  '<option value="' +
+                  s +
+                  '"' +
+                  (o.rehberSube === s ? " selected" : "") +
+                  ">" +
+                  s +
+                  "</option>",
+              )
+              .join("");
+          const sinifOptions =
+            '<option value="">-- Yok --</option>' +
+            ["5", "6", "7", "8"]
+              .map(
+                (s) =>
+                  '<option value="' +
+                  s +
+                  '"' +
+                  (o.sinifSeviye === s ? " selected" : "") +
+                  ">" +
+                  s +
+                  ". Sinif</option>",
+              )
+              .join("");
+          html +=
+            "<tr><td><strong>" +
+            (o.ad || "") +
+            "</strong></td><td>" +
+            (o.brans || "-") +
+            "</td>";
+          html +=
+            '<td><select id="sube_' +
+            o.id +
+            '" style="padding:6px 10px;border:1.5px solid #e0e0e0;border-radius:6px;font-size:13px;font-family:inherit;">' +
+            subeOptions +
+            "</select></td>";
+          html +=
+            '<td><select id="sinif_' +
+            o.id +
+            '" style="padding:6px 10px;border:1.5px solid #e0e0e0;border-radius:6px;font-size:13px;font-family:inherit;">' +
+            sinifOptions +
+            "</select></td>";
+          html +=
+            '<td><button class="btn btn-yesil btn-sm" onclick="ogretmenGuncelle(\'' +
+            o.id +
+            "')\">Kaydet</button></td></tr>";
+        });
+        html +=
+          '</tbody></table><div class="mesaj" id="ogretmenAtamaMesaj"></div></div>';
+        c.innerHTML = html;
+      };
+
+      window.ogretmenGuncelle = async (ogretmenId) => {
+        const sube = document.getElementById("sube_" + ogretmenId).value;
+        const sinif = document.getElementById("sinif_" + ogretmenId).value;
+        await updateDoc(doc(db, "teachers", ogretmenId), {
+          rehberSube: sube || "",
+          sinifSeviye: sinif || "",
+        });
+        const ogr = tumOgretmenler.find((o) => o.id === ogretmenId);
+        if (ogr) {
+          ogr.rehberSube = sube;
+          ogr.sinifSeviye = sinif;
+        }
+        mesajGoster("ogretmenAtamaMesaj", "Kaydedildi.", "basari");
       };
 
       window.sablonSil = async (id) => {
