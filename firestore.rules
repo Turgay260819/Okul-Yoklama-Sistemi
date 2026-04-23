@@ -216,6 +216,14 @@ service cloud.firestore {
     match /anket_sablonlar/{docId} {
       allow read, write: if isYonetim();
     }
+    match /ogrenci_veriler/{docId} {
+      allow read: if isLoggedIn();
+      allow write: if isLoggedIn();
+    }
+    match /ogrenci_yetenekler/{docId} {
+      allow read: if isLoggedIn();
+      allow write: if isLoggedIn();
+    }
   }
 
 }
