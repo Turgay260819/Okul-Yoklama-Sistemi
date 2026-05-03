@@ -3044,7 +3044,7 @@
           });
         container.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
 
-        // Bugunun derslerini getir
+        // 1. Bugünün derslerini getir
         const snap = await getDocs(
           query(collection(db, "today_lessons"), where("date", "==", bugun)),
         );
@@ -3061,61 +3061,80 @@
         }
         dersler.sort((a, b) => a.lesson_number - b.lesson_number);
 
-        // Takvim ve tatil bilgisini getir (kazanim icin)
+        // 2. Günlük cache kontrolü — kazanımlar bugün zaten yüklendiyse tekrar sorgu yapma
+        const cacheKey = "kazanim_cache_" + bugun + "_" + aktifOgretmenDoc?.id;
+        let kazanimOnbellek = {};
         let haftaNo = null;
-        try {
-          const takvimSnap = await getDocs(collection(db, "kazanim_takvim"));
-          if (!takvimSnap.empty) {
-            const takvim = takvimSnap.docs[0].data();
-            if (takvim.baslangic_tarihi) {
-              const tatilSnap = await getDocs(collection(db, "kazanim_tatil"));
-              const tatiller = [];
-              tatilSnap.forEach((d) => tatiller.push(d.data()));
-              haftaNo = haftaNoHesapla(
-                takvim.baslangic_tarihi,
-                bugun,
-                tatiller,
-              );
+        const cachedStr = sessionStorage.getItem(cacheKey);
+        if (cachedStr) {
+          try {
+            const cached = JSON.parse(cachedStr);
+            kazanimOnbellek = cached.kazanimOnbellek || {};
+            haftaNo = cached.haftaNo;
+          } catch (e) {}
+        } else {
+          // Cache yoksa Firestore'dan getir
+          try {
+            const takvimSnap = await getDocs(collection(db, "kazanim_takvim"));
+            if (!takvimSnap.empty) {
+              const takvim = takvimSnap.docs[0].data();
+              if (takvim.baslangic_tarihi) {
+                const tatilSnap = await getDocs(
+                  collection(db, "kazanim_tatil"),
+                );
+                const tatiller = [];
+                tatilSnap.forEach((d) => tatiller.push(d.data()));
+                haftaNo = haftaNoHesapla(
+                  takvim.baslangic_tarihi,
+                  bugun,
+                  tatiller,
+                );
+                if (haftaNo) {
+                  const kombinasyonlar = new Map();
+                  dersler.forEach((d) => {
+                    const seviye = parseInt(d.class_id.charAt(0));
+                    if (!seviye || !d.lesson_name) return;
+                    const key = seviye + "|" + d.lesson_name;
+                    if (!kombinasyonlar.has(key))
+                      kombinasyonlar.set(key, {
+                        seviye,
+                        dersAdi: d.lesson_name,
+                      });
+                  });
+                  for (const [key, k] of kombinasyonlar) {
+                    const dersSnap = await getDocs(
+                      query(
+                        collection(db, "kazanim_dersler"),
+                        where("ders_adi", "==", k.dersAdi),
+                        where("sinif_seviyesi", "==", k.seviye),
+                      ),
+                    );
+                    if (dersSnap.empty) continue;
+                    const kazSnap = await getDocs(
+                      query(
+                        collection(db, "kazanim_listesi"),
+                        where("ders_id", "==", dersSnap.docs[0].id),
+                        where("hafta_no", "==", haftaNo),
+                      ),
+                    );
+                    if (!kazSnap.empty)
+                      kazanimOnbellek[key] = {
+                        metin: kazSnap.docs[0].data().kazanim,
+                        hafta: haftaNo,
+                      };
+                  }
+                  // Session storage'a kaydet (sayfa yenilenene kadar geçerli)
+                  sessionStorage.setItem(
+                    cacheKey,
+                    JSON.stringify({ kazanimOnbellek, haftaNo }),
+                  );
+                }
+              }
             }
-          }
-        } catch (e) {}
-
-        // Benzersiz ders+seviye kombinasyonlari icin kazanimlari onbellege al
-        const kazanimOnbellek = {};
-        if (haftaNo) {
-          const kombinasyonlar = new Map();
-          dersler.forEach((d) => {
-            const seviye = parseInt(d.class_id.charAt(0));
-            if (!seviye || !d.lesson_name) return;
-            const key = seviye + "|" + d.lesson_name;
-            if (!kombinasyonlar.has(key))
-              kombinasyonlar.set(key, { seviye, dersAdi: d.lesson_name });
-          });
-          for (const [key, k] of kombinasyonlar) {
-            const dersSnap = await getDocs(
-              query(
-                collection(db, "kazanim_dersler"),
-                where("ders_adi", "==", k.dersAdi),
-                where("sinif_seviyesi", "==", k.seviye),
-              ),
-            );
-            if (dersSnap.empty) continue;
-            const kazSnap = await getDocs(
-              query(
-                collection(db, "kazanim_listesi"),
-                where("ders_id", "==", dersSnap.docs[0].id),
-                where("hafta_no", "==", haftaNo),
-              ),
-            );
-            if (!kazSnap.empty)
-              kazanimOnbellek[key] = {
-                metin: kazSnap.docs[0].data().kazanim,
-                hafta: haftaNo,
-              };
-          }
+          } catch (e) {}
         }
 
-        // Yoklama durumlarini tek seferde getir
+        // 3. Yoklama durumlarını getir
         const yoklamaSnap = await getDocs(
           query(collection(db, "attendance"), where("date", "==", bugun)),
         );
@@ -3125,7 +3144,7 @@
           yoklamaSet.add(data.class_id + "|" + data.lesson_number);
         });
 
-        // Kazanimlari grupla (ders bazinda)
+        // 4. Kazanımları grupla
         const gosterilecekKazanimlar = new Map();
         dersler.forEach((d) => {
           const seviye = parseInt(d.class_id.charAt(0));
@@ -3148,7 +3167,7 @@
 
         let html = "";
 
-        // Kazanim karti
+        // 5. Kazanım kartı
         if (gosterilecekKazanimlar.size > 0) {
           html +=
             '<div style="background:var(--mavi-acik);border-radius:14px;padding:16px 20px;margin-bottom:20px;border-left:4px solid var(--mavi);">';
@@ -3159,7 +3178,7 @@
           for (const [key, k] of gosterilecekKazanimlar) {
             const sinifStr = [...k.siniflar].sort().join(", ");
             html +=
-              '<div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid rgba(26,115,232,0.15);last-child:border-bottom:none;">';
+              '<div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid rgba(26,115,232,0.15);">';
             html +=
               '<div style="font-size:12px;color:var(--mavi);margin-bottom:4px;font-weight:700;">' +
               k.seviye +
@@ -3177,8 +3196,7 @@
           html += "</div>";
         }
 
-        // Ders kartlari — her ders icin ayri kart
-        // Ayni sinif+ders kombinasyonunu grupla
+        // 6. Ders kartları — sınıf bazında, akordiyon yoklama
         const gruplar = new Map();
         dersler.forEach((d) => {
           const key = d.class_id + "|" + d.lesson_name;
@@ -3194,20 +3212,32 @@
             .map((d) => d.lesson_number)
             .sort((a, b) => a - b);
           const dersNoStr = dersNolari.join(". ve ") + ". Ders";
-
-          // Tum derslerin yoklamasi girildi mi?
           const hepsiGirildi = grup.every((d) =>
             yoklamaSet.has(d.class_id + "|" + d.lesson_number),
           );
+
+          // Yoklaması tamamlanan sınıfı gösterme
+          if (hepsiGirildi) continue;
+
           const biriBileGirildi = grup.some((d) =>
             yoklamaSet.has(d.class_id + "|" + d.lesson_number),
           );
+          const kartId =
+            "kart_" + sinif.replace(/\s/g, "") + "_" + dersNolari[0];
 
           html +=
             '<div class="ders-kart ' +
-            (hepsiGirildi ? "girildi" : biriBileGirildi ? "" : "eksik") +
+            (biriBileGirildi ? "" : "eksik") +
+            '" id="' +
+            kartId +
             '">';
-          html += '<div style="flex:1;">';
+          html += '<div style="width:100%;">';
+          // Kart başlığı — tıklanınca açılır
+          html +=
+            '<div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="yoklamaAkordiyon(\'' +
+            kartId +
+            "')\">";
+          html += "<div>";
           html +=
             '<div class="ders-bilgi-baslik">' +
             sinif +
@@ -3216,46 +3246,201 @@
             "</div>";
           html += '<div class="ders-bilgi-alt">' + dersNoStr + "</div>";
           html += "</div>";
-
-          if (hepsiGirildi) {
-            html += '<span class="rozet rozet-yesil">Girildi</span>';
-          } else {
-            // Her ders icin ayri buton
-            html += '<div style="display:flex;flex-direction:column;gap:6px;">';
-            grup.forEach((d) => {
-              const girildi = yoklamaSet.has(
-                d.class_id + "|" + d.lesson_number,
-              );
-              if (girildi) {
-                html +=
-                  '<span class="rozet rozet-yesil" style="font-size:12px;">' +
-                  d.lesson_number +
-                  ". Ders ✓</span>";
-              } else {
-                html +=
-                  '<button class="btn btn-mavi btn-sm" onclick="yoklamaAc(\'' +
-                  d.id +
-                  "','" +
-                  d.class_id +
-                  "'," +
-                  d.lesson_number +
-                  ",'" +
-                  (d.lesson_name || "") +
-                  "','" +
-                  d.teacher_id +
-                  "')\">" +
-                  d.lesson_number +
-                  ". Ders Yoklama</button>";
-              }
-            });
-            html += "</div>";
-          }
-
+          html +=
+            '<span id="ok_' +
+            kartId +
+            '" style="font-size:20px;color:var(--mavi);transition:transform 0.2s;">▼</span>';
           html += "</div>";
+
+          // Yoklama paneli — varsayılan kapalı
+          html +=
+            '<div id="panel_' +
+            kartId +
+            '" style="display:none;margin-top:12px;">';
+          html += await yoklamaPaneliOlustur(grup, sinif);
+          html += "</div>";
+          html += "</div></div>";
+        }
+
+        if (!html || html === "") {
+          html =
+            '<div style="background:#e6f4ea;border-radius:12px;padding:16px;text-align:center;font-weight:600;color:#1e7e34;">✓ Bugünün tüm yoklamaları girildi!</div>';
         }
 
         container.innerHTML = html;
       }
+
+      // Akordiyon aç/kapat
+      window.yoklamaAkordiyon = (kartId) => {
+        const panel = document.getElementById("panel_" + kartId);
+        const ok = document.getElementById("ok_" + kartId);
+        if (!panel) return;
+        const acik = panel.style.display !== "none";
+        panel.style.display = acik ? "none" : "block";
+        if (ok) ok.style.transform = acik ? "" : "rotate(180deg)";
+      };
+
+      // Yoklama paneli HTML oluştur
+      async function yoklamaPaneliOlustur(grup, sinif) {
+        // Sınıf öğrencilerini getir
+        const ogrSnap = await getDocs(
+          query(collection(db, "students"), where("class_id", "==", sinif)),
+        );
+        const ogrenciler = [];
+        ogrSnap.forEach((d) => ogrenciler.push({ id: d.id, ...d.data() }));
+        ogrenciler.sort((a, b) =>
+          (a.name || "").localeCompare(b.name || "", "tr"),
+        );
+
+        if (!ogrenciler.length)
+          return '<div style="color:#888;font-size:13px;">Öğrenci bulunamadı.</div>';
+
+        const dersNolari = grup
+          .map((d) => d.lesson_number)
+          .sort((a, b) => a - b);
+        const ilkDers = grup[0];
+        let html = "";
+
+        // Her ders için ayrı yoklama paneli
+        for (const dersNo of dersNolari) {
+          const dersObj = grup.find((d) => d.lesson_number === dersNo);
+          if (!dersObj) continue;
+
+          html += '<div style="margin-bottom:16px;">';
+          html +=
+            '<div style="font-size:12px;font-weight:700;color:#888;margin-bottom:8px;">' +
+            dersNo +
+            ". DERS YOKLAMASI</div>";
+          html +=
+            '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px;margin-bottom:10px;">';
+
+          ogrenciler.forEach((ogr) => {
+            const ogrId = "yok_" + sinif + "_" + dersNo + "_" + ogr.id;
+            html +=
+              '<label style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#f8f9fa;border-radius:8px;cursor:pointer;font-size:13px;">';
+            html +=
+              '<input type="checkbox" id="' +
+              ogrId +
+              '" value="' +
+              ogr.id +
+              '" style="width:16px;height:16px;">';
+            html += "<span>" + (ogr.name || ogr.ad || "") + "</span>";
+            html += "</label>";
+          });
+
+          html += "</div>";
+          html += '<div style="display:flex;gap:8px;">';
+          html +=
+            '<button class="btn btn-yesil btn-sm" onclick="yoklamaKaydet(\'' +
+            dersObj.id +
+            "','" +
+            sinif +
+            "'," +
+            dersNo +
+            ",'" +
+            (ilkDers.teacher_id || "") +
+            "','" +
+            ilkDers.lesson_name +
+            "')\">💾 Kaydet</button>";
+          html +=
+            '<button class="btn btn-gri btn-sm" onclick="tumunuSec(\'' +
+            sinif +
+            "'," +
+            dersNo +
+            ')">Tümünü Seç</button>';
+          html += "</div>";
+          html +=
+            '<div id="yokMesaj_' +
+            sinif +
+            "_" +
+            dersNo +
+            '" style="font-size:13px;margin-top:6px;"></div>';
+          html += "</div>";
+        }
+        return html;
+      }
+
+      // Tümünü seç/kaldır
+      window.tumunuSec = (sinif, dersNo) => {
+        const checkboxlar = document.querySelectorAll(
+          '[id^="yok_' + sinif + "_" + dersNo + '_"]',
+        );
+        const hepsiSecili = Array.from(checkboxlar).every((c) => c.checked);
+        checkboxlar.forEach((c) => (c.checked = !hepsiSecili));
+      };
+
+      // Yoklama kaydet — işaretlenenler GELMEDİ, işaretlenmeyenler GELDİ
+      window.yoklamaKaydet = async (
+        dersId,
+        sinif,
+        dersNo,
+        teacherId,
+        dersAdi,
+      ) => {
+        const checkboxlar = document.querySelectorAll(
+          '[id^="yok_' + sinif + "_" + dersNo + '_"]',
+        );
+        const gelmeyenler = [];
+        checkboxlar.forEach((c) => {
+          if (c.checked) gelmeyenler.push(c.value);
+        });
+
+        const mesajEl = document.getElementById(
+          "yokMesaj_" + sinif + "_" + dersNo,
+        );
+        if (mesajEl)
+          mesajEl.innerHTML =
+            '<span style="color:#1a73e8;">Kaydediliyor...</span>';
+
+        try {
+          // Mevcut yoklamayı sil
+          const eskiSnap = await getDocs(
+            query(
+              collection(db, "attendance"),
+              where("date", "==", bugun),
+              where("class_id", "==", sinif),
+              where("lesson_number", "==", dersNo),
+            ),
+          );
+          await Promise.all(eskiSnap.docs.map((d) => deleteDoc(d.ref)));
+
+          // Yeni yoklamayı kaydet
+          const ogrSnap = await getDocs(
+            query(collection(db, "students"), where("class_id", "==", sinif)),
+          );
+          const tumOgrenciler = [];
+          ogrSnap.forEach((d) => tumOgrenciler.push({ id: d.id, ...d.data() }));
+
+          const kayitlar = tumOgrenciler.map((ogr) => {
+            const gelmedi = gelmeyenler.includes(ogr.id);
+            return addDoc(collection(db, "attendance"), {
+              date: bugun,
+              class_id: sinif,
+              lesson_number: dersNo,
+              student_id: ogr.id,
+              student_name: ogr.name || ogr.ad || "",
+              teacher_id: teacherId,
+              lesson_name: dersAdi,
+              status: gelmedi ? "absent" : "present",
+              timestamp: serverTimestamp(),
+            });
+          });
+          await Promise.all(kayitlar);
+
+          if (mesajEl)
+            mesajEl.innerHTML =
+              '<span style="color:#34a853;">✓ Kaydedildi (' +
+              gelmeyenler.length +
+              " devamsız)</span>";
+
+          // Bu dersin yoklaması tamamlandı, kartı kontrol et
+          setTimeout(() => dersleriniYukle(), 1500);
+        } catch (err) {
+          if (mesajEl)
+            mesajEl.innerHTML =
+              '<span style="color:#ea4335;">Hata: ' + err.message + "</span>";
+        }
+      };
 
       window.ogretmenYoklamalariniGetir = async () => {
         const tarih = document.getElementById("ogretmenYoklamaTarih").value;

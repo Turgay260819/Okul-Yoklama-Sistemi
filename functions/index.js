@@ -1,6 +1,8 @@
+const { setGlobalOptions } = require("firebase-functions/v2");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const admin = require("firebase-admin");
+setGlobalOptions({ region: "europe-west1" });
 
 admin.initializeApp();
 
@@ -64,7 +66,7 @@ exports.bugunDersleriniOlustur = onSchedule("0 6 * * *", async (event) => {
   const db = admin.firestore();
 
   const bugun = new Date();
-  const gunler = ["pazar", "pazartesi", "sali", "carsamba", "persembe", "cuma", "cumartesi"];
+  const gunler = ["pazar", "pazartesi", "salı", "çarşamba", "perşembe", "cuma", "cumartesi"];
   const bugunAdi = gunler[bugun.getDay()];
   const tarih = bugun.toISOString().split("T")[0];
 
@@ -233,7 +235,7 @@ exports.manuelDersOlustur = onCall(async (request) => {
   const { tarih } = request.data;
 
   const bugunObj = new Date(tarih);
-  const gunler = ["pazar", "pazartesi", "sali", "carsamba", "persembe", "cuma", "cumartesi"];
+  const gunler = ["pazar", "pazartesi", "salı", "çarşamba", "perşembe", "cuma", "cumartesi"];
   const bugunAdi = gunler[bugunObj.getDay()];
 
   // Mevcut kayıtları sil
