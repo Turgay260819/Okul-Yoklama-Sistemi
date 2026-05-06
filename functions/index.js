@@ -62,8 +62,7 @@ exports.ogretmenOlustur = onCall(async (request) => {
 // BUGÜNÜN DERSLERİNİ OLUŞTUR
 // Her sabah 06:00'da çalışır
 // ===========================
-exports.bugunDersleriniOlustur = onSchedule("0 6 * * *", async (event) => {
-  const db = admin.firestore();
+exports.bugunDersleriniOlustur = onSchedule({ schedule: "0 3 * * *", timeZone: "Europe/Istanbul" }, async (event) => {
 
   const bugun = new Date();
   const gunler = ["pazar", "pazartesi", "salı", "çarşamba", "perşembe", "cuma", "cumartesi"];
