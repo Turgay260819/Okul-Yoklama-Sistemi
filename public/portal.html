@@ -2306,7 +2306,7 @@
         </div>
         <div class="modal-butonlar">
           <button class="btn btn-gri" onclick="modalKapat()">Iptal</button>
-          <button class="btn btn-yesil" onclick="yoklamaKaydet()">
+          <button class="btn btn-yesil" onclick="modalYoklamaKaydet()">
             Yoklamayi Kaydet
           </button>
         </div>
@@ -2732,8 +2732,11 @@
             5 * 60 * 1000,
           );
         } catch (err) {
-          console.error(err);
-        }
+  console.error("HATA:", err);
+  if (mesajEl)
+    mesajEl.innerHTML =
+      '<span style="color:#ea4335;">Hata: ' + err.message + "</span>";
+}
       }
 
       window.ogretmenTakipYukle = async function() {
@@ -2742,15 +2745,15 @@
 
         // Bugunun gunu
         const gunAdi = [
-          "pazar",
-          "pazartesi",
-          "salı",
-          "çarşamba",
-          "perşembe",
-          "cuma",
-          "cumartesi",
+          "Pazar",
+          "Pazartesi",
+          "Salı",
+          "Çarşamba",
+          "Perşembe",
+          "Cuma",
+          "Cumartesi",
          ][new Date().getDay()];
-        if (gunAdi === "cumartesi" || gunAdi === "pazar") {
+        if (gunAdi === "Cumartesi" || gunAdi === "Pazar") {
           container.innerHTML =
             '<div class="bos-mesaj">Hafta sonu ders yok.</div>';
           return;
@@ -2764,7 +2767,7 @@
 
         // Bugunun ders programini getir
         const progSnap = await getDocs(
-          query(collection(db, "schedule"), where("day", "==", gunAdi)),
+          query(collection(db, "schedule"), where("gun", "==", gunAdi)),
         );
         if (progSnap.empty) {
           container.innerHTML =
@@ -2776,11 +2779,11 @@
         const ogretmenDersler = {};
         progSnap.forEach((d) => {
           const veri = d.data();
-          const tid = veri.teacher_id;
+          const tid = veri.ogretmen
           if (!ogretmenDersler[tid])
             ogretmenDersler[tid] = { dersler: [], dersNolari: [] };
           ogretmenDersler[tid].dersler.push(veri);
-          ogretmenDersler[tid].dersNolari.push(veri.lesson_number);
+          ogretmenDersler[tid].dersNolari.push(veri.dersNo);
         });
 
         // Bugunun devam kayitlarini getir
@@ -2794,7 +2797,7 @@
 
         // Ogretmen bilgilerini eslesdir
         const ogretmenMap = {};
-        tumOgretmenler.forEach((o) => (ogretmenMap[o.id] = o));
+        tumOgretmenler.forEach((o) => (ogretmenMap[o.ad] = o));
 
         // Ilk ders no 1 olanlar ve diger
         const ilkDersler = []; // 1. dersten baslayacaklar
@@ -2821,7 +2824,7 @@
           }
           const derslerStr = dersNolari.map((n) => n + ". ders").join(", ");
           const benzersizDersler = [
-            ...new Set(bilgi.dersler.map((d) => d.lesson_name)),
+            ...new Set(bilgi.dersler.map((d) => d.dersAdi)),
           ].join(", ");
           const devam = devamMap[tid];
 
@@ -3051,7 +3054,7 @@
         let dersler = [];
         snap.forEach((d) => {
           const data = { id: d.id, ...d.data() };
-          if (!aktifOgretmenDoc || data.teacher_id === aktifOgretmenDoc.id)
+          if (!aktifOgretmenDoc || data.teacher_id === aktifOgretmenDoc.ad)
             dersler.push(data);
         });
         if (!dersler.length) {
@@ -3377,9 +3380,11 @@
         teacherId,
         dersAdi,
       ) => {
-        const checkboxlar = document.querySelectorAll(
-          '[id^="yok_' + sinif + "_" + dersNo + '_"]',
-        );
+
+       console.log("yoklamaKaydet başladı:", dersId, sinif, dersNo); // ← EKLE
+       const checkboxlar = document.querySelectorAll(
+       '[id^="yok_' + sinif + "_" + dersNo + '_"]',
+       );
         const gelmeyenler = [];
         checkboxlar.forEach((c) => {
           if (c.checked) gelmeyenler.push(c.value);
@@ -3663,7 +3668,7 @@
         document.getElementById("yoklamaOzet").textContent =
           y === 0 ? "Tum ogrenciler mevcut" : y + " ogrenci yok isaretlendi";
       };
-      window.yoklamaKaydet = async () => {
+      window.modalYoklamaKaydet = async () => {
         if (!aktifDers) return;
         const yoklar = [];
         document
@@ -5476,7 +5481,7 @@
         const progSnap = await getDocs(
           query(
             collection(db, "schedule"),
-            where("teacher_id", "==", aktifOgretmenDoc.id),
+            where("ogretmen", "==", aktifOgretmenDoc.data().ad)
           ),
         );
         if (progSnap.empty) {
@@ -5488,12 +5493,12 @@
         progSnap.forEach((d) => {
           const veri = d.data();
           const seviye = parseInt(veri.class_id.charAt(0));
-          if (!seviye || !veri.lesson_name) return;
-          const key = seviye + "|" + veri.lesson_name;
+          if (!seviye || !veri.dersAdi) return;
+          const key = seviye + "|" + veri.dersAdi;
           if (!dersler.has(key))
             dersler.set(key, {
               sinif_seviyesi: seviye,
-              ders_adi: veri.lesson_name,
+              ders_adi: veri.dersAdi,
               siniflar: new Set(),
             });
           dersler.get(key).siniflar.add(veri.class_id);

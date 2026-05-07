@@ -589,32 +589,28 @@
     document.getElementById('manuelTarih').value = bugun;
 
     // Oturum kontrolü
-    onAuthStateChanged(auth, async (user) => {
-      if (!user) { window.location.href = '/index.html'; return; }
-
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      if (!userDoc.exists()) { window.location.href = '/index.html'; return; }
-
-      const data = userDoc.data();
-      if (data.rol !== 'ogretmen' && data.rol !== 'admin' && data.rol !== 'mudur_yardimcisi') {
-        window.location.href = '/index.html'; return;
-      }
-
-      document.getElementById('kullaniciAdi').textContent = data.ad + ' ' + (data.soyad || '');
-
-      // Öğretmen kaydını bul
-      const ogretmenSnap = await getDocs(query(
-        collection(db, 'teachers'),
-        where('uid', '==', user.uid)
-      ));
-
-      if (!ogretmenSnap.empty) {
-        aktifOgretmen = { id: ogretmenSnap.docs[0].id, ...ogretmenSnap.docs[0].data() };
-      }
-
-      await tumVerileriYukle();
-      await bugunDersleriniYukle();
-    });
+onAuthStateChanged(auth, async (user) => {
+  console.log("Auth user uid:", user?.uid); // ← EKLE
+  if (!user) { window.location.href = '/index.html'; return; }
+  const userDoc = await getDoc(doc(db, 'users', user.uid));
+  if (!userDoc.exists()) { window.location.href = '/index.html'; return; }
+  const data = userDoc.data();
+  if (data.rol !== 'ogretmen' && data.rol !== 'admin' && data.rol !== 'mudur_yardimcisi') {
+    window.location.href = '/index.html'; return;
+  }
+  document.getElementById('kullaniciAdi').textContent = data.ad + ' ' + (data.soyad || '');
+  const ogretmenSnap = await getDocs(query(
+    collection(db, 'teachers'),
+    where('uid', '==', user.uid)
+  ));
+  console.log("ogretmenSnap size:", ogretmenSnap.size); // ← EKLE
+  console.log("aktifOgretmen:", ogretmenSnap.docs[0]?.data()); // ← EKLE
+  if (!ogretmenSnap.empty) {
+    aktifOgretmen = { id: ogretmenSnap.docs[0].id, ...ogretmenSnap.docs[0].data() };
+  }
+  await tumVerileriYukle();
+  await bugunDersleriniYukle();
+});
 
     // TÜM VERİLERİ YÜKLE
     async function tumVerileriYukle() {
@@ -654,66 +650,55 @@
 
     // BUGÜNÜN DERSLERİNİ YÜKLE
     async function bugunDersleriniYukle() {
-      const container = document.getElementById('dersListesi');
-
-      const snap = await getDocs(query(
-        collection(db, 'today_lessons'),
-        where('date', '==', bugun)
-      ));
-
-      if (snap.empty) {
-        container.innerHTML = '<div class="bos-mesaj">📭 Bugün için ders programı oluşturulmamış.<br><small>Admin panelinden ders programı tanımlanması gerekiyor.</small></div>';
-        return;
-      }
-
-      // Sadece bu öğretmenin derslerini filtrele
-      let dersler = [];
-      snap.forEach(d => {
-        const ders = { id: d.id, ...d.data() };
-        if (!aktifOgretmen || ders.teacher_id === aktifOgretmen.id) {
-          dersler.push(ders);
-        }
-      });
-
-      if (dersler.length === 0) {
-        container.innerHTML = '<div class="bos-mesaj">📭 Bugün için atanmış dersiniz yok.</div>';
-        return;
-      }
-
-      dersler.sort((a, b) => a.lesson_number - b.lesson_number);
-
-      let html = '';
-      for (const ders of dersler) {
-        // Yoklama girilmiş mi kontrol et
-        const yokSnap = await getDocs(query(
-          collection(db, 'attendance'),
-          where('date', '==', bugun),
-          where('class_id', '==', ders.class_id),
-          where('lesson_number', '==', ders.lesson_number)
-        ));
-
-        const girildi = !yokSnap.empty;
-        const gec = girildi && yokSnap.docs[0].data().is_late_entry;
-
-        html += `
-          <div class="ders-karti ${girildi ? 'girildi' : 'eksik'}">
-            <div class="ders-bilgi">
-              <h4>${ders.lesson_number}. Ders — ${ders.class_id}</h4>
-              <p>${ders.lesson_name || 'Ders adı belirtilmemiş'}</p>
-            </div>
-            <div style="display:flex; align-items:center; gap:10px;">
-              ${girildi
-                ? `<span class="rozet rozet-girildi">✓ Girildi${gec ? ' (Geç)' : ''}</span>`
-                : `<button class="btn btn-mavi" onclick="yoklamaAc('${ders.id}', '${ders.class_id}', ${ders.lesson_number}, '${ders.lesson_name || ''}', '${ders.teacher_id}')">
-                    📝 Yoklama Gir
-                  </button>`
-              }
-            </div>
-          </div>`;
-      }
-
-      container.innerHTML = html;
+  const container = document.getElementById('dersListesi');
+  const snap = await getDocs(query(
+    collection(db, 'today_lessons'),
+    where('date', '==', bugun)
+  ));
+  if (snap.empty) {
+    container.innerHTML = '<div class="bos-mesaj">📭 Bugün için ders programı oluşturulmamış.<br><small>Admin panelinden ders programı tanımlanması gerekiyor.</small></div>';
+    return;
+  }
+  let dersler = [];
+  snap.forEach(d => {
+    const ders = { id: d.id, ...d.data() };
+    if (true) {
+      dersler.push(ders);
     }
+  });
+  if (dersler.length === 0) {
+    container.innerHTML = '<div class="bos-mesaj">📭 Bugün için atanmış dersiniz yok.</div>';
+    return;
+  }
+  dersler.sort((a, b) => a.lesson_number - b.lesson_number);
+  let html = '';
+  for (const ders of dersler) {
+    const yokSnap = await getDocs(query(
+      collection(db, 'attendance'),
+      where('date', '==', bugun),
+      where('class_id', '==', ders.class_id),
+      where('lesson_number', '==', ders.lesson_number)
+    ));
+    const girildi = !yokSnap.empty;
+    const gec = girildi && yokSnap.docs[0].data().is_late_entry;
+    html += `
+      <div class="ders-karti ${girildi ? 'girildi' : 'eksik'}">
+        <div class="ders-bilgi">
+          <h4>${ders.lesson_number}. Ders — ${ders.class_id}</h4>
+          <p>${ders.lesson_name || 'Ders adı belirtilmemiş'}</p>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px;">
+          ${girildi
+            ? `<span class="rozet rozet-girildi">✓ Girildi${gec ? ' (Geç)' : ''}</span>`
+            : `<button class="btn btn-mavi" onclick="yoklamaAc('${ders.id}', '${ders.class_id}', ${ders.lesson_number}, '${ders.lesson_name || ''}', '${ders.teacher_id}')">
+                📝 Yoklama Gir
+              </button>`
+          }
+        </div>
+      </div>`;
+  }
+  container.innerHTML = html;
+}
 
     // YOKLAMA MODAL AÇ
     window.yoklamaAc = async (dersId, classId, lessonNo, lessonName, teacherId) => {

@@ -63,14 +63,13 @@ exports.ogretmenOlustur = onCall(async (request) => {
 // Her sabah 06:00'da çalışır
 // ===========================
 exports.bugunDersleriniOlustur = onSchedule({ schedule: "0 3 * * *", timeZone: "Europe/Istanbul" }, async (event) => {
-
   const bugun = new Date();
-  const gunler = ["pazar", "pazartesi", "salı", "çarşamba", "perşembe", "cuma", "cumartesi"];
+  const gunler = ["Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi"];
   const bugunAdi = gunler[bugun.getDay()];
   const tarih = bugun.toISOString().split("T")[0];
 
   // Hafta sonu ise çalışma
-  if (bugunAdi === "cumartesi" || bugunAdi === "pazar") {
+  if (bugunAdi === "Cumartesi" || bugunAdi === "Pazar") {
     console.log("Hafta sonu, ders oluşturulmadı.");
     return;
   }
@@ -79,7 +78,6 @@ exports.bugunDersleriniOlustur = onSchedule({ schedule: "0 3 * * *", timeZone: "
   const mevcutSnap = await db.collection("today_lessons")
     .where("date", "==", tarih)
     .get();
-
   if (!mevcutSnap.empty) {
     console.log("Bugünün dersleri zaten oluşturulmuş.");
     return;
@@ -87,25 +85,23 @@ exports.bugunDersleriniOlustur = onSchedule({ schedule: "0 3 * * *", timeZone: "
 
   // Ders programından bugünün derslerini al
   const programSnap = await db.collection("schedule")
-    .where("day", "==", bugunAdi)
+    .where("gun", "==", bugunAdi)
     .get();
-
   if (programSnap.empty) {
     console.log("Bugün için ders programı yok.");
     return;
   }
 
   const batch = db.batch();
-
   programSnap.forEach(doc => {
     const ders = doc.data();
     const yeniRef = db.collection("today_lessons").doc();
     batch.set(yeniRef, {
       date: tarih,
-      class_id: ders.class_id,
-      lesson_number: ders.lesson_number,
-      lesson_name: ders.lesson_name,
-      teacher_id: ders.teacher_id,
+      class_id: ders.sinif,
+      lesson_number: ders.dersNo,
+      lesson_name: ders.dersAdi,
+      teacher_id: ders.ogretmen,
       status: "pending",
       created_at: admin.firestore.FieldValue.serverTimestamp()
     });
@@ -215,44 +211,33 @@ exports.gunSonuKontrol = onSchedule("0 16 * * 1-5", async (event) => {
 // MANUEL TODAY_LESSONS OLUŞTUR
 // Admin panelinden tetiklenebilir
 // ===========================
-exports.manuelDersOlustur = onCall(async (request) => {
-  if (!request.auth) {
-    throw new HttpsError("unauthenticated", "Giriş yapılmamış.");
-  }
 
-  const callerDoc = await admin.firestore()
-    .collection("users")
-    .doc(request.auth.uid)
-    .get();
-
-  const callerRole = callerDoc.data()?.rol;
-  if (callerRole !== "admin" && callerRole !== "mudur_yardimcisi") {
-    throw new HttpsError("permission-denied", "Yetkiniz yok.");
-  }
-
+exports.bugunDersleriniOlustur = onSchedule({ schedule: "0 3 * * *", timeZone: "Europe/Istanbul" }, async (event) => {
   const db = admin.firestore();
-  const { tarih } = request.data;
+  const bugun = new Date();
+  const gunler = ["Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi"];
+  const bugunAdi = gunler[bugun.getDay()];
+  const tarih = bugun.toISOString().split("T")[0];
 
-  const bugunObj = new Date(tarih);
-  const gunler = ["pazar", "pazartesi", "salı", "çarşamba", "perşembe", "cuma", "cumartesi"];
-  const bugunAdi = gunler[bugunObj.getDay()];
+  if (bugunAdi === "Cumartesi" || bugunAdi === "Pazar") {
+    console.log("Hafta sonu, ders oluşturulmadı.");
+    return;
+  }
 
-  // Mevcut kayıtları sil
   const mevcutSnap = await db.collection("today_lessons")
     .where("date", "==", tarih)
     .get();
+  if (!mevcutSnap.empty) {
+    console.log("Bugünün dersleri zaten oluşturulmuş.");
+    return;
+  }
 
-  const deleteBatch = db.batch();
-  mevcutSnap.forEach(doc => deleteBatch.delete(doc.ref));
-  await deleteBatch.commit();
-
-  // Yeni oluştur
   const programSnap = await db.collection("schedule")
-    .where("day", "==", bugunAdi)
+    .where("gun", "==", bugunAdi)
     .get();
-
   if (programSnap.empty) {
-    return { success: false, message: "Bu gün için ders programı yok." };
+    console.log("Bugün için ders programı yok.");
+    return;
   }
 
   const batch = db.batch();
@@ -261,17 +246,17 @@ exports.manuelDersOlustur = onCall(async (request) => {
     const yeniRef = db.collection("today_lessons").doc();
     batch.set(yeniRef, {
       date: tarih,
-      class_id: ders.class_id,
-      lesson_number: ders.lesson_number,
-      lesson_name: ders.lesson_name,
-      teacher_id: ders.teacher_id,
+      class_id: ders.sinif,
+      lesson_number: ders.dersNo,
+      lesson_name: ders.dersAdi,
+      teacher_id: ders.ogretmen,
       status: "pending",
       created_at: admin.firestore.FieldValue.serverTimestamp()
     });
   });
 
   await batch.commit();
-  return { success: true, message: `${programSnap.size} ders oluşturuldu.` };
+  console.log(`${tarih} için ${programSnap.size} ders oluşturuldu.`);
 });
 // ===========================
 // TELEGRAM BİLDİRİM GÖNDERİCİ
@@ -520,4 +505,62 @@ exports.disiplinEsikKontrol = onCall(async (request) => {
     success: true,
     message: `${bildirilenSayisi} bildirim gonderildi.`
   };
+});
+exports.manuelDersOlustur = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Giriş yapılmamış.");
+  }
+
+  const callerDoc = await admin.firestore()
+    .collection("users")
+    .doc(request.auth.uid)
+    .get();
+
+  const callerRole = callerDoc.data()?.rol;
+  if (callerRole !== "admin" && callerRole !== "mudur_yardimcisi") {
+    throw new HttpsError("permission-denied", "Yetkiniz yok.");
+  }
+
+  const db = admin.firestore();
+  const { tarih } = request.data;
+
+  const bugunObj = new Date(tarih);
+  const gunler = ["Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi"];
+  const bugunAdi = gunler[bugunObj.getDay()];
+
+  // Mevcut kayıtları sil
+  const mevcutSnap = await db.collection("today_lessons")
+    .where("date", "==", tarih)
+    .get();
+
+  const deleteBatch = db.batch();
+  mevcutSnap.forEach(doc => deleteBatch.delete(doc.ref));
+  await deleteBatch.commit();
+
+  // Yeni oluştur
+  const programSnap = await db.collection("schedule")
+    .where("gun", "==", bugunAdi)
+    .get();
+
+  if (programSnap.empty) {
+    return { success: false, message: "Bu gün için ders programı yok." };
+  }
+
+  const batch = db.batch();
+  programSnap.forEach(doc => {
+    const ders = doc.data();
+    const yeniRef = db.collection("today_lessons").doc();
+    batch.set(yeniRef, {
+      date: tarih,
+      class_id: ders.sinif,
+      lesson_number: ders.dersNo,
+      lesson_name: ders.dersAdi,
+      teacher_id: ders.ogretmen,
+      status: "pending",
+      created_at: admin.firestore.FieldValue.serverTimestamp()
+    });
+  });
+
+  await batch.commit();
+  return { success: true, message: `${programSnap.size} ders oluşturuldu.` };
 });
