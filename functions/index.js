@@ -59,59 +59,6 @@ exports.ogretmenOlustur = onCall(async (request) => {
 });
 
 // ===========================
-// BUGÜNÜN DERSLERİNİ OLUŞTUR
-// Her sabah 06:00'da çalışır
-// ===========================
-exports.bugunDersleriniOlustur = onSchedule({ schedule: "0 3 * * *", timeZone: "Europe/Istanbul" }, async (event) => {
-  const bugun = new Date();
-  const gunler = ["Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi"];
-  const bugunAdi = gunler[bugun.getDay()];
-  const tarih = bugun.toISOString().split("T")[0];
-
-  // Hafta sonu ise çalışma
-  if (bugunAdi === "Cumartesi" || bugunAdi === "Pazar") {
-    console.log("Hafta sonu, ders oluşturulmadı.");
-    return;
-  }
-
-  // Bugün zaten oluşturulmuş mu kontrol et
-  const mevcutSnap = await db.collection("today_lessons")
-    .where("date", "==", tarih)
-    .get();
-  if (!mevcutSnap.empty) {
-    console.log("Bugünün dersleri zaten oluşturulmuş.");
-    return;
-  }
-
-  // Ders programından bugünün derslerini al
-  const programSnap = await db.collection("schedule")
-    .where("gun", "==", bugunAdi)
-    .get();
-  if (programSnap.empty) {
-    console.log("Bugün için ders programı yok.");
-    return;
-  }
-
-  const batch = db.batch();
-  programSnap.forEach(doc => {
-    const ders = doc.data();
-    const yeniRef = db.collection("today_lessons").doc();
-    batch.set(yeniRef, {
-      date: tarih,
-      class_id: ders.sinif,
-      lesson_number: ders.dersNo,
-      lesson_name: ders.dersAdi,
-      teacher_id: ders.ogretmen,
-      status: "pending",
-      created_at: admin.firestore.FieldValue.serverTimestamp()
-    });
-  });
-
-  await batch.commit();
-  console.log(`${tarih} için ${programSnap.size} ders oluşturuldu.`);
-});
-
-// ===========================
 // GÜN SONU KONTROL
 // Her gün 16:00'da çalışır
 // ===========================
@@ -208,18 +155,17 @@ exports.gunSonuKontrol = onSchedule("0 16 * * 1-5", async (event) => {
 });
 
 // ===========================
-// MANUEL TODAY_LESSONS OLUŞTUR
-// Admin panelinden tetiklenebilir
+// BUGÜNÜN DERSLERİNİ OLUŞTUR
+// Her sabah 06:00'da çalışır
 // ===========================
-
 exports.bugunDersleriniOlustur = onSchedule({ schedule: "0 3 * * *", timeZone: "Europe/Istanbul" }, async (event) => {
   const db = admin.firestore();
   const bugun = new Date();
-  const gunler = ["Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi"];
+  const gunler = ["pazar", "pazartesi", "salı", "çarşamba", "perşembe", "cuma", "cumartesi"];
   const bugunAdi = gunler[bugun.getDay()];
   const tarih = bugun.toISOString().split("T")[0];
 
-  if (bugunAdi === "Cumartesi" || bugunAdi === "Pazar") {
+  if (bugunAdi === "cumartesi" || bugunAdi === "pazar") {
     console.log("Hafta sonu, ders oluşturulmadı.");
     return;
   }
@@ -232,8 +178,9 @@ exports.bugunDersleriniOlustur = onSchedule({ schedule: "0 3 * * *", timeZone: "
     return;
   }
 
+  // schedule koleksiyonu: day (küçük harf), lesson_number, class_id, teacher_id (Firestore ID), lesson_name
   const programSnap = await db.collection("schedule")
-    .where("gun", "==", bugunAdi)
+    .where("day", "==", bugunAdi)
     .get();
   if (programSnap.empty) {
     console.log("Bugün için ders programı yok.");
@@ -246,10 +193,10 @@ exports.bugunDersleriniOlustur = onSchedule({ schedule: "0 3 * * *", timeZone: "
     const yeniRef = db.collection("today_lessons").doc();
     batch.set(yeniRef, {
       date: tarih,
-      class_id: ders.sinif,
-      lesson_number: ders.dersNo,
-      lesson_name: ders.dersAdi,
-      teacher_id: ders.ogretmen,
+      class_id: ders.class_id,
+      lesson_number: ders.lesson_number,
+      lesson_name: ders.lesson_name,
+      teacher_id: ders.teacher_id,
       status: "pending",
       created_at: admin.firestore.FieldValue.serverTimestamp()
     });
@@ -258,40 +205,57 @@ exports.bugunDersleriniOlustur = onSchedule({ schedule: "0 3 * * *", timeZone: "
   await batch.commit();
   console.log(`${tarih} için ${programSnap.size} ders oluşturuldu.`);
 });
+
+// ===========================
+// MANUEL TODAY_LESSONS OLUŞTUR
+// Admin panelinden tetiklenebilir
+// ===========================
 // ===========================
 // TELEGRAM BİLDİRİM GÖNDERİCİ
 // ===========================
-async function telegramMesajGonder(mesaj) {
-  const url = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`;
+async function telegramMesajGonderKisiye(chatId, mesaj) {
   const https = require("https");
-  
   return new Promise((resolve, reject) => {
-    const data = JSON.stringify({
-      chat_id: TELEGRAM_CHAT_ID,
-      text: mesaj,
-      parse_mode: "HTML"
-    });
-
+    const data = JSON.stringify({ chat_id: chatId, text: mesaj, parse_mode: "HTML" });
     const options = {
       hostname: "api.telegram.org",
       path: `/bot${TELEGRAM_TOKEN}/sendMessage`,
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Content-Length": Buffer.byteLength(data)
-      }
+      headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(data) }
     };
-
     const req = https.request(options, (res) => {
       let body = "";
       res.on("data", chunk => body += chunk);
       res.on("end", () => resolve(JSON.parse(body)));
     });
-
     req.on("error", reject);
     req.write(data);
     req.end();
   });
+}
+
+async function telegramMesajGonder(mesaj) {
+  return telegramMesajGonderKisiye(TELEGRAM_CHAT_ID, mesaj);
+}
+
+// Hedef kitleden öğretmen listesi döndür (Cloud Function tarafı)
+async function hedefOgretmenleriniGetir(db, hedef_kitle) {
+  const snap = await db.collection("teachers").get();
+  const teachers = [];
+  snap.forEach(d => teachers.push({ id: d.id, ...d.data() }));
+
+  if (!hedef_kitle || hedef_kitle.tip === "hepsi") return teachers;
+  if (hedef_kitle.tip === "zumre")
+    return teachers.filter(t => t.brans === hedef_kitle.deger);
+  if (hedef_kitle.tip === "sinif_rehberi")
+    return teachers.filter(t => t.sinifSeviye === hedef_kitle.deger);
+  if (hedef_kitle.tip === "sube_rehberi")
+    return teachers.filter(t => t.rehberSube === hedef_kitle.deger);
+  if (hedef_kitle.tip === "manuel") {
+    const ids = new Set(hedef_kitle.ogretmenler || []);
+    return teachers.filter(t => ids.has(t.id));
+  }
+  return teachers;
 }
 
 // ===========================
@@ -525,7 +489,7 @@ exports.manuelDersOlustur = onCall(async (request) => {
   const { tarih } = request.data;
 
   const bugunObj = new Date(tarih);
-  const gunler = ["Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi"];
+  const gunler = ["pazar", "pazartesi", "salı", "çarşamba", "perşembe", "cuma", "cumartesi"];
   const bugunAdi = gunler[bugunObj.getDay()];
 
   // Mevcut kayıtları sil
@@ -537,9 +501,9 @@ exports.manuelDersOlustur = onCall(async (request) => {
   mevcutSnap.forEach(doc => deleteBatch.delete(doc.ref));
   await deleteBatch.commit();
 
-  // Yeni oluştur
+  // schedule koleksiyonu: day (küçük harf), lesson_number, class_id, teacher_id (Firestore ID), lesson_name
   const programSnap = await db.collection("schedule")
-    .where("gun", "==", bugunAdi)
+    .where("day", "==", bugunAdi)
     .get();
 
   if (programSnap.empty) {
@@ -552,10 +516,10 @@ exports.manuelDersOlustur = onCall(async (request) => {
     const yeniRef = db.collection("today_lessons").doc();
     batch.set(yeniRef, {
       date: tarih,
-      class_id: ders.sinif,
-      lesson_number: ders.dersNo,
-      lesson_name: ders.dersAdi,
-      teacher_id: ders.ogretmen,
+      class_id: ders.class_id,
+      lesson_number: ders.lesson_number,
+      lesson_name: ders.lesson_name,
+      teacher_id: ders.teacher_id,
       status: "pending",
       created_at: admin.firestore.FieldValue.serverTimestamp()
     });
@@ -564,3 +528,182 @@ exports.manuelDersOlustur = onCall(async (request) => {
   await batch.commit();
   return { success: true, message: `${programSnap.size} ders oluşturuldu.` };
 });
+
+// ===========================
+// GÖREV ATANDI — TELEGRAM BİLDİRİMİ
+// Admin portal'dan tetiklenir
+// ===========================
+exports.gorevAtandiBildir = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Giriş yapılmamış.");
+
+  const { baslik, aciklama, atananlar, sonTarih, olusturanAd } = request.data;
+
+  const tarihStr = sonTarih
+    ? sonTarih.split("-").reverse().join(".")
+    : "-";
+
+  let mesaj = `📋 <b>YENİ GÖREVLENDİRME</b>\n\n`;
+  mesaj += `<b>Görev:</b> ${baslik}\n`;
+  if (aciklama) mesaj += `<b>Açıklama:</b> ${aciklama}\n`;
+  mesaj += `<b>Atanan:</b> ${(atananlar || []).join(", ")}\n`;
+  mesaj += `<b>Son Tarih:</b> ${tarihStr}\n`;
+  mesaj += `<b>Oluşturan:</b> ${olusturanAd || "—"}`;
+
+  try {
+    await telegramMesajGonder(mesaj);
+    return { success: true };
+  } catch (err) {
+    throw new HttpsError("internal", err.message);
+  }
+});
+
+// ===========================
+// GÖREV SON GÜN KONTROLÜ
+// Her sabah 07:00'da çalışır (Istanbul)
+// ===========================
+exports.gorevSonGunKontrol = onSchedule(
+  { schedule: "0 4 * * *", timeZone: "Europe/Istanbul" },
+  async (event) => {
+    const db = admin.firestore();
+    const bugun = new Date().toISOString().split("T")[0];
+
+    const snap = await db.collection("gorevler")
+      .where("durum", "==", "acik")
+      .where("son_tarih", "==", bugun)
+      .get();
+
+    if (snap.empty) {
+      console.log("Bugün son günü olan açık görev yok.");
+      return;
+    }
+
+    for (const gorevDoc of snap.docs) {
+      const g = gorevDoc.data();
+      const tarihStr = bugun.split("-").reverse().join(".");
+      let mesaj = `⏰ <b>GÖREV SON GÜNÜ</b>\n\n`;
+      mesaj += `<b>Görev:</b> ${g.baslik}\n`;
+      if (g.aciklama) mesaj += `<b>Açıklama:</b> ${g.aciklama}\n`;
+      mesaj += `<b>Atanan:</b> ${(g.atananlar || []).join(", ")}\n`;
+      mesaj += `<b>Son Tarih:</b> ${tarihStr} <b>(BUGÜN)</b>\n`;
+      mesaj += `<b>Oluşturan:</b> ${g.olusturan_ad || "—"}`;
+      await telegramMesajGonder(mesaj);
+    }
+
+    console.log(`${snap.size} görev son gün bildirimi gönderildi.`);
+  }
+);
+
+// ===========================
+// ANKET/FORM YAYINLANDI — ÖĞRETMENLERE BİLDİRİM
+// Admin anket yayınladığında tetiklenir
+// ===========================
+exports.anketBildir = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Giriş yapılmamış.");
+
+  const db = admin.firestore();
+  const { anketId, baslik, aciklama, sonTarih, hedefIds } = request.data;
+
+  if (!hedefIds || !hedefIds.length) return { success: true, yazilan: 0 };
+
+  const hedefSet = new Set(hedefIds);
+  const tarihGoster = sonTarih ? sonTarih.replace("T", " ") : null;
+  let mesajMetni = aciklama || "";
+  if (tarihGoster) mesajMetni += (mesajMetni ? " — " : "") + `Son: ${tarihGoster}`;
+
+  // Her hedef öğretmene sistem bildirimi (Firestore)
+  const batch = db.batch();
+  let yazilan = 0;
+  for (const ogretmenId of hedefSet) {
+    const ref = db.collection("bildirimler").doc();
+    batch.set(ref, {
+      alici_id: ogretmenId,
+      tip: "anket",
+      baslik: `Yeni form: ${baslik}`,
+      mesaj: mesajMetni,
+      referans_id: anketId || "",
+      okundu: false,
+      tarih: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    yazilan++;
+  }
+  await batch.commit();
+
+  // Admine tek Telegram özeti
+  let adminMesaj = `📋 <b>FORM YAYINLANDI</b>\n\n`;
+  adminMesaj += `<b>Form:</b> ${baslik}\n`;
+  if (aciklama) adminMesaj += `<b>Açıklama:</b> ${aciklama}\n`;
+  if (tarihGoster) adminMesaj += `<b>Son Tarih:</b> ${tarihGoster}\n`;
+  adminMesaj += `<b>Bildirim Gönderilen:</b> ${yazilan} öğretmen`;
+  try {
+    await telegramMesajGonder(adminMesaj);
+  } catch (err) {
+    console.error("Admin Telegram hatası:", err.message);
+  }
+
+  return { success: true, yazilan };
+});
+
+// ===========================
+// ANKET/FORM BİTİŞ KONTROLÜ
+// Her 30 dakikada çalışır — kapanan formlarda yanıt vermeyenleri admine bildirir
+// ===========================
+exports.anketBitisKontrol = onSchedule(
+  { schedule: "*/30 * * * *", timeZone: "Europe/Istanbul" },
+  async (event) => {
+    const db = admin.firestore();
+
+    // İstanbul saatini YYYY-MM-DDTHH:mm formatında al
+    const simdi = new Date();
+    const istanbulStr = simdi
+      .toLocaleString("sv-SE", { timeZone: "Europe/Istanbul" })
+      .replace(" ", "T")
+      .slice(0, 16);
+
+    const snap = await db.collection("anketler")
+      .where("durum", "==", "aktif")
+      .get();
+
+    if (snap.empty) return;
+
+    for (const anketDoc of snap.docs) {
+      const anket = anketDoc.data();
+      if (!anket.son_tarih) continue;
+      if (anket.son_tarih > istanbulStr) continue;
+
+      // Form kapandı — yanıt vermeyenleri bul
+      const hedefOgretmenler = await hedefOgretmenleriniGetir(db, anket.hedef_kitle);
+
+      const yanSnap = await db.collection("anket_yanitlar")
+        .where("anket_id", "==", anketDoc.id)
+        .get();
+
+      const yanitliIds = new Set();
+      yanSnap.forEach(d => yanitliIds.add(d.data().ogretmen_id));
+
+      const yanıtlamayanlar = hedefOgretmenler
+        .filter(t => !yanitliIds.has(t.id))
+        .map(t => t.ad || t.id);
+
+      const tarihGoster = anket.son_tarih.replace("T", " ");
+
+      let mesaj = `📋 <b>FORM KAPANDI</b>\n\n`;
+      mesaj += `<b>Form:</b> ${anket.baslik}\n`;
+      mesaj += `<b>Son Tarih:</b> ${tarihGoster}\n`;
+      mesaj += `<b>Yanıtlayan:</b> ${yanSnap.size} kişi\n`;
+      mesaj += `<b>Yanıtlamayan:</b> ${yanıtlamayanlar.length} kişi`;
+      if (yanıtlamayanlar.length > 0) {
+        mesaj += `\n\n<b>Yanıt Vermeyenler:</b>\n${yanıtlamayanlar.join(", ")}`;
+      }
+
+      try {
+        await telegramMesajGonder(mesaj);
+      } catch (err) {
+        console.error("Telegram kapanış bildirimi hatası:", err.message);
+      }
+
+      // Formu kapat
+      await anketDoc.ref.update({ durum: "kapali" });
+      console.log(`Form kapandı ve bildirim gönderildi: ${anket.baslik}`);
+    }
+  }
+);

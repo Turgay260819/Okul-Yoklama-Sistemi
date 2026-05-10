@@ -475,7 +475,7 @@
       const app = initializeApp(firebaseConfig);
       const auth = getAuth(app);
       const db = getFirestore(app);
-      const functions = getFunctions(app, "us-central1");
+      const functions = getFunctions(app, "europe-west1");
 
       onAuthStateChanged(auth, (user) => {
         if (!user) window.location.href = "/index.html";
@@ -742,7 +742,11 @@
         ilerlemeGuncelle("program", 10, "Ogretmenler yukleniyor...");
         const ogretmenSnap = await getDocs(collection(db, "teachers"));
         const adToId = {};
-        ogretmenSnap.forEach((d) => (adToId[d.data().ad] = d.id));
+        const adToBrans = {};
+        ogretmenSnap.forEach((d) => {
+          adToId[d.data().ad] = d.id;
+          adToBrans[d.data().ad] = d.data().brans;
+        });
 
         // Mevcut programi sil
         ilerlemeGuncelle("program", 20, "Eski program siliniyor...");
@@ -760,7 +764,7 @@
         // Yeni programi yukle
         ilerlemeGuncelle("program", 50, "Yeni program yukleniyor...");
         let eklenen = 0,
-          eslesmeyenEmail = [];
+          eslesmeyenAd = [];
 
         for (let i = 0; i < programVerisi.length; i += BATCH_SIZE) {
           const grup = programVerisi.slice(i, i + BATCH_SIZE);
@@ -769,7 +773,7 @@
           for (const ders of grup) {
             const teacherId = adToId[ders.ogretmen_ad];
             if (!teacherId) {
-              eslesmeyenEmail.push(ders.ogretmen_ad);
+              eslesmeyenAd.push(ders.ogretmen_ad);
               continue;
             }
             const ref = doc(collection(db, "schedule"));
@@ -778,7 +782,7 @@
               lesson_number: ders.lesson_number,
               class_id: ders.class_id,
               teacher_id: teacherId,
-              lesson_name: ders.lesson_name,
+              lesson_name: adToBrans[ders.ogretmen_ad] || ders.lesson_name,
               created_at: serverTimestamp(),
             });
             eklenen++;
@@ -795,14 +799,14 @@
         ilerlemeGuncelle("program", 100, "Tamamlandi");
 
         let mesaj = `Tamamlandi: ${eklenen} ders eklendi.`;
-        if (eslesmeyenEmail.length > 0) {
-          const benzersiz = [...new Set(eslesmeyenEmail)];
-          mesaj += ` ${benzersiz.length} email eslesmedi: ${benzersiz.slice(0, 3).join(", ")}`;
+        if (eslesmeyenAd.length > 0) {
+          const benzersiz = [...new Set(eslesmeyenAd)];
+          mesaj += ` ${benzersiz.length} ogretmen bulunamadi (ad eslesmedi): ${benzersiz.slice(0, 3).join(", ")}`;
         }
         sonucGoster(
           "program",
           mesaj,
-          eslesmeyenEmail.length > 0 ? "hata" : "basari",
+          eslesmeyenAd.length > 0 ? "hata" : "basari",
         );
         document.getElementById("programBtn").disabled = false;
       };

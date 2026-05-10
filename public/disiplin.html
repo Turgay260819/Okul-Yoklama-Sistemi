@@ -63,7 +63,6 @@
     .btn-kirmizi { background: #ea4335; color: white; }
     .btn-kirmizi:hover { background: #c5221f; }
     .btn-gri { background: #666; color: white; }
-    .btn-turuncu { background: #f9ab00; color: white; }
     .btn-yazdir { background: #555; color: white; }
 
     .form-group { margin-bottom: 16px; }
@@ -134,7 +133,6 @@
     .davranis-item:hover { border-color: #1a73e8; background: #f8fbff; }
     .davranis-item.secili { border-color: #1a73e8; background: #e8f0fe; }
     .davranis-item input[type="checkbox"] { width: 16px; height: 16px; }
-    .davranis-item-esik { font-size: 11px; color: #888; margin-top: 2px; }
 
     .gecmis-kutu {
       background: #fff3e0; border: 1px solid #ffe0b2;
@@ -147,7 +145,6 @@
       padding: 4px 0; border-bottom: 1px solid #ffe0b2; color: #555;
     }
     .gecmis-satir:last-child { border-bottom: none; }
-    .esik-asild { color: #c5221f; font-weight: 600; }
 
     .mesaj {
       padding: 12px 16px; border-radius: 8px;
@@ -219,7 +216,6 @@
     }
     .whatsapp-btn:hover { background: #128C7E; }
 
-    /* ÖĞRENCİ SORGU */
     .sorgu-kart {
       background: #f8f9fa; border: 1px solid #e0e0e0;
       border-radius: 10px; padding: 20px; margin-bottom: 16px;
@@ -248,7 +244,6 @@
     .sorgu-davranis-ad { font-weight: 600; font-size: 14px; }
     .sorgu-davranis-sayi { font-size: 13px; color: #666; }
 
-    /* VELİ BİLGİLENDİRME YAZISI */
     .veli-yazisi {
       background: white; border: 1px solid #ddd;
       border-radius: 10px; padding: 24px; margin-top: 16px;
@@ -301,7 +296,7 @@
   <div class="layout">
     <div class="sidebar">
       <div class="menu-item aktif" onclick="sayfaGoster('kayit', this)">Kayit Ekle</div>
-      <div class="menu-item" onclick="sayfaGoster('kayitlar', this)">Tum Kayitlar</div>
+      <div class="menu-item" onclick="sayfaGoster('kayitlar', this)">Kayitlar</div>
       <div class="menu-item" onclick="sayfaGoster('sorgula', this)">Ogrenci Sorgula</div>
       <div class="menu-item" onclick="sayfaGoster('raporlar', this)" id="menuRaporlar">Raporlar</div>
       <div class="menu-item" onclick="sayfaGoster('ayarlar', this)" id="menuAyarlar">Ayarlar</div>
@@ -351,9 +346,9 @@
         </div>
       </div>
 
-      <!-- TÜM KAYITLAR -->
+      <!-- KAYITLAR -->
       <div class="sayfa" id="sayfa-kayitlar">
-        <div class="sayfa-baslik">Tum Kayitlar</div>
+        <div class="sayfa-baslik">Kayitlar</div>
         <div class="kart">
           <div class="filtre-bar">
             <div class="form-group">
@@ -390,13 +385,11 @@
         </div>
 
         <div id="sorguSonucAlani" style="display:none;">
-          <!-- Öğrenci bilgi kartı -->
           <div class="sorgu-ogrenci-bilgi">
             <h3 id="sorguOgrenciAd">-</h3>
             <p id="sorguOgrenciDetay">-</p>
           </div>
 
-          <!-- Özet istatistikler -->
           <div class="sorgu-ozet-grid">
             <div class="sorgu-ozet-kart">
               <div class="sorgu-ozet-sayi" id="sorguToplamKayit">0</div>
@@ -404,27 +397,20 @@
             </div>
             <div class="sorgu-ozet-kart">
               <div class="sorgu-ozet-sayi" id="sorguFarkliDavranis">0</div>
-              <div class="sorgu-ozet-etiket">Farkli Davranis</div>
-            </div>
-            <div class="sorgu-ozet-kart">
-              <div class="sorgu-ozet-sayi" style="color:#ea4335;" id="sorguEsikAsilan">0</div>
-              <div class="sorgu-ozet-etiket">Esik Asildi</div>
+              <div class="sorgu-ozet-etiket">Farkli Davranis Turu</div>
             </div>
           </div>
 
-          <!-- Davranış özeti -->
           <div class="kart">
             <h3>Davranis Ozeti (Bu Donem)</h3>
             <div id="sorguDavranisOzeti"><div class="bos-mesaj">Kayit yok</div></div>
           </div>
 
-          <!-- Tüm kayıtlar listesi -->
           <div class="kart">
             <h3>Tum Kayitlar</h3>
             <div id="sorguKayitListesi"><div class="yukleniyor-mesaj">Yukleniyor...</div></div>
           </div>
 
-          <!-- Veli bilgilendirme yazısı -->
           <div class="kart yazdir-kart">
             <h3>Veli Bilgilendirme Yazisi</h3>
             <div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap;">
@@ -436,14 +422,13 @@
         </div>
       </div>
 
-      <!-- RAPORLAR -->
+      <!-- RAPORLAR (admin only) -->
       <div class="sayfa" id="sayfa-raporlar">
         <div class="sayfa-baslik">Raporlar</div>
 
         <div class="istatistik-grid">
           <div class="istatistik-kart"><div class="istatistik-sayi" id="statToplamKayit">-</div><div class="istatistik-etiket">Toplam Kayit (Donem)</div></div>
           <div class="istatistik-kart"><div class="istatistik-sayi" id="statFarkliOgrenci">-</div><div class="istatistik-etiket">Farkli Ogrenci</div></div>
-          <div class="istatistik-kart"><div class="istatistik-sayi" id="statEsikAsilan" style="color:#ea4335">-</div><div class="istatistik-etiket">Esik Asildi</div></div>
         </div>
 
         <div class="kart yazdir-kart">
@@ -470,24 +455,12 @@
         </div>
 
         <div class="kart">
-          <h3>Esik Asilan Ogrenciler (Bu Donem)</h3>
-          <div id="esikAsilanlar"><div class="yukleniyor-mesaj">Yukleniyor...</div></div>
-        </div>
-
-        <div class="kart">
           <h3>En Cok Tekrar Eden Davranislar</h3>
           <div id="davranisIstatistik"><div class="yukleniyor-mesaj">Yukleniyor...</div></div>
         </div>
-
-        <div class="kart">
-          <h3>Esik Kontrolu ve Telegram Bildirimi</h3>
-          <p style="font-size:13px; color:#666; margin-bottom:12px;">Esik asilan ogrenciler icin Telegram bildirimi gonder.</p>
-          <button class="btn btn-mavi" onclick="esikKontrolVeGonder()">Esik Kontrolu Yap ve Bildir</button>
-          <div class="mesaj" id="esikMesaj"></div>
-        </div>
       </div>
 
-      <!-- AYARLAR -->
+      <!-- AYARLAR (admin only) -->
       <div class="sayfa" id="sayfa-ayarlar">
         <div class="sayfa-baslik">Disiplin Ayarlari</div>
 
@@ -498,15 +471,9 @@
 
         <div class="kart">
           <h3>Yeni Davranis Turu Ekle</h3>
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
-            <div class="form-group">
-              <label>Davranis Adi</label>
-              <input type="text" id="yeniDavranisAd" placeholder="Ornek: Kopya cekme">
-            </div>
-            <div class="form-group">
-              <label>Esik (kac tekrarda bildirim)</label>
-              <input type="number" id="yeniDavranisEsik" placeholder="3" min="1">
-            </div>
+          <div class="form-group">
+            <label>Davranis Adi</label>
+            <input type="text" id="yeniDavranisAd" placeholder="Ornek: Kopya cekme">
           </div>
           <button class="btn btn-yesil" onclick="davranisEkle()">+ Davranis Ekle</button>
           <div class="mesaj" id="davranisMesaj"></div>
@@ -541,7 +508,6 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-    import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
     import {
       getFirestore, doc, getDoc, getDocs, addDoc, setDoc, deleteDoc, updateDoc,
       collection, query, where, orderBy, serverTimestamp, limit, Timestamp
@@ -559,7 +525,6 @@
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
-    const functions = getFunctions(app, 'us-central1');
 
     let aktifKullanici = null;
     let aktifRol = null;
@@ -569,6 +534,8 @@
     let sorguOgrenci = null;
     let aktifDonem = "1";
     let mesajSablonlari = {};
+    // null = admin (tüm sınıflar), Set = öğretmenin sınıfları
+    let _ogretmenSiniflar = null;
 
     const VARSAYILAN_SABLONLAR = {
       "Derse gec kalma": "Sayın velimiz, {ogrenci} adlı öğrenciniz geçtiğimiz hafta okula geç kalma davranışını göstermiştir.",
@@ -590,6 +557,17 @@
       if (aktifRol !== 'admin' && aktifRol !== 'mudur_yardimcisi') {
         document.getElementById('menuAyarlar').style.display = 'none';
         document.getElementById('menuRaporlar').style.display = 'none';
+
+        // Öğretmen: kendi ders programındaki sınıfları belirle
+        const teacherSnap = await getDocs(query(collection(db, 'teachers'), where('uid', '==', user.uid)));
+        if (!teacherSnap.empty) {
+          const teacherDocId = teacherSnap.docs[0].id;
+          const scheduleSnap = await getDocs(query(collection(db, 'schedule'), where('teacher_id', '==', teacherDocId)));
+          _ogretmenSiniflar = new Set();
+          scheduleSnap.forEach(d => _ogretmenSiniflar.add(d.data().class_id));
+        } else {
+          _ogretmenSiniflar = new Set(); // Güvenlik: eşleşme yoksa hiç sınıf gösterme
+        }
       }
 
       await baslangicYukle();
@@ -610,29 +588,42 @@
       davSnap.forEach(d => tumDavranislar.push({ id: d.id, ...d.data() }));
       davranislarGoster();
 
+      // Öğrencileri yükle — öğretmen için sadece kendi sınıfları
       const ogrSnap = await getDocs(collection(db, 'students'));
       tumOgrenciler = [];
-      ogrSnap.forEach(d => tumOgrenciler.push({ id: d.id, ...d.data() }));
+      ogrSnap.forEach(d => {
+        const o = { id: d.id, ...d.data() };
+        if (_ogretmenSiniflar === null || _ogretmenSiniflar.has(o.class_id)) {
+          tumOgrenciler.push(o);
+        }
+      });
 
       siniflarDoldur();
       davranisFilteriDoldur();
-      raporYukle();
-      davranisAyarlariniGoster();
-      sablonlarGoster();
+
+      if (aktifRol === 'admin' || aktifRol === 'mudur_yardimcisi') {
+        raporYukle();
+        davranisAyarlariniGoster();
+        sablonlarGoster();
+      }
 
       const bugun = new Date();
       const haftaBaslangic = new Date(bugun);
       haftaBaslangic.setDate(bugun.getDate() - bugun.getDay() + 1);
       const haftaBitis = new Date(haftaBaslangic);
       haftaBitis.setDate(haftaBaslangic.getDate() + 4);
-      document.getElementById('haftaBaslangic').value = haftaBaslangic.toISOString().split('T')[0];
-      document.getElementById('haftaBitis').value = haftaBitis.toISOString().split('T')[0];
+      if (document.getElementById('haftaBaslangic')) {
+        document.getElementById('haftaBaslangic').value = haftaBaslangic.toISOString().split('T')[0];
+        document.getElementById('haftaBitis').value = haftaBitis.toISOString().split('T')[0];
+      }
     }
 
     function siniflarDoldur() {
+      // Öğretmen için: kendi sınıfları; admin için: tüm sınıflar
       const siniflar = [...new Set(tumOgrenciler.map(o => o.class_id))].sort();
       ['filtreKayitSinif', 'haftaSinifFiltre'].forEach(id => {
         const sel = document.getElementById(id);
+        if (!sel) return;
         siniflar.forEach(s => sel.innerHTML += `<option value="${s}">${s}</option>`);
       });
     }
@@ -661,10 +652,7 @@
       tumDavranislar.filter(d => d.aktif).forEach(d => {
         html += `<div class="davranis-item" id="dav-${d.id}" onclick="davranisToggle('${d.id}')">
           <input type="checkbox" id="chk-${d.id}" onclick="event.stopPropagation()">
-          <div>
-            <div class="davranis-item-ad">${d.ad}</div>
-            <div class="davranis-item-esik">Esik: ${d.esik} tekrar</div>
-          </div>
+          <div class="davranis-item-ad">${d.ad}</div>
         </div>`;
       });
       container.innerHTML = html;
@@ -726,12 +714,9 @@
       snap.forEach(d => { const k = d.data(); sayimlar[k.davranis] = (sayimlar[k.davranis] || 0) + 1; });
       let html = '';
       Object.entries(sayimlar).forEach(([davranis, sayi]) => {
-        const tur = tumDavranislar.find(d => d.ad === davranis);
-        const esik = tur ? tur.esik : 999;
-        const asild = sayi >= esik;
         html += `<div class="gecmis-satir">
           <span>${davranis}</span>
-          <span class="${asild ? 'esik-asild' : ''}">${sayi} kez ${asild ? '(ESIK ASILDI)' : ''}</span>
+          <span>${sayi} kez</span>
         </div>`;
       });
       document.getElementById('gecmisIcerik').innerHTML = html;
@@ -766,9 +751,8 @@
             not: not,
             donem: aktifDonem,
             ogretmen_id: auth.currentUser.uid,
-            ogretmen_ad: aktifKullanici.ad + ' ' + (aktifKullanici.soyad || ''),
-            tarih: serverTimestamp(),
-            bildirim_gonderildi: false
+            ogretmen_ad: aktifKullanici.ad,
+            tarih: serverTimestamp()
           });
         }
         mesajGoster('kayitMesaj', seciliDavranislar.length + ' davranis kaydi eklendi.', 'basari');
@@ -792,12 +776,49 @@
       const davranisFiltre = document.getElementById('filtreKayitDavranis').value;
       const container = document.getElementById('kayitlarListesi');
       container.innerHTML = '<div class="yukleniyor-mesaj">Yukleniyor...</div>';
-      const snap = await getDocs(query(collection(db, 'disiplin_kayitlar'), orderBy('tarih', 'desc'), limit(200)));
+
+      let snap;
+      if (_ogretmenSiniflar !== null) {
+        // Öğretmen: sadece kendi sınıfları
+        const hedefSiniflar = sinifFiltre
+          ? (_ogretmenSiniflar.has(sinifFiltre) ? [sinifFiltre] : [])
+          : Array.from(_ogretmenSiniflar);
+        if (!hedefSiniflar.length) {
+          container.innerHTML = '<div class="bos-mesaj">Kayit bulunamadi</div>';
+          return;
+        }
+        snap = await getDocs(query(
+          collection(db, 'disiplin_kayitlar'),
+          where('sinif', 'in', hedefSiniflar),
+          limit(500)
+        ));
+      } else {
+        // Admin: tüm kayıtlar
+        snap = await getDocs(query(
+          collection(db, 'disiplin_kayitlar'),
+          orderBy('tarih', 'desc'),
+          limit(300)
+        ));
+      }
+
       let kayitlar = [];
       snap.forEach(d => kayitlar.push({ id: d.id, ...d.data() }));
-      if (sinifFiltre) kayitlar = kayitlar.filter(k => k.sinif === sinifFiltre);
-      if (davranisFiltre) kayitlar = kayitlar.filter(k => k.davranis === davranisFiltre);
+
+      // Öğretmen sorgusu orderBy içermediğinden client-side sırala
+      if (_ogretmenSiniflar !== null) {
+        if (davranisFiltre) kayitlar = kayitlar.filter(k => k.davranis === davranisFiltre);
+        kayitlar.sort((a, b) => {
+          const ta = a.tarih?.toDate ? a.tarih.toDate() : new Date(0);
+          const tb = b.tarih?.toDate ? b.tarih.toDate() : new Date(0);
+          return tb - ta;
+        });
+      } else {
+        if (sinifFiltre) kayitlar = kayitlar.filter(k => k.sinif === sinifFiltre);
+        if (davranisFiltre) kayitlar = kayitlar.filter(k => k.davranis === davranisFiltre);
+      }
+
       if (!kayitlar.length) { container.innerHTML = '<div class="bos-mesaj">Kayit bulunamadi</div>'; return; }
+
       let html = `<table><thead><tr><th>Tarih</th><th>Ogrenci</th><th>Sinif</th><th>Davranis</th><th>Ogretmen</th><th>Not</th></tr></thead><tbody>`;
       kayitlar.forEach(k => {
         const tarih = k.tarih?.toDate ? k.tarih.toDate().toLocaleDateString('tr-TR') : '-';
@@ -853,24 +874,13 @@
       const kayitlar = [];
       snap.forEach(d => kayitlar.push({ id: d.id, ...d.data() }));
 
-      // Özet
       document.getElementById('sorguToplamKayit').textContent = kayitlar.length;
       const farkliDavranislar = new Set(kayitlar.map(k => k.davranis));
       document.getElementById('sorguFarkliDavranis').textContent = farkliDavranislar.size;
 
-      // Davranış sayımları
       const sayimlar = {};
       kayitlar.forEach(k => sayimlar[k.davranis] = (sayimlar[k.davranis] || 0) + 1);
 
-      // Eşik aşılan sayısı
-      let esikAsilanSayisi = 0;
-      Object.entries(sayimlar).forEach(([davranis, sayi]) => {
-        const tur = tumDavranislar.find(d => d.ad === davranis);
-        if (tur && sayi >= tur.esik) esikAsilanSayisi++;
-      });
-      document.getElementById('sorguEsikAsilan').textContent = esikAsilanSayisi;
-
-      // Davranış özeti
       if (!kayitlar.length) {
         document.getElementById('sorguDavranisOzeti').innerHTML = '<div class="bos-mesaj">Bu donemde kayit yok</div>';
         document.getElementById('sorguKayitListesi').innerHTML = '<div class="bos-mesaj">Kayit yok</div>';
@@ -879,23 +889,13 @@
 
       let ozetHtml = '';
       Object.entries(sayimlar).sort((a, b) => b[1] - a[1]).forEach(([davranis, sayi]) => {
-        const tur = tumDavranislar.find(d => d.ad === davranis);
-        const esik = tur ? tur.esik : 999;
-        const asild = sayi >= esik;
         ozetHtml += `<div class="sorgu-davranis-satir">
-          <div>
-            <div class="sorgu-davranis-ad">${davranis}</div>
-            ${asild ? '<span class="rozet rozet-kirmizi" style="font-size:11px;">ESIK ASILDI</span>' : ''}
-          </div>
-          <div class="sorgu-davranis-sayi">
-            <span class="rozet ${asild ? 'rozet-kirmizi' : 'rozet-mavi'}">${sayi} kez</span>
-            <span style="color:#888; font-size:11px; margin-left:4px;">/ Esik: ${esik}</span>
-          </div>
+          <div class="sorgu-davranis-ad">${davranis}</div>
+          <span class="rozet rozet-mavi">${sayi} kez</span>
         </div>`;
       });
       document.getElementById('sorguDavranisOzeti').innerHTML = ozetHtml;
 
-      // Tüm kayıtlar listesi
       let listeHtml = `<table><thead><tr><th>Tarih</th><th>Davranis</th><th>Ogretmen</th><th>Not</th></tr></thead><tbody>`;
       kayitlar.forEach(k => {
         const tarih = k.tarih?.toDate ? k.tarih.toDate().toLocaleDateString('tr-TR') : '-';
@@ -930,14 +930,9 @@
 
       let davranisRows = '';
       Object.entries(sayimlar).sort((a, b) => b[1] - a[1]).forEach(([davranis, sayi]) => {
-        const tur = tumDavranislar.find(d => d.ad === davranis);
-        const esik = tur ? tur.esik : '-';
-        const asild = tur && sayi >= tur.esik;
         davranisRows += `<tr>
           <td>${davranis}</td>
-          <td style="text-align:center; font-weight:600; color:${asild ? '#c5221f' : '#333'}">${sayi}</td>
-          <td style="text-align:center;">${esik}</td>
-          <td style="text-align:center;">${asild ? '<strong style="color:#c5221f">EVET</strong>' : 'Hayir'}</td>
+          <td style="text-align:center; font-weight:600;">${sayi}</td>
         </tr>`;
       });
 
@@ -966,11 +961,9 @@
               <tr>
                 <th>Davranis</th>
                 <th style="text-align:center;">Tekrar Sayisi</th>
-                <th style="text-align:center;">Esik</th>
-                <th style="text-align:center;">Esik Asildi mi</th>
               </tr>
             </thead>
-            <tbody>${davranisRows || '<tr><td colspan="4" style="text-align:center; color:#888;">Bu donemde kayit bulunmamaktadir.</td></tr>'}</tbody>
+            <tbody>${davranisRows || '<tr><td colspan="2" style="text-align:center; color:#888;">Bu donemde kayit bulunmamaktadir.</td></tr>'}</tbody>
           </table>
 
           <p style="font-size:12px; color:#666; margin-top:16px; line-height:1.6;">
@@ -993,7 +986,7 @@
       document.getElementById('veliYazisiAlani').innerHTML = html;
     };
 
-    // HAFTALIK RAPOR
+    // HAFTALIK RAPOR (admin only)
     window.haftalikRaporGetir = async () => {
       const baslangicStr = document.getElementById('haftaBaslangic').value;
       const bitisStr = document.getElementById('haftaBitis').value;
@@ -1101,36 +1094,6 @@
       const ogrenciler = new Set(kayitlar.map(k => k.ogrenci_no));
       document.getElementById('statFarkliOgrenci').textContent = ogrenciler.size;
 
-      const sayimlar = {};
-      kayitlar.forEach(k => { const key = k.ogrenci_no + '|' + k.davranis; sayimlar[key] = (sayimlar[key] || 0) + 1; });
-
-      const esikAsilanlar = [];
-      Object.entries(sayimlar).forEach(([key, sayi]) => {
-        const [ogrNo, davranis] = key.split('|');
-        const tur = tumDavranislar.find(d => d.ad === davranis);
-        if (tur && sayi >= tur.esik) {
-          const kayit = kayitlar.find(k => k.ogrenci_no === ogrNo && k.davranis === davranis);
-          esikAsilanlar.push({ ogrNo, ogrAd: kayit?.ogrenci_ad, sinif: kayit?.sinif, davranis, sayi, esik: tur.esik });
-        }
-      });
-
-      document.getElementById('statEsikAsilan').textContent = esikAsilanlar.length;
-
-      if (!esikAsilanlar.length) {
-        document.getElementById('esikAsilanlar').innerHTML = '<div class="bos-mesaj">Esik asilan ogrenci yok</div>';
-      } else {
-        esikAsilanlar.sort((a, b) => parseInt(a.ogrNo) - parseInt(b.ogrNo));
-        let html = `<table><thead><tr><th>No</th><th>Ogrenci</th><th>Sinif</th><th>Davranis</th><th>Tekrar</th><th>Esik</th></tr></thead><tbody>`;
-        esikAsilanlar.forEach(e => {
-          html += `<tr><td>${e.ogrNo}</td><td><strong>${e.ogrAd}</strong></td>
-            <td>${e.sinif}</td><td>${e.davranis}</td>
-            <td><span class="rozet rozet-kirmizi">${e.sayi}</span></td>
-            <td>${e.esik}</td></tr>`;
-        });
-        html += '</tbody></table>';
-        document.getElementById('esikAsilanlar').innerHTML = html;
-      }
-
       const davSayimlar = {};
       kayitlar.forEach(k => davSayimlar[k.davranis] = (davSayimlar[k.davranis] || 0) + 1);
       const sirali = Object.entries(davSayimlar).sort((a, b) => b[1] - a[1]);
@@ -1155,25 +1118,12 @@
       }
     }
 
-    window.esikKontrolVeGonder = async () => {
-      mesajGoster('esikMesaj', 'Kontrol ediliyor...', 'basari');
-      try {
-        await auth.currentUser.getIdToken(true);
-        const fn = httpsCallable(functions, 'disiplinEsikKontrol');
-        const result = await fn({ donem: aktifDonem });
-        mesajGoster('esikMesaj', result.data.message, 'basari');
-        raporYukle();
-      } catch (err) {
-        mesajGoster('esikMesaj', 'Hata: ' + err.message, 'hata');
-      }
-    };
-
     async function davranisAyarlariniGoster() {
       const container = document.getElementById('davranisAyarListesi');
       if (!tumDavranislar.length) { container.innerHTML = '<div class="bos-mesaj">Davranis turu bulunamadi</div>'; return; }
-      let html = `<table><thead><tr><th>Davranis</th><th>Esik</th><th>Durum</th><th></th></tr></thead><tbody>`;
+      let html = `<table><thead><tr><th>Davranis</th><th>Durum</th><th></th></tr></thead><tbody>`;
       tumDavranislar.forEach(d => {
-        html += `<tr><td>${d.ad}</td><td>${d.esik} tekrar</td>
+        html += `<tr><td>${d.ad}</td>
           <td><span class="rozet ${d.aktif ? 'rozet-yesil' : 'rozet-kirmizi'}">${d.aktif ? 'Aktif' : 'Pasif'}</span></td>
           <td><button class="btn btn-gri" style="padding:4px 10px; font-size:12px;"
             onclick="davranisToggleAktif('${d.id}', ${d.aktif})">${d.aktif ? 'Pasif Yap' : 'Aktif Yap'}</button></td>
@@ -1193,12 +1143,13 @@
 
     window.davranisEkle = async () => {
       const ad = document.getElementById('yeniDavranisAd').value.trim();
-      const esik = parseInt(document.getElementById('yeniDavranisEsik').value);
-      if (!ad || !esik || esik < 1) { mesajGoster('davranisMesaj', 'Ad ve esik deger giriniz.', 'hata'); return; }
-      const ref = await addDoc(collection(db, 'disiplin_turleri'), { ad, esik, sira: tumDavranislar.length + 1, aktif: true, olusturulma: serverTimestamp() });
-      tumDavranislar.push({ id: ref.id, ad, esik, sira: tumDavranislar.length + 1, aktif: true });
+      if (!ad) { mesajGoster('davranisMesaj', 'Davranis adi girin.', 'hata'); return; }
+      const ref = await addDoc(collection(db, 'disiplin_turleri'), {
+        ad, sira: tumDavranislar.length + 1, aktif: true,
+        olusturulma: serverTimestamp()
+      });
+      tumDavranislar.push({ id: ref.id, ad, sira: tumDavranislar.length + 1, aktif: true });
       document.getElementById('yeniDavranisAd').value = '';
-      document.getElementById('yeniDavranisEsik').value = '';
       davranislarGoster();
       davranisAyarlariniGoster();
       mesajGoster('davranisMesaj', 'Davranis turu eklendi.', 'basari');

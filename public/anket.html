@@ -662,6 +662,10 @@
         onAuthStateChanged,
       } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
       import {
+        getFunctions,
+        httpsCallable,
+      } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
+      import {
         getFirestore,
         doc,
         getDoc,
@@ -689,6 +693,7 @@
       const app = initializeApp(firebaseConfig);
       const auth = getAuth(app);
       const db = getFirestore(app);
+      const functions = getFunctions(app, "europe-west1");
 
       let aktifRol = null;
       let aktifUid = null;
@@ -753,7 +758,18 @@
         if (kalan <= 0) return null;
         const gun = Math.floor(kalan / 86400000);
         const saat = Math.floor((kalan % 86400000) / 3600000);
-        return gun > 0 ? gun + " gün " + saat + " saat" : saat + " saat";
+        const dak = Math.floor((kalan % 3600000) / 60000);
+        if (gun > 0) return gun + " gün " + saat + " saat";
+        if (saat > 0) return saat + " saat " + dak + " dk";
+        return dak + " dakika";
+      }
+      function tarihi_formatla(tarih) {
+        if (!tarih) return "";
+        const [datePart, timePart] = tarih.split("T");
+        const parts = datePart.split("-");
+        if (parts.length !== 3) return tarih;
+        const [y, m, d] = parts;
+        return timePart ? `${d}.${m}.${y} ${timePart}` : `${d}.${m}.${y}`;
       }
       function anketDurum(anket) {
         if (anket.durum === "taslak") return "taslak";
@@ -828,7 +844,7 @@
             <div class="anket-kart-baslik">${a.baslik}</div>
             <div class="anket-kart-alt">
               <span>📝 ${(a.sorular || []).length} soru</span>
-              ${a.son_tarih ? `<span>⏰ Son tarih: ${a.son_tarih}</span>` : ""}
+              ${a.son_tarih ? `<span>⏰ Son tarih: ${tarihi_formatla(a.son_tarih)}</span>` : ""}
               ${kalanSure ? `<span class="sure-sayaci ${acil ? "acil" : ""}">⏳ ${kalanSure} kaldı</span>` : ""}
               ${a.anonim ? '<span class="rozet rozet-mor">Anonim</span>' : ""}
             </div>
@@ -860,7 +876,7 @@
           <div class="kart">
             <h2 style="font-size:18px;font-weight:700;color:#333;margin-bottom:6px;">${anket.baslik}</h2>
             ${anket.aciklama ? `<p style="font-size:13px;color:#666;margin-bottom:16px;">${anket.aciklama}</p>` : ""}
-            ${anket.son_tarih ? `<div style="font-size:12px;color:#888;margin-bottom:16px;">Son tarih: ${anket.son_tarih}</div>` : ""}
+            ${anket.son_tarih ? `<div style="font-size:12px;color:#888;margin-bottom:16px;">Son tarih: ${tarihi_formatla(anket.son_tarih)}</div>` : ""}
             <div class="ilerleme-bar"><div class="ilerleme-dolgu" id="ilerlemeDolgu" style="width:0%"></div></div>
             <div id="sorularWrap">`;
 
@@ -890,10 +906,22 @@
             html += `</div>`;
           } else if (s.tip === "coklu_secim") {
             html += `<div class="checkbox-grup" id="yanit_${idx}">`;
-            (s.secenekler || []).forEach((sec, si) => {
+            (s.secenekler || []).forEach((sec) => {
               html += `<label class="checkbox-item"><input type="checkbox" value="${sec}" onchange="ilerlemeGuncelle()"> ${sec}</label>`;
             });
             html += `</div>`;
+          } else if (s.tip === "dropdown") {
+            html += `<select class="yanit-input" id="yanit_${idx}" onchange="ilerlemeGuncelle()">
+              <option value="">-- Seçiniz --</option>
+              ${(s.secenekler || []).map((sec) => `<option value="${sec}">${sec}</option>`).join("")}
+            </select>`;
+          } else if (s.tip === "evet_hayir") {
+            html += `<div class="radio-grup">
+              <label class="radio-item"><input type="radio" name="yanit_${idx}" value="Evet" onchange="ilerlemeGuncelle()"> Evet</label>
+              <label class="radio-item"><input type="radio" name="yanit_${idx}" value="Hayır" onchange="ilerlemeGuncelle()"> Hayır</label>
+            </div>`;
+          } else if (s.tip === "zaman") {
+            html += `<input type="time" class="yanit-input" id="yanit_${idx}" onchange="ilerlemeGuncelle()">`;
           }
           html += `</div>`;
         });
@@ -940,7 +968,7 @@
         let eksik = false;
 
         sorular.forEach((s, idx) => {
-          if (s.tip === "tek_secim") {
+          if (s.tip === "tek_secim" || s.tip === "evet_hayir") {
             const radio = document.querySelector(
               `input[name="yanit_${idx}"]:checked`,
             );
@@ -992,7 +1020,7 @@
             <button class="sekme-btn" onclick="adminSekme('ogretmenler', this)">👥 Öğretmen Ayarları</button>
           </div>
           <div class="sekme-icerik aktif" id="asekme-formlar"></div>
-          <div class="sekme-icgit pusherik" id="asekme-olustur"></div>
+          <div class="sekme-icerik" id="asekme-olustur"></div>
           <div class="sekme-icerik" id="asekme-sablonlar"></div>
           <div class="sekme-icerik" id="asekme-ogretmenler"></div>`;
         adminFormlarGoster();
@@ -1064,7 +1092,7 @@
                   <span class="rozet ${durumRenk}">${durumMetin}</span>
                   <span>📝 ${(a.sorular || []).length} soru</span>
                   <span>👥 ${yanıtSayisi}/${toplamHedef} yanıt</span>
-                  ${a.son_tarih ? `<span>⏰ ${a.son_tarih}</span>` : ""}
+                  ${a.son_tarih ? `<span>⏰ ${tarihi_formatla(a.son_tarih)}</span>` : ""}
                   ${a.anonim ? '<span class="rozet rozet-mor">Anonim</span>' : ""}
                 </div>
               </div>
@@ -1104,8 +1132,8 @@
                 <input type="text" id="formBaslik" placeholder="Form başlığını yazın..." value="${sablon?.baslik || ""}">
               </div>
               <div class="form-group">
-                <label>Son Tarih (boş = süresiz)</label>
-                <input type="date" id="formSonTarih" value="${sablon?.son_tarih || ""}">
+                <label>Son Tarih ve Saat (boş = süresiz)</label>
+                <input type="datetime-local" id="formSonTarih" value="${sablon?.son_tarih || ""}">
               </div>
             </div>
             <div class="form-group">
@@ -1142,11 +1170,14 @@
               <div style="display:flex;gap:6px;flex-wrap:wrap;">
                 <button type="button" class="btn btn-sm btn-mavi" onclick="soruEkle('kisa_metin')">+ Kısa Metin</button>
                 <button type="button" class="btn btn-sm btn-mavi" onclick="soruEkle('uzun_metin')">+ Uzun Metin</button>
-                <button type="button" class="btn btn-sm btn-mavi" onclick="soruEkle('sayi')">+ Sayı</button>
-                <button type="button" class="btn btn-sm btn-mavi" onclick="soruEkle('puan')">+ Puan</button>
                 <button type="button" class="btn btn-sm btn-mavi" onclick="soruEkle('tek_secim')">+ Tek Seçim</button>
                 <button type="button" class="btn btn-sm btn-mavi" onclick="soruEkle('coklu_secim')">+ Çoklu Seçim</button>
+                <button type="button" class="btn btn-sm btn-mavi" onclick="soruEkle('dropdown')">+ Açılır Menü</button>
+                <button type="button" class="btn btn-sm btn-mavi" onclick="soruEkle('evet_hayir')">+ Evet / Hayır</button>
+                <button type="button" class="btn btn-sm btn-mavi" onclick="soruEkle('puan')">+ Puan (1-10)</button>
+                <button type="button" class="btn btn-sm btn-mavi" onclick="soruEkle('sayi')">+ Sayı</button>
                 <button type="button" class="btn btn-sm btn-mavi" onclick="soruEkle('tarih')">+ Tarih</button>
+                <button type="button" class="btn btn-sm btn-mavi" onclick="soruEkle('zaman')">+ Saat</button>
               </div>
             </div>
             <div id="sorularContainer"></div>
@@ -1272,7 +1303,10 @@
           puan: "Puan (1-10)",
           tek_secim: "Tek Seçim",
           coklu_secim: "Çoklu Seçim",
+          dropdown: "Açılır Menü",
+          evet_hayir: "Evet / Hayır",
           tarih: "Tarih",
+          zaman: "Saat",
         };
 
         const div = document.createElement("div");
@@ -1296,12 +1330,14 @@
           </div>
           <input type="hidden" data-alan="tip" value="${tip}">
           ${
-            tip === "tek_secim" || tip === "coklu_secim"
+            tip === "tek_secim" || tip === "coklu_secim" || tip === "dropdown"
               ? `
           <div class="secenekler-wrap">
             <div id="${id}_secenekler">${(mevcut?.secenekler || ["", ""]).map((s) => secenek_html(s)).join("")}</div>
             <button type="button" class="btn btn-sm btn-gri" style="margin-top:6px;" onclick="secenek_ekle('${id}_secenekler')">+ Seçenek Ekle</button>
           </div>`
+              : tip === "evet_hayir"
+              ? `<div style="font-size:12px;color:#888;margin-top:6px;">Evet / Hayır seçenekleri otomatik gelir.</div>`
               : ""
           }`;
 
@@ -1389,13 +1425,19 @@
         if (duzenlenenAnketId) {
           await updateDoc(doc(db, "anketler", duzenlenenAnketId), veri);
           mesajGoster("olusturMesaj", "Form güncellendi.", "basari");
+          if (durum === "aktif") {
+            _anketBildirimGonder(duzenlenenAnketId, veri);
+          }
         } else {
-          await addDoc(collection(db, "anketler"), veri);
+          const docRef = await addDoc(collection(db, "anketler"), veri);
           mesajGoster(
             "olusturMesaj",
             durum === "aktif" ? "Form yayınlandı!" : "Taslak kaydedildi.",
             "basari",
           );
+          if (durum === "aktif") {
+            _anketBildirimGonder(docRef.id, veri);
+          }
         }
 
         setTimeout(() => {
@@ -1404,8 +1446,28 @@
         }, 1500);
       };
 
+      function _anketBildirimGonder(anketId, veri) {
+        const hedefIds = hedefOgretmenleri(veri.hedef_kitle);
+        try {
+          const fn = httpsCallable(functions, "anketBildir");
+          fn({
+            anketId,
+            baslik: veri.baslik,
+            aciklama: veri.aciklama || "",
+            sonTarih: veri.son_tarih || null,
+            hedefIds,
+          }).catch((e) => console.warn("Telegram bildirim hatası:", e));
+        } catch (e) {
+          console.warn("Telegram bildirim hatası:", e);
+        }
+      }
+
       window.anketYayinla = async (id) => {
         await updateDoc(doc(db, "anketler", id), { durum: "aktif" });
+        const anketDoc = await getDoc(doc(db, "anketler", id));
+        if (anketDoc.exists()) {
+          _anketBildirimGonder(id, anketDoc.data());
+        }
         adminFormlarGoster();
       };
 

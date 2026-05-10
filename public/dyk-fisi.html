@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DYK Yoklama Fisleri</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { font-family: "Courier New", monospace; background: #f0f4f8; }
+      .kontrol {
+        background: white; padding: 14px 20px;
+        border-bottom: 2px solid #ddd;
+        display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;
+      }
+      .kontrol h1 { width: 100%; font-size: 16px; font-family: "Segoe UI", sans-serif; color: #333; margin-bottom: 6px; }
+      .form-group { display: flex; flex-direction: column; gap: 3px; }
+      .form-group label { font-size: 11px; color: #666; font-weight: 600; font-family: "Segoe UI", sans-serif; }
+      .form-group input, .form-group select { padding: 7px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; font-family: "Segoe UI", sans-serif; outline: none; }
+      .btn { padding: 8px 18px; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: "Segoe UI", sans-serif; }
+      .btn-mavi { background: #1a73e8; color: white; }
+      .btn-yesil { background: #34a853; color: white; }
+      .btn-gri { background: #666; color: white; }
+      #durum { width: 100%; font-size: 12px; color: #666; font-family: "Segoe UI", sans-serif; margin-top: 4px; }
+      #yazdir-alani { padding: 16px; background: #f0f4f8; }
+      .bos-mesaj { text-align: center; color: #999; padding: 40px; font-family: "Segoe UI", sans-serif; font-size: 14px; }
+
+      /* A4 SAYFA */
+      .a4-sayfa {
+        width: 210mm; background: white;
+        margin: 0 auto 16px auto; padding: 8mm;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        display: flex; flex-direction: column;
+      }
+      .sayfa-baslik {
+        text-align: center; padding-bottom: 4mm;
+        margin-bottom: 4mm; border-bottom: 1.5px solid #222;
+      }
+      .sayfa-baslik .okul-adi { font-size: 11pt; font-weight: 700; letter-spacing: 0.5px; }
+      .sayfa-baslik .alt-baslik { font-size: 9pt; color: #444; margin-top: 1mm; }
+
+      /* FİŞ LİSTESİ — her kurs ayrı kutu */
+      .fis {
+        border: 1px solid #333; padding: 3mm;
+        margin-bottom: 4mm; page-break-inside: avoid;
+      }
+      .fis-baslik {
+        display: flex; justify-content: space-between;
+        font-size: 9pt; font-weight: 700; border-bottom: 0.5px solid #555;
+        padding-bottom: 1.5mm; margin-bottom: 2mm;
+      }
+      .fis-tablo { width: 100%; border-collapse: collapse; }
+      .fis-tablo th, .fis-tablo td {
+        border: 0.5px solid #555; padding: 1.5mm 2mm;
+        font-size: 8pt; text-align: left;
+      }
+      .fis-tablo th { background: #efefef; font-weight: 700; text-align: center; }
+      .fis-tablo td.no { text-align: center; width: 10mm; }
+      .fis-tablo td.isim { width: 55mm; }
+      .fis-tablo td.imza { width: 25mm; }
+      .fis-alt {
+        display: flex; justify-content: flex-end;
+        margin-top: 2mm; padding-top: 1.5mm; border-top: 0.5px solid #555;
+      }
+      .incelendi {
+        border: 0.5px solid #555; padding: 1mm 3mm;
+        font-size: 7pt; text-align: center; min-width: 35mm;
+      }
+      .incelendi strong { font-size: 8pt; display: block; }
+      .imza-cizgi { border-top: 0.5px dotted #888; margin-top: 3mm; height: 5mm; }
+
+      @media print {
+        * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        body { background: white; }
+        .kontrol { display: none !important; }
+        #yazdir-alani { padding: 0; background: white; }
+        .a4-sayfa { width: 100%; box-shadow: none; margin: 0; padding: 6mm; page-break-after: always; break-after: page; }
+        .a4-sayfa:last-child { page-break-after: auto; break-after: auto; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="kontrol">
+      <h1>DYK Yoklama Fisleri</h1>
+      <div class="form-group">
+        <label>Tarih</label>
+        <input type="date" id="tarih" />
+      </div>
+      <div class="form-group">
+        <label>Kurs Filtresi</label>
+        <select id="kursFiltre"><option value="">Tum Kurslar</option></select>
+      </div>
+      <button class="btn btn-mavi" onclick="fisleriOlustur()">Fisleri Olustur</button>
+      <button class="btn btn-yesil" onclick="window.print()">Yazdir</button>
+      <a href="/portal.html" style="text-decoration:none"><button class="btn btn-gri">Ana Sayfa</button></a>
+      <div id="durum"></div>
+    </div>
+    <div id="yazdir-alani"><div class="bos-mesaj">Tarih secip "Fisleri Olustur" butonuna tiklayin.</div></div>
+
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+      import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+      import { getFirestore, getDocs, collection, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+      const app = initializeApp({
+        apiKey: "AIzaSyAHTCiicd4b94rG1-jN0STRbwcrLmkYudo",
+        authDomain: "okul-yoklama-sistemi-8081f.firebaseapp.com",
+        projectId: "okul-yoklama-sistemi-8081f",
+        storageBucket: "okul-yoklama-sistemi-8081f.firebasestorage.app",
+        messagingSenderId: "38230047763",
+        appId: "1:38230047763:web:dfab058df8928b66be13e6",
+      });
+      const auth = getAuth(app);
+      const db = getFirestore(app);
+      const OKUL_ADI = "AHMET YENİCE ORTAOKULU";
+      const MUDUR_YARDIMCISI = "T. YIKILMAZ";
+
+      document.getElementById("tarih").value = new Date().toISOString().split("T")[0];
+      onAuthStateChanged(auth, (user) => { if (!user) window.location.href = "/portal.html"; });
+
+      function formatTarih(t) {
+        const d = new Date(t + "T12:00:00");
+        const gunler = ["Pazar","Pazartesi","Salı","Çarşamba","Perşembe","Cuma","Cumartesi"];
+        return `${String(d.getDate()).padStart(2,"0")}.${String(d.getMonth()+1).padStart(2,"0")}.${d.getFullYear()} ${gunler[d.getDay()]}`;
+      }
+
+      // Kurs filtresini doldur
+      async function kurslariyukle() {
+        const snap = await getDocs(collection(db, "dyk_courses"));
+        const sel = document.getElementById("kursFiltre");
+        snap.forEach((d) => {
+          const k = d.data();
+          sel.innerHTML += `<option value="${d.id}">${k.class_id} — ${k.course_name}</option>`;
+        });
+      }
+      kurslariyukle();
+
+      window.fisleriOlustur = async () => {
+        const tarih = document.getElementById("tarih").value;
+        const kursFiltre = document.getElementById("kursFiltre").value;
+        const durum = document.getElementById("durum");
+        const alan = document.getElementById("yazdir-alani");
+        if (!tarih) { durum.textContent = "Lutfen tarih secin."; return; }
+
+        durum.textContent = "⏳ Veriler yukleniyor...";
+        alan.innerHTML = '<div class="bos-mesaj">⏳ Fisler hazirlaniyor...</div>';
+
+        // Kursları yükle
+        const kursSnap = await getDocs(collection(db, "dyk_courses"));
+        const kurslar = {};
+        kursSnap.forEach((d) => (kurslar[d.id] = { id: d.id, ...d.data() }));
+
+        // Öğretmenleri yükle
+        const ogSnap = await getDocs(collection(db, "teachers"));
+        const ogretmenler = {};
+        ogSnap.forEach((d) => (ogretmenler[d.id] = d.data()));
+
+        // DYK devamsızlıklarını yükle
+        let attQuery = query(collection(db, "dyk_attendance"), where("date", "==", tarih));
+        const attSnap = await getDocs(attQuery);
+        const devamsizlik = {};
+        attSnap.forEach((d) => {
+          const v = d.data();
+          devamsizlik[v.course_id] = v.absent_students || [];
+        });
+
+        // Filtreleme
+        let gosterilecek = Object.values(kurslar);
+        if (kursFiltre) gosterilecek = gosterilecek.filter(k => k.id === kursFiltre);
+        gosterilecek.sort((a, b) => a.class_id.localeCompare(b.class_id));
+
+        if (!gosterilecek.length) {
+          alan.innerHTML = '<div class="bos-mesaj">Gosterilecek kurs bulunamadi.</div>';
+          durum.textContent = "";
+          return;
+        }
+
+        const tarihStr = formatTarih(tarih);
+        let sayfaHtml = `<div class="a4-sayfa">`;
+        sayfaHtml += `<div class="sayfa-baslik"><div class="okul-adi">${OKUL_ADI} — DYK YOKLAMA FİŞLERİ</div><div class="alt-baslik">${tarihStr}</div></div>`;
+
+        for (const kurs of gosterilecek) {
+          const ogr = ogretmenler[kurs.teacher_id];
+          const ogrAd = ogr?.ad || "-";
+          const yoklar = devamsizlik[kurs.id] || [];
+          const yokSet = new Set(yoklar);
+
+          // Sınıf öğrencilerini al
+          const ogrSnap = await getDocs(query(collection(db, "students"), where("class_id", "==", kurs.class_id)));
+          const ogrenciler = [];
+          ogrSnap.forEach((d) => ogrenciler.push(d.data()));
+          ogrenciler.sort((a, b) => (a.name || "").localeCompare(b.name || "", "tr"));
+
+          sayfaHtml += `<div class="fis">`;
+          sayfaHtml += `<div class="fis-baslik"><span>${kurs.class_id} — ${kurs.course_name}</span><span>Ogretmen: ${ogrAd} &nbsp;|&nbsp; Tarih: ${tarihStr.split(" ")[0]}</span></div>`;
+          sayfaHtml += `<table class="fis-tablo"><thead><tr><th class="no">No</th><th class="isim">Ad Soyad</th><th>Geldi mi?</th><th class="imza">İmza</th></tr></thead><tbody>`;
+
+          ogrenciler.forEach((o) => {
+            const yok = yokSet.has(o.student_number);
+            sayfaHtml += `<tr><td class="no">${o.student_number}</td><td class="isim">${o.name}</td><td style="text-align:center;font-size:10pt;">${yok ? "✗" : ""}</td><td class="imza"></td></tr>`;
+          });
+
+          sayfaHtml += `</tbody></table>`;
+          sayfaHtml += `<div class="fis-alt"><div class="incelendi"><span>İNCELENDİ — MÜD.YARD.</span><strong>${MUDUR_YARDIMCISI}</strong><div class="imza-cizgi"></div></div></div>`;
+          sayfaHtml += `</div>`;
+        }
+
+        sayfaHtml += `</div>`;
+        alan.innerHTML = sayfaHtml;
+        durum.textContent = `✓ ${gosterilecek.length} kurs fisi olusturuldu. Yazdirmak icin butona tiklayin.`;
+      };
+    </script>
+  </body>
+</html>

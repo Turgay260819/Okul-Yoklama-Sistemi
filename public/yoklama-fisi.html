@@ -140,7 +140,7 @@
       .fis-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        grid-template-rows: repeat(4, 1fr);
+        grid-template-rows: repeat(4, minmax(0, 1fr));
         gap: 2mm;
         flex: 1;
         overflow: hidden;
@@ -210,11 +210,15 @@
 
       /* Yok satırı */
       .yh {
-        height: 12mm;
         vertical-align: top;
-        font-size: 7pt;
         padding: 0.5mm !important;
-        line-height: 1.25;
+      }
+      .yh-ic {
+        max-height: 25mm;
+        overflow: hidden;
+        font-size: 6pt;
+        line-height: 1.15;
+        word-break: break-all;
       }
 
       /* İmza satırı */
@@ -523,11 +527,10 @@
                 const ogrKisa = kisalt(ogr?.ad || "");
                 const yoklar = sinifYok[dersNo] || [];
                 const yokMetin = yoklar.join(" ");
-                const cok = yoklar.length > 4;
 
                 drsRow += `<td class="dh">${dersKisa}</td>`;
                 satRow += `<td class="dh">${dersNo}</td>`;
-                yokRow += `<td class="yh" style="font-size:${cok ? "6pt" : "7pt"};">${yokMetin}</td>`;
+                yokRow += `<td class="yh"><div class="yh-ic">${yokMetin}</div></td>`;
                 ogrRow += `<td class="dh" style="font-size:6.5pt;">${ogrKisa}</td>`;
                 imzRow += `<td class="ih"></td>`;
               }
