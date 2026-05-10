@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-ChildItem C:\\\\Users\\\\turga\\\\Okul-Yoklama-Sistemi\\\\functions\\\\ | Where-Object { $_.Name -ne \"node_modules\" } | Select-Object Name, PSIsContainer)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\turga\\\\Okul-Yoklama-Sistemi\\\\public\" -Filter \"*.html\")",
+      "Bash(Select-Object Name)",
+      "PowerShell(New-Item *)",
+      "Bash(firebase deploy *)",
+      "Bash(dir firebase.json .firebaserc)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)"
+    ]
+  }
+}
