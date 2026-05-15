@@ -55,6 +55,7 @@ async function ogretmenleriListele() {
   const snap = await getDocs(collection(db, "teachers"));
   tumOgretmenler.length = 0;
   snap.forEach((d) => tumOgretmenler.push({ id: d.id, ...d.data() }));
+  window.dropdownlariGuncelle?.();
   const container = document.getElementById("ayarOgretmenListesi");
   if (snap.empty) {
     container.innerHTML = '<div class="bos-mesaj">Henuz ogretmen eklenmemis</div>';

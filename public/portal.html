@@ -1500,7 +1500,9 @@
       const db = getFirestore(app);
       const functions = getFunctions(app, "europe-west1");
 
-      const bugun = new Date().toISOString().split("T")[0];
+      const bugun = new Intl.DateTimeFormat("tr-TR", {
+        timeZone: "Europe/Istanbul", year: "numeric", month: "2-digit", day: "2-digit"
+      }).format(new Date()).split(".").reverse().join("-");
       let aktifKullanici = null;
       let aktifRol = null;
       let tumOgretmenler = [];
@@ -1758,6 +1760,14 @@
           clearInterval(_ymTimer);
           _ymTimer = null;
         }
+        if (id !== "anasayfa" && window._takipInterval) {
+          clearInterval(window._takipInterval);
+          window._takipInterval = null;
+        }
+        if (id !== "dyk" && _dykTimer) {
+          clearInterval(_dykTimer);
+          _dykTimer = null;
+        }
         if (id === "anasayfa") anasayfaYukle();
         else if (id === "derslerim") dersleriniYukle();
         else if (id === "yoklamalarim") yoklamalarimYukle();
@@ -1871,6 +1881,24 @@
         await signOut(auth);
       };
 
+      window.dropdownlariGuncelle = function dropdownlariGuncelle() {
+        const modalOgr = document.getElementById("modalOgretmen");
+        if (modalOgr) {
+          modalOgr.innerHTML = "";
+          tumOgretmenler.forEach(
+            (o) => (modalOgr.innerHTML += `<option value="${o.id}">${o.ad}</option>`),
+          );
+        }
+        const manuelSinif = document.getElementById("manuelSinif");
+        if (manuelSinif) {
+          manuelSinif.innerHTML = '<option value="">Sinif secin...</option>';
+          tumSiniflar.sort((a, b) => a.class_name.localeCompare(b.class_name));
+          tumSiniflar.forEach(
+            (s) => (manuelSinif.innerHTML += `<option value="${s.class_name}">${s.class_name}</option>`),
+          );
+        }
+      }
+
       async function veriYukle() {
         const ogSnap = await getDocs(collection(db, "teachers"));
         tumOgretmenler = [];
@@ -1878,20 +1906,12 @@
         const sinSnap = await getDocs(collection(db, "classes"));
         tumSiniflar = [];
         sinSnap.forEach((d) => tumSiniflar.push({ id: d.id, ...d.data() }));
-        const modalOgr = document.getElementById("modalOgretmen");
-        modalOgr.innerHTML = "";
-        tumOgretmenler.forEach(
-          (o) =>
-            (modalOgr.innerHTML += `<option value="${o.id}">${o.ad}</option>`),
-        );
-        const manuelSinif = document.getElementById("manuelSinif");
-        manuelSinif.innerHTML = '<option value="">Sinif secin...</option>';
-        tumSiniflar.sort((a, b) => a.class_name.localeCompare(b.class_name));
-        tumSiniflar.forEach(
-          (s) =>
-            (manuelSinif.innerHTML += `<option value="${s.class_name}">${s.class_name}</option>`),
-        );
+        dropdownlariGuncelle();
       }
+
+      window.veriYenile = async () => {
+        await veriYukle();
+      };
 
       // ── ANASAYFA ──
       async function anasayfaYukle() {
