@@ -1106,12 +1106,34 @@
                       />
                     </div>
                     <div class="form-group">
-                      <label>Brans</label
-                      ><input
-                        type="text"
-                        id="ayarOgretmenBrans"
-                        placeholder="Matematik"
-                      />
+                      <label>Brans</label>
+                      <select id="ayarOgretmenBrans">
+                        <option value="">Brans secin...</option>
+                        <option>Anasinifi</option>
+                        <option>Beden Egitimi</option>
+                        <option>Bilisim Teknolojileri</option>
+                        <option>Biyoloji</option>
+                        <option>Cografya</option>
+                        <option>Din Kulturu</option>
+                        <option>Edebiyat</option>
+                        <option>Felsefe</option>
+                        <option>Fen Bilimleri</option>
+                        <option>Fizik</option>
+                        <option>Gorsel Sanatlar</option>
+                        <option>Ingilizce</option>
+                        <option>Kimya</option>
+                        <option>Matematik</option>
+                        <option>Muzik</option>
+                        <option>Psikolojik Danisman</option>
+                        <option>Rehber Ogretmen</option>
+                        <option>Sinif Ogretmeni</option>
+                        <option>Sosyal Bilgiler</option>
+                        <option>Tarih</option>
+                        <option>Teknoloji ve Tasarim</option>
+                        <option>Turkce</option>
+                        <option>Turkce Edebiyat</option>
+                        <option>Diger</option>
+                      </select>
                     </div>
                     <div class="form-group">
                       <label>E-posta</label
@@ -1266,9 +1288,9 @@
                       <label>Gun</label>
                       <select id="dykKursGun">
                         <option value="pazartesi">Pazartesi</option>
-                        <option value="sali">Sali</option>
-                        <option value="carsamba">Carsamba</option>
-                        <option value="persembe">Persembe</option>
+                        <option value="salı">Salı</option>
+                        <option value="çarşamba">Çarşamba</option>
+                        <option value="perşembe">Perşembe</option>
                         <option value="cuma">Cuma</option>
                       </select>
                     </div>
@@ -1586,6 +1608,12 @@
           ad: "Veri Import",
           dis: "/import.html",
         },
+        {
+          id: "geziler-link",
+          ikon: "🚌",
+          ad: "Geziler",
+          dis: "/gezi.html",
+        },
         { id: "kazanimlar", ikon: "📖", ad: "Kazanim Yonetimi" },
       ];
 
@@ -1772,7 +1800,9 @@
             ? "Admin"
             : aktifRol === "mudur_yardimcisi"
               ? "Mudur Yardimcisi"
-              : "Ogretmen";
+              : aktifRol === "ogrenci"
+                ? "Ogrenci"
+                : "Ogretmen";
 
         menuOlustur(aktifRol);
         await veriYukle();
@@ -1780,6 +1810,9 @@
         if (aktifRol === "admin" || aktifRol === "mudur_yardimcisi") {
           anasayfaYukle();
           document.getElementById("menu-anasayfa")?.classList.add("aktif");
+        } else if (aktifRol === "ogrenci") {
+          window.location.href = "/ogrenci.html";
+          return;
         } else {
           const ogSnap = await getDocs(
             query(collection(db, "teachers"), where("uid", "==", user.uid)),
@@ -1888,43 +1921,68 @@
           document.getElementById("statTamGun").textContent = tamGun;
           if (!durumlar.length) {
             document.getElementById("bugunDurum").innerHTML =
-              '<div class="bos-mesaj">Bugun icin ders programi olusturulmamis</div>';
+              '<div class="bos-mesaj">Bugün için ders programı oluşturulmamış</div>';
           } else {
-            durumlar.sort((a, b) => (a.class_id || "").localeCompare(b.class_id || "", "tr") || a.lesson_number - b.lesson_number);
-            const sinifGruplari = {};
-            durumlar.forEach((d) => {
-              if (!sinifGruplari[d.class_id]) sinifGruplari[d.class_id] = [];
-              sinifGruplari[d.class_id].push(d);
+            // Kademe → Şube → Dersler gruplandırması
+            const ogretmenIdMap = {};
+            tumOgretmenler.forEach(o => ogretmenIdMap[o.id] = o.ad);
+
+            const kademeGruplari = {};
+            durumlar.forEach(d => {
+              const kademe = (d.class_id || "?").match(/\d+/)?.[0] || "?";
+              if (!kademeGruplari[kademe]) kademeGruplari[kademe] = {};
+              if (!kademeGruplari[kademe][d.class_id]) kademeGruplari[kademe][d.class_id] = [];
+              kademeGruplari[kademe][d.class_id].push(d);
             });
+
             let html = "";
-            Object.entries(sinifGruplari).forEach(([sinif, dersler]) => {
-              const eksikSayisi = dersler.filter((d) => d.status !== "filled").length;
-              const durumRozet = eksikSayisi > 0
-                ? '<span class="rozet rozet-kirmizi" style="font-size:11px;">' + eksikSayisi + " Eksik</span>"
-                : '<span class="rozet rozet-yesil" style="font-size:11px;">Tamam</span>';
-              html +=
-                '<div style="border-bottom:1px solid var(--border);">' +
-                '<div onclick="var d=this.nextElementSibling;var ok=this.querySelector(\'.akor-ok\');var acik=d.style.display!==\'none\';d.style.display=acik?\'none\':\'block\';ok.textContent=acik?\'▼\':\'▲\';" ' +
-                'style="display:flex;align-items:center;gap:12px;padding:10px 4px;cursor:pointer;user-select:none;">' +
-                '<div style="font-weight:700;flex:1;">' + sinif + "</div>" +
-                '<div style="font-size:12px;color:var(--text2);">' + dersler.length + " ders</div>" +
-                durumRozet +
-                '<span class="akor-ok" style="color:var(--text2);font-size:12px;min-width:14px;">▼</span>' +
-                "</div>" +
-                '<div style="display:none;padding-bottom:8px;padding-left:8px;">' +
-                '<table style="width:100%;font-size:13px;"><tbody>';
-              dersler.forEach((d) => {
-                html +=
-                  "<tr>" +
-                  '<td style="padding:4px 8px 4px 0;color:var(--text2);">' + d.lesson_number + ". Ders</td>" +
-                  '<td style="padding:4px 8px;">' + (d.lesson_name || "-") + "</td>" +
-                  '<td style="padding:4px 0;text-align:right;">' +
-                  (d.status === "filled"
+            Object.keys(kademeGruplari).sort((a,b) => parseInt(a)-parseInt(b)).forEach(kademe => {
+              const subeler = kademeGruplari[kademe];
+              const kademeId = "akor-k" + kademe;
+              let kToplam = 0, kDolu = 0;
+              Object.values(subeler).forEach(dersler => dersler.forEach(d => { kToplam++; if (d.status==="filled") kDolu++; }));
+              const kEksik = kToplam - kDolu;
+              const kRozet = kEksik === 0
+                ? '<span class="rozet rozet-yesil" style="font-size:11px;">Tamam</span>'
+                : '<span class="rozet rozet-kirmizi" style="font-size:11px;">' + kEksik + " Eksik</span>";
+
+              html += '<div style="margin-bottom:4px;">';
+              html += '<div class="akor-kademe-baslik" onclick="akordiyonToggle(\'' + kademeId + '\')">';
+              html += '<span>📚 ' + kademe + '. Sınıflar <span style="font-size:12px;font-weight:400;color:var(--text2);">(' + Object.keys(subeler).length + ' şube)</span></span>';
+              html += '<span style="display:flex;gap:8px;align-items:center;">' + kRozet + ' <span id="ok-' + kademeId + '" style="font-size:12px;color:var(--text2);">▶</span></span>';
+              html += '</div>';
+              html += '<div id="' + kademeId + '" style="display:none;padding-left:8px;margin-top:2px;">';
+
+              Object.keys(subeler).sort().forEach(sube => {
+                const dersler = subeler[sube].sort((a,b) => a.lesson_number - b.lesson_number);
+                const subeId = "akor-s" + sube.replace(/[^a-zA-Z0-9]/g,"");
+                const dolu = dersler.filter(d => d.status === "filled").length;
+                const subeEksik = dersler.length - dolu;
+                const subeRozet = subeEksik === 0
+                  ? '<span class="rozet rozet-yesil" style="font-size:11px;">Tamam</span>'
+                  : '<span class="rozet rozet-kirmizi" style="font-size:11px;">' + subeEksik + " Eksik</span>";
+
+                html += '<div style="margin-bottom:3px;">';
+                html += '<div class="akor-sube-baslik" onclick="akordiyonToggle(\'' + subeId + '\')">';
+                html += '<span>🏫 ' + sube + '</span>';
+                html += '<span style="display:flex;gap:8px;align-items:center;"><span style="font-size:12px;color:var(--text2);">' + dolu + '/' + dersler.length + '</span>' + subeRozet + ' <span id="ok-' + subeId + '" style="font-size:12px;color:var(--text2);">▶</span></span>';
+                html += '</div>';
+                html += '<div id="' + subeId + '" style="display:none;padding:6px 0 6px 12px;">';
+                html += '<table style="width:100%;font-size:13px;"><tbody>';
+                dersler.forEach(d => {
+                  const ogretmenAd = ogretmenIdMap[d.teacher_id] || "-";
+                  const droz = d.status === "filled"
                     ? '<span class="rozet rozet-yesil" style="font-size:11px;">Girildi</span>'
-                    : '<span class="rozet rozet-kirmizi" style="font-size:11px;">Eksik</span>') +
-                  "</td></tr>";
+                    : '<span class="rozet rozet-kirmizi" style="font-size:11px;">Eksik</span>';
+                  html += '<tr><td style="padding:4px 8px 4px 0;color:var(--text2);white-space:nowrap;">' + d.lesson_number + '. Ders</td>';
+                  html += '<td style="padding:4px 6px;">' + (d.lesson_name || "-") + '</td>';
+                  html += '<td style="padding:4px 6px;color:var(--text2);font-size:12px;">' + ogretmenAd + '</td>';
+                  html += '<td style="padding:4px 0;text-align:right;">' + droz + '</td></tr>';
+                });
+                html += '</tbody></table></div></div>';
               });
-              html += "</tbody></table></div></div>";
+
+              html += '</div></div>';
             });
             document.getElementById("bugunDurum").innerHTML = html;
           }
@@ -1947,235 +2005,125 @@
 
       window.ogretmenTakipYukle = async function() {
         const container = document.getElementById("ogretmenTakipListesi");
+        const ozetEl = document.getElementById("ogretmenTakipOzet");
         if (!container) return;
+        container.innerHTML = '<div class="yukleniyor-mesaj">Yükleniyor...</div>';
 
-        // Bugunun gunu
-        const gunAdi = [
-          "Pazar",
-          "Pazartesi",
-          "Salı",
-          "Çarşamba",
-          "Perşembe",
-          "Cuma",
-          "Cumartesi",
-         ][new Date().getDay()];
-        if (gunAdi === "Cumartesi" || gunAdi === "Pazar") {
-          container.innerHTML =
-            '<div class="bos-mesaj">Hafta sonu ders yok.</div>';
-          return;
-        }
+        try {
+          const [lessonsSnap, devamSnap] = await Promise.all([
+            getDocs(query(collection(db, "today_lessons"), where("date", "==", bugun))),
+            getDocs(query(collection(db, "ogretmen_devam"), where("tarih", "==", bugun)))
+          ]);
 
-        // Ders saatlerini getir
-        const saatDoc = await getDoc(doc(db, "ders_saatleri", "varsayilan"));
-        const dersSaatleri = saatDoc.exists()
-          ? saatDoc.data().saatler || {}
-          : {};
-
-        // Bugunun ders programini getir
-        const progSnap = await getDocs(
-          query(collection(db, "schedule"), where("gun", "==", gunAdi)),
-        );
-        if (progSnap.empty) {
-          container.innerHTML =
-            '<div class="bos-mesaj">Bugun icin ders programi tanimlanmamis.</div>';
-          return;
-        }
-
-        // Ogretmen bazinda dersleri grupla
-        const ogretmenDersler = {};
-        progSnap.forEach((d) => {
-          const veri = d.data();
-          const tid = veri.ogretmen
-          if (!ogretmenDersler[tid])
-            ogretmenDersler[tid] = { dersler: [], dersNolari: [] };
-          ogretmenDersler[tid].dersler.push(veri);
-          ogretmenDersler[tid].dersNolari.push(veri.dersNo);
-        });
-
-        // Bugunun devam kayitlarini getir
-        const devamSnap = await getDocs(
-          query(collection(db, "ogretmen_devam"), where("tarih", "==", bugun)),
-        );
-        const devamMap = {};
-        devamSnap.forEach((d) => {
-          devamMap[d.data().ogretmen_id] = d.data();
-        });
-
-        // Ogretmen bilgilerini eslesdir
-        const ogretmenMap = {};
-        tumOgretmenler.forEach((o) => (ogretmenMap[o.ad] = o));
-
-        // Ilk ders no 1 olanlar ve diger
-        const ilkDersler = []; // 1. dersten baslayacaklar
-        const gecGelenler = []; // 1. dersten sonra baslayacaklar
-
-        Object.entries(ogretmenDersler).forEach(([tid, bilgi]) => {
-          const ogr = ogretmenMap[tid];
-          if (!ogr) return;
-          const dersNolari = [...new Set(bilgi.dersNolari)].sort(
-            (a, b) => a - b,
-          );
-          const ilkDers = dersNolari[0];
-          const sonDers = dersNolari[dersNolari.length - 1];
-          const girisSaati = dersSaatleri[ilkDers] || "?";
-          const basSaat = dersSaatleri[sonDers];
-          let cikisSaati = "?";
-          if (basSaat && basSaat !== "?") {
-            const [saat, dakika] = basSaat.split(":").map(Number);
-            const toplamDakika = saat * 60 + dakika + 40;
-            cikisSaati =
-              String(Math.floor(toplamDakika / 60)).padStart(2, "0") +
-              ":" +
-              String(toplamDakika % 60).padStart(2, "0");
+          if (lessonsSnap.empty) {
+            container.innerHTML = '<div class="bos-mesaj">Bugün için ders programı oluşturulmamış.</div>';
+            if (ozetEl) ozetEl.innerHTML = '';
+            return;
           }
-          const derslerStr = dersNolari.map((n) => n + ". ders").join(", ");
-          const benzersizDersler = [
-            ...new Set(bilgi.dersler.map((d) => d.dersAdi)),
-          ].join(", ");
-          const devam = devamMap[tid];
 
-          const item = {
-            tid,
-            ad: ogr.ad,
-            ilkDers,
-            sonDers,
-            girisSaati,
-            cikisSaati,
-            derslerStr,
-            benzersizDersler,
-            devam,
-          };
-          if (ilkDers === 1) ilkDersler.push(item);
-          else gecGelenler.push(item);
-        });
+          // Devam durumu haritası: teacher_id → {durum, gec_saat}
+          const devamMap = {};
+          devamSnap.forEach(d => { const v = d.data(); devamMap[v.ogretmen_id] = v; });
 
-        ilkDersler.sort((a, b) => a.ad.localeCompare(b.ad, "tr"));
-        gecGelenler.sort(
-          (a, b) => a.ilkDers - b.ilkDers || a.ad.localeCompare(b.ad, "tr"),
-        );
+          // Öğretmen bilgisi haritası
+          const ogretmenMap = {};
+          tumOgretmenler.forEach(o => ogretmenMap[o.id] = o);
 
-        function durumRozet(devam) {
-          if (!devam) return '<span class="rozet rozet-yesil" style="opacity:0.6;">Geldi</span>';
-          if (devam.durum === "geldi")
-            return '<span class="rozet rozet-yesil">Geldi</span>';
-          if (devam.durum === "gec")
-            return (
-              '<span class="rozet rozet-sari">Gec Geldi ' +
-              (devam.gec_saat || "") +
-              "</span>"
-            );
-          if (devam.durum === "gelmedi")
-            return '<span class="rozet rozet-kirmizi">Gelmedi</span>';
-          return '<span class="rozet rozet-yesil" style="opacity:0.6;">Geldi</span>';
+          // Kademe → teacher_id → {ad, dersler[], devam}
+          const kademeGrup = {};
+          const benzersizOgretmenler = new Set();
+          lessonsSnap.forEach(d => {
+            const data = d.data();
+            const tid = data.teacher_id;
+            if (!tid) return;
+            benzersizOgretmenler.add(tid);
+            const kademe = (data.class_id || "?").match(/\d+/)?.[0] || "?";
+            if (!kademeGrup[kademe]) kademeGrup[kademe] = {};
+            if (!kademeGrup[kademe][tid]) {
+              kademeGrup[kademe][tid] = {
+                ad: ogretmenMap[tid]?.ad || tid,
+                dersler: [],
+                devam: devamMap[tid] || null
+              };
+            }
+            kademeGrup[kademe][tid].dersler.push({
+              lesson_number: data.lesson_number,
+              lesson_name: data.lesson_name || "-",
+              class_id: data.class_id
+            });
+          });
+
+          // Özet pills
+          if (ozetEl) {
+            const gelmediSayisi = Object.values(devamMap).filter(v => v.durum === "gelmedi").length;
+            const gecSayisi = Object.values(devamMap).filter(v => v.durum === "gec").length;
+            ozetEl.innerHTML =
+              '<div style="background:#f1f3f4;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;">👨‍🏫 ' + benzersizOgretmenler.size + ' öğretmen</div>' +
+              (gelmediSayisi ? '<div style="background:#fce8e6;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;color:#c5221f;">🚫 ' + gelmediSayisi + ' gelmedi</div>' : '') +
+              (gecSayisi ? '<div style="background:#fff3e0;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;color:#e65100;">⚠️ ' + gecSayisi + ' geç geldi</div>' : '');
+          }
+
+          // Akordiyon HTML
+          let html = "";
+          Object.keys(kademeGrup).sort((a,b) => parseInt(a)-parseInt(b)).forEach(kademe => {
+            const ogretmenler = kademeGrup[kademe];
+            const kademeId = "takip-k" + kademe;
+            const gelmediSayisi = Object.values(ogretmenler).filter(o => o.devam?.durum === "gelmedi").length;
+            const gecSayisi = Object.values(ogretmenler).filter(o => o.devam?.durum === "gec").length;
+            const kRozet = gelmediSayisi
+              ? '<span class="rozet rozet-kirmizi" style="font-size:11px;">' + gelmediSayisi + ' Gelmedi</span>'
+              : (gecSayisi ? '<span class="rozet rozet-sari" style="font-size:11px;">' + gecSayisi + ' Geç</span>' : '');
+
+            html += '<div style="margin-bottom:4px;">';
+            html += '<div class="akor-kademe-baslik" onclick="akordiyonToggle(\'' + kademeId + '\')">';
+            html += '<span>👨‍🏫 ' + kademe + '. Sınıflar <span style="font-size:12px;font-weight:400;color:var(--text2);">(' + Object.keys(ogretmenler).length + ' öğretmen)</span></span>';
+            html += '<span style="display:flex;gap:8px;align-items:center;">' + kRozet + ' <span id="ok-' + kademeId + '" style="font-size:12px;color:var(--text2);">▶</span></span>';
+            html += '</div>';
+            html += '<div id="' + kademeId + '" style="display:none;padding:4px 0 4px 8px;">';
+
+            Object.values(ogretmenler)
+              .sort((a,b) => a.ad.localeCompare(b.ad, "tr"))
+              .forEach(ogr => {
+                const derslerStr = ogr.dersler
+                  .sort((a,b) => a.lesson_number - b.lesson_number)
+                  .map(d => d.lesson_number + '. Ders — ' + d.lesson_name + ' (' + d.class_id + ')')
+                  .join(', ');
+                const tid = Object.keys(ogretmenler).find(id => kademeGrup[kademe][id] === ogr);
+                const devam = ogr.devam;
+                let durumHtml;
+                if (devam?.durum === "gelmedi") {
+                  durumHtml = '<span class="rozet rozet-kirmizi" style="font-size:11px;">Gelmedi</span> <button class="btn btn-gri btn-sm" style="font-size:11px;padding:4px 8px;" onclick="devamDegistir(\'' + tid + '\')">Değiştir</button>';
+                } else if (devam?.durum === "gec") {
+                  durumHtml = '<span class="rozet rozet-turuncu" style="font-size:11px;">Geç: ' + (devam.gec_saat || "") + '</span> <button class="btn btn-gri btn-sm" style="font-size:11px;padding:4px 8px;" onclick="devamDegistir(\'' + tid + '\')">Değiştir</button>';
+                } else if (devam?.durum === "geldi") {
+                  durumHtml = '<span class="rozet rozet-yesil" style="font-size:11px;">Geldi</span> <button class="btn btn-gri btn-sm" style="font-size:11px;padding:4px 8px;" onclick="devamDegistir(\'' + tid + '\')">Değiştir</button>';
+                } else {
+                  durumHtml = '<button class="btn btn-kirmizi btn-sm" style="font-size:11px;padding:4px 8px;" onclick="devamIsaretle(\'' + tid + '\',\'gelmedi\')">Gelmedi</button> <button class="btn btn-turuncu btn-sm" style="font-size:11px;padding:4px 8px;" onclick="devamGecSor(\'' + tid + '\')">Geç Geldi</button>';
+                }
+                html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:#fff;border-radius:6px;margin:3px 0;border:1px solid #eee;gap:8px;">';
+                html += '<span style="font-weight:600;min-width:120px;">' + ogr.ad + '</span>';
+                html += '<span style="flex:1;font-size:12px;color:var(--text2);">' + derslerStr + '</span>';
+                html += '<span style="display:flex;gap:4px;align-items:center;flex-shrink:0;">' + durumHtml + '</span>';
+                html += '</div>';
+              });
+
+            html += '</div></div>';
+          });
+
+          container.innerHTML = html;
+        } catch (err) {
+          container.innerHTML = '<div class="bos-mesaj" style="color:#ea4335;">Hata: ' + err.message + '</div>';
         }
+      };
 
-        function ogretmenSatir(item) {
-          const devamBtnler = item.devam
-            ? '<button class="btn btn-gri btn-sm" onclick="devamDegistir(\'' +
-              item.tid +
-              "')\">Guncelle</button>"
-            : '<button class="btn btn-turuncu btn-sm" onclick="devamGecSor(\'' +
-              item.tid +
-              "')\">Gec Geldi</button>" +
-              '<button class="btn btn-kirmizi btn-sm" onclick="devamIsaretle(\'' +
-              item.tid +
-              "', 'gelmedi')\">Gelmedi</button>";
-
-          return (
-            '<div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;">' +
-            '<div style="flex:1;min-width:150px;">' +
-            '<div style="font-weight:700;font-size:15px;">' +
-            item.ad +
-            "</div>" +
-            '<div style="font-size:12px;color:var(--text2);margin-top:2px;">' +
-            item.benzersizDersler +
-            "</div>" +
-            "</div>" +
-            '<div style="text-align:center;min-width:80px;">' +
-            '<div style="font-size:11px;color:var(--text2);">Giris</div>' +
-            '<div style="font-weight:700;color:var(--mavi);">' +
-            item.girisSaati +
-            "</div>" +
-            "</div>" +
-            '<div style="text-align:center;min-width:80px;">' +
-            '<div style="font-size:11px;color:var(--text2);">Cikis</div>' +
-            '<div style="font-weight:700;">' +
-            item.cikisSaati +
-            "</div>" +
-            "</div>" +
-            '<div style="min-width:80px;">' +
-            durumRozet(item.devam) +
-            "</div>" +
-            '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
-            devamBtnler +
-            "</div>" +
-            "</div>"
-          );
-        }
-
-        let html = "";
-
-        if (ilkDersler.length) {
-          html +=
-            '<div style="font-size:12px;font-weight:800;color:var(--text2);letter-spacing:0.05em;text-transform:uppercase;margin-bottom:8px;">Sabah ' +
-            (dersSaatleri[1] || "08:00") +
-            "'de Gelecekler (" +
-            ilkDersler.length +
-            " ogretmen)</div>";
-          ilkDersler.forEach((item) => (html += ogretmenSatir(item)));
-          html += '<div style="margin-bottom:16px;"></div>';
-        }
-
-        if (gecGelenler.length) {
-          html +=
-            '<div style="font-size:12px;font-weight:800;color:var(--turuncu);letter-spacing:0.05em;text-transform:uppercase;margin-bottom:8px;">Gec Gelecekler (' +
-            gecGelenler.length +
-            " ogretmen)</div>";
-          gecGelenler.forEach((item) => (html += ogretmenSatir(item)));
-        }
-
-        // Ozet istatistik
-        const ozet = document.getElementById("ogretmenTakipOzet");
-        if (ozet) {
-          const tumListe = [...ilkDersler, ...gecGelenler];
-          const toplamSayisi = tumListe.length;
-          const geldiSayisi = tumListe.filter(
-            (i) => i.devam?.durum === "geldi",
-          ).length;
-          const gecSayisi = tumListe.filter(
-            (i) => i.devam?.durum === "gec",
-          ).length;
-          const gelmediSayisi = tumListe.filter(
-            (i) => i.devam?.durum === "gelmedi",
-          ).length;
-          const isaretlenmemisSayisi = toplamSayisi - geldiSayisi - gecSayisi - gelmediSayisi;
-          const efektifGeldiSayisi = geldiSayisi + isaretlenmemisSayisi;
-          ozet.innerHTML =
-            '<div style="background:#f1f3f4;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;">Toplam: ' +
-            toplamSayisi +
-            "</div>" +
-            '<div style="background:#e6f4ea;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;color:#1e7e34;">Geldi: ' +
-            efektifGeldiSayisi +
-            "</div>" +
-            '<div style="background:#fff3e0;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;color:#e65100;">Gec: ' +
-            gecSayisi +
-            "</div>" +
-            '<div style="background:#fce8e6;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;color:#c5221f;">Gelmedi: ' +
-            gelmediSayisi +
-            "</div>";
-        }
-
-        const listeIcerik = html || '<div class="bos-mesaj">Bugun ders programi bulunamadi.</div>';
-        container.innerHTML =
-          '<div onclick="var d=this.nextElementSibling;var ok=this.querySelector(\'.akor-ok\');var acik=d.style.display!==\'none\';d.style.display=acik?\'none\':\'block\';ok.textContent=acik?\'▼\':\'▲\';" ' +
-          'style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--bg2);border-radius:8px;cursor:pointer;user-select:none;">' +
-          '<div style="flex:1;font-size:14px;font-weight:600;">Detayli Liste</div>' +
-          '<span class="akor-ok" style="color:var(--text2);font-size:13px;">▼</span>' +
-          '</div>' +
-          '<div id="ogretmenTakipDetay" style="display:none;margin-top:8px;">' +
-          listeIcerik +
-          '</div>';
-      }
+      window.akordiyonToggle = (id) => {
+        const el = document.getElementById(id);
+        const ok = document.getElementById("ok-" + id);
+        if (!el) return;
+        const acik = el.style.display !== "none";
+        el.style.display = acik ? "none" : "block";
+        if (ok) ok.textContent = acik ? "▶" : "▼";
+      };
 
       window.devamIsaretle = async (tid, durum, gecSaat) => {
         const ogr = tumOgretmenler.find((o) => o.id === tid);
@@ -2463,11 +2411,8 @@
 
           html += '<div class="' + kartSinif + '" id="' + kartId + '">';
           html += '<div style="width:100%;">';
-          // Kart başlığı — tıklanınca açılır
           html +=
-            '<div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;gap:12px;" onclick="yoklamaAkordiyon(\'' +
-            kartId +
-            "')\">";
+            '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">';
           html += "<div style='flex:1;min-width:0;'>";
           html +=
             '<div class="ders-bilgi-baslik">' +
@@ -2483,23 +2428,7 @@
           html +=
             '<div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">';
           html += rozetHtml;
-          html +=
-            '<span id="ok_' +
-            kartId +
-            '" style="font-size:18px;color:var(--mavi);transition:transform 0.2s;' +
-            (panelBaslangic === "block" ? "" : "transform:rotate(180deg);") +
-            '">▼</span>';
           html += "</div>";
-          html += "</div>";
-
-          // Yoklama paneli
-          html +=
-            '<div id="panel_' +
-            kartId +
-            '" style="display:' +
-            panelBaslangic +
-            ';margin-top:12px;">';
-          html += await yoklamaPaneliOlustur(grup, sinif);
           html += "</div>";
           html += "</div></div>";
         }
@@ -2512,180 +2441,6 @@
         container.innerHTML = html;
       }
 
-      // Akordiyon aç/kapat
-      window.yoklamaAkordiyon = (kartId) => {
-        const panel = document.getElementById("panel_" + kartId);
-        const ok = document.getElementById("ok_" + kartId);
-        if (!panel) return;
-        const acik = panel.style.display !== "none";
-        panel.style.display = acik ? "none" : "block";
-        if (ok) ok.style.transform = acik ? "rotate(180deg)" : "";
-      };
-
-      // Yoklama paneli HTML oluştur
-      async function yoklamaPaneliOlustur(grup, sinif) {
-        // Sınıf öğrencilerini getir
-        const ogrSnap = await getDocs(
-          query(collection(db, "students"), where("class_id", "==", sinif)),
-        );
-        const ogrenciler = [];
-        ogrSnap.forEach((d) => ogrenciler.push({ id: d.id, ...d.data() }));
-        ogrenciler.sort((a, b) =>
-          (a.name || "").localeCompare(b.name || "", "tr"),
-        );
-
-        if (!ogrenciler.length)
-          return '<div style="color:#888;font-size:13px;">Öğrenci bulunamadı.</div>';
-
-        const dersNolari = grup
-          .map((d) => d.lesson_number)
-          .sort((a, b) => a - b);
-        const ilkDers = grup[0];
-        let html = "";
-
-        // Her ders için ayrı yoklama paneli
-        for (const dersNo of dersNolari) {
-          const dersObj = grup.find((d) => d.lesson_number === dersNo);
-          if (!dersObj) continue;
-
-          html += '<div style="margin-bottom:16px;">';
-          html +=
-            '<div style="font-size:12px;font-weight:700;color:#888;margin-bottom:8px;">' +
-            dersNo +
-            ". DERS YOKLAMASI</div>";
-          html +=
-            '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px;margin-bottom:10px;">';
-
-          ogrenciler.forEach((ogr) => {
-            const ogrId = "yok_" + sinif + "_" + dersNo + "_" + ogr.id;
-            html +=
-              '<label style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#f8f9fa;border-radius:8px;cursor:pointer;font-size:13px;">';
-            html +=
-              '<input type="checkbox" id="' +
-              ogrId +
-              '" value="' +
-              (ogr.student_number || ogr.id) +
-              '" style="width:16px;height:16px;">';
-            html += "<span>" + (ogr.name || ogr.ad || "") + "</span>";
-            html += "</label>";
-          });
-
-          html += "</div>";
-          html += '<div style="display:flex;gap:8px;">';
-          html +=
-            '<button class="btn btn-yesil btn-sm" onclick="yoklamaKaydet(\'' +
-            dersObj.id +
-            "','" +
-            sinif +
-            "'," +
-            dersNo +
-            ",'" +
-            (ilkDers.teacher_id || "") +
-            "','" +
-            ilkDers.lesson_name +
-            "')\">💾 Kaydet</button>";
-          html +=
-            '<button class="btn btn-gri btn-sm" onclick="tumunuSec(\'' +
-            sinif +
-            "'," +
-            dersNo +
-            ')">Tümünü Seç</button>';
-          html += "</div>";
-          html +=
-            '<div id="yokMesaj_' +
-            sinif +
-            "_" +
-            dersNo +
-            '" style="font-size:13px;margin-top:6px;"></div>';
-          html += "</div>";
-        }
-        return html;
-      }
-
-      // Tümünü seç/kaldır
-      window.tumunuSec = (sinif, dersNo) => {
-        const checkboxlar = document.querySelectorAll(
-          '[id^="yok_' + sinif + "_" + dersNo + '_"]',
-        );
-        const hepsiSecili = Array.from(checkboxlar).every((c) => c.checked);
-        checkboxlar.forEach((c) => (c.checked = !hepsiSecili));
-      };
-
-      // Yoklama kaydet — işaretlenenler GELMEDİ, işaretlenmeyenler GELDİ
-      window.yoklamaKaydet = async (
-        dersId,
-        sinif,
-        dersNo,
-        teacherId,
-        dersAdi,
-      ) => {
-        // Devamsız öğrencilerin numaralarını topla (value = student_number)
-        const checkboxlar = document.querySelectorAll(
-          '[id^="yok_' + sinif + "_" + dersNo + '_"]',
-        );
-        const yoklar = [];
-        checkboxlar.forEach((c) => {
-          if (c.checked) yoklar.push(c.value);
-        });
-
-        const mesajEl = document.getElementById(
-          "yokMesaj_" + sinif + "_" + dersNo,
-        );
-        if (mesajEl)
-          mesajEl.innerHTML =
-            '<span style="color:#1a73e8;">Kaydediliyor...</span>';
-
-        try {
-          // Mevcut yoklamayı sil
-          const eskiSnap = await getDocs(
-            query(
-              collection(db, "attendance"),
-              where("date", "==", bugun),
-              where("class_id", "==", sinif),
-              where("lesson_number", "==", dersNo),
-            ),
-          );
-          await Promise.all(eskiSnap.docs.map((d) => deleteDoc(d.ref)));
-
-          // Her ders için tek belge: absent_students dizisi ile kaydet
-          await addDoc(collection(db, "attendance"), {
-            date: bugun,
-            class_id: sinif,
-            lesson_number: dersNo,
-            lesson_name: dersAdi,
-            teacher_id: teacherId,
-            actual_teacher:
-              tumOgretmenler.find((o) => o.ad === teacherId)?.id || teacherId,
-            absent_students: yoklar,
-            created_at: serverTimestamp(),
-            entered_at: serverTimestamp(),
-            is_late_entry: true,
-            is_manual: true,
-            locked: false,
-          });
-
-          // today_lessons durumunu güncelle
-          if (dersId) {
-            try {
-              await updateDoc(doc(db, "today_lessons", dersId), {
-                status: "filled",
-              });
-            } catch (e) {}
-          }
-
-          if (mesajEl)
-            mesajEl.innerHTML =
-              '<span style="color:#34a853;">✓ Kaydedildi (' +
-              yoklar.length +
-              " devamsız)</span>";
-
-          setTimeout(() => dersleriniYukle(), 1500);
-        } catch (err) {
-          if (mesajEl)
-            mesajEl.innerHTML =
-              '<span style="color:#ea4335;">Hata: ' + err.message + "</span>";
-        }
-      };
 
       // ── YOKLAMALARIM — zaman kilitli yoklama girişi ──
 
@@ -3065,7 +2820,7 @@
         if (_dykTimer) { clearInterval(_dykTimer); _dykTimer = null; }
 
         // Bugünün gün adı (küçük harf)
-        const gunler = ["pazar","pazartesi","sali","carsamba","persembe","cuma","cumartesi"];
+        const gunler = ["pazar","pazartesi","salı","çarşamba","perşembe","cuma","cumartesi"];
         const bugunAdi = gunler[new Date().getDay()];
 
         // Tüm DYK kurslarını yükle, bugün olan + bu öğretmenin kurslarını filtrele
@@ -3112,21 +2867,30 @@
           html += '<div id="dykPanel_' + kartId + '" style="display:none;margin-top:12px;">';
           html += '<div id="dykUyari_' + kartId + '" style="border-radius:8px;padding:8px 12px;font-size:12px;margin-bottom:10px;"></div>';
 
-          // Öğrenci listesi
-          const ogrSnap = await getDocs(
-            query(collection(db, "students"), where("class_id", "==", kurs.class_id))
-          );
-          const ogrenciler = [];
-          ogrSnap.forEach((d) => ogrenciler.push({ id: d.id, ...d.data() }));
+          // Öğrenci listesi — enrolled_students varsa kullan, yoksa class_id ile filtrele
+          let ogrenciler = [];
+          if (kurs.enrolled_students?.length) {
+            ogrenciler = kurs.enrolled_students.map(s => ({
+              id: s.student_id, name: s.student_name,
+              student_number: s.student_number, class_id: s.class_id
+            }));
+          } else {
+            const ogrSnap = await getDocs(
+              query(collection(db, "students"), where("class_id", "==", kurs.class_id))
+            );
+            ogrSnap.forEach((d) => ogrenciler.push({ id: d.id, ...d.data() }));
+          }
           ogrenciler.sort((a, b) => (a.name || "").localeCompare(b.name || "", "tr"));
+          const cokSinifli = ogrenciler.some(o => o.class_id !== kurs.class_id);
 
           if (ogrenciler.length) {
-            html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px;margin-bottom:10px;">';
+            html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:6px;margin-bottom:10px;">';
             ogrenciler.forEach((ogr) => {
               const chkId = "dykchk_" + kurs.id + "_" + ogr.id;
+              const sinifEtiketi = cokSinifli ? ` <small style="color:#888;font-size:11px;">(${ogr.class_id})</small>` : "";
               html += '<label style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#f8f9fa;border-radius:8px;cursor:pointer;font-size:13px;">';
               html += '<input type="checkbox" id="' + chkId + '" value="' + (ogr.student_number || ogr.id) + '" style="width:16px;height:16px;">';
-              html += '<span>' + (ogr.name || "") + '</span></label>';
+              html += '<span>' + (ogr.name || "") + sinifEtiketi + '</span></label>';
             });
             html += '</div>';
           } else {
@@ -3298,6 +3062,8 @@
       };
 
       // ── DYK AYARLAR ──
+      const _dykPanelAcik = new Set();
+
       window.dykAyarlarYukle = async function () {
         // Öğretmen dropdown'ını doldur
         const sel = document.getElementById("dykKursOgretmen");
@@ -3313,18 +3079,145 @@
       async function dykKursListesiYukle() {
         const container = document.getElementById("dykKursListesi");
         if (!container) return;
+        _dykPanelAcik.clear();
         const snap = await getDocs(collection(db, "dyk_courses"));
         if (snap.empty) { container.innerHTML = '<div class="bos-mesaj">Henuz kurs eklenmemis</div>'; return; }
-        const gunAdlar = { pazartesi:"Pazartesi", sali:"Sali", carsamba:"Carsamba", persembe:"Persembe", cuma:"Cuma" };
+        const gunAdlar = { pazartesi:"Pazartesi", "salı":"Salı", "çarşamba":"Çarşamba", "perşembe":"Perşembe", cuma:"Cuma" };
         let html = "<table><thead><tr><th>Kurs</th><th>Sinif</th><th>Ogretmen</th><th>Gun</th><th>Saat</th><th></th></tr></thead><tbody>";
         snap.forEach((d) => {
           const k = { id: d.id, ...d.data() };
           const ogr = tumOgretmenler.find((o) => o.id === k.teacher_id);
-          html += `<tr><td>${k.course_name}</td><td>${k.class_id}</td><td>${ogr?.ad || "-"}</td><td>${gunAdlar[k.gun] || "-"}</td><td>${k.saat || "-"}</td><td><button class="btn btn-kirmizi btn-sm" onclick="dykKursSil('${k.id}')">Sil</button></td></tr>`;
+          const kayitliSayisi = k.enrolled_students?.length || 0;
+          html += `<tr>
+            <td>${k.course_name}</td><td>${k.class_id}</td><td>${ogr?.ad || "-"}</td>
+            <td>${gunAdlar[k.gun] || "-"}</td><td>${k.saat || "-"}</td>
+            <td style="white-space:nowrap;">
+              <button class="btn btn-gri btn-sm" onclick="dykOgrenciPaneliToggle('${k.id}')">Öğrenciler (${kayitliSayisi})</button>
+              <button class="btn btn-kirmizi btn-sm" onclick="dykKursSil('${k.id}')">Sil</button>
+            </td>
+          </tr>
+          <tr id="ogr-panel-${k.id}" style="display:none;">
+            <td colspan="6" style="padding:0;">
+              <div id="ogr-panel-icerik-${k.id}" style="padding:14px;background:#f8f9fa;border-top:1px solid var(--border);">
+                <div class="yukleniyor-mesaj">Yükleniyor...</div>
+              </div>
+            </td>
+          </tr>`;
         });
         html += "</tbody></table>";
         container.innerHTML = html;
       }
+
+      window.dykOgrenciPaneliToggle = async function(kursId) {
+        const row = document.getElementById("ogr-panel-" + kursId);
+        if (!row) return;
+        const acik = row.style.display !== "none";
+        row.style.display = acik ? "none" : "";
+        if (!acik && !_dykPanelAcik.has(kursId)) {
+          _dykPanelAcik.add(kursId);
+          await dykOgrenciPaneliYukle(kursId);
+        }
+      };
+
+      window.dykOgrenciPaneliYukle = async function(kursId) {
+        const icerik = document.getElementById("ogr-panel-icerik-" + kursId);
+        if (!icerik) return;
+        const kursDoc = await getDoc(doc(db, "dyk_courses", kursId));
+        const enrolled = kursDoc.exists() ? (kursDoc.data().enrolled_students || []) : [];
+
+        const sinifOptions = tumSiniflar.map(s => `<option value="${s.class_name}">${s.class_name}</option>`).join("");
+        const enrolledHtml = enrolled.length
+          ? enrolled.map(s =>
+              `<span style="display:inline-flex;align-items:center;gap:4px;background:#e8f0fe;border-radius:16px;padding:3px 10px;font-size:12px;margin:2px;">
+                ${s.student_name} <span style="color:#888;font-size:11px;">(${s.class_id})</span>
+                <button onclick="dykOgrenciKaldir('${kursId}','${s.student_id}')" style="background:none;border:none;cursor:pointer;color:#666;font-size:14px;line-height:1;padding:0 2px;">×</button>
+              </span>`
+            ).join("")
+          : '<span style="color:#999;font-size:13px;">Henüz öğrenci eklenmemiş.</span>';
+
+        icerik.innerHTML = `
+          <div style="margin-bottom:10px;">
+            <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px;">Kayıtlı Öğrenciler (${enrolled.length})</div>
+            <div id="enrolled-list-${kursId}">${enrolledHtml}</div>
+          </div>
+          <div style="border-top:1px solid var(--border);padding-top:10px;">
+            <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px;">Sınıftan Öğrenci Ekle</div>
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+              <select id="dyk-sinif-sec-${kursId}" onchange="dykPanelSinifYukle('${kursId}')" style="font-size:13px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;">
+                <option value="">Sınıf seçin...</option>${sinifOptions}
+              </select>
+            </div>
+            <div id="dyk-sinif-ogr-${kursId}" style="margin-bottom:8px;"></div>
+            <button class="btn btn-yesil btn-sm" onclick="dykOgrenciEkle('${kursId}')">+ Seçilenleri Ekle</button>
+          </div>`;
+      };
+
+      window.dykPanelSinifYukle = async function(kursId) {
+        const sinif = document.getElementById("dyk-sinif-sec-" + kursId)?.value;
+        const container = document.getElementById("dyk-sinif-ogr-" + kursId);
+        if (!container || !sinif) return;
+        container.innerHTML = '<span style="color:#999;font-size:13px;">Yükleniyor...</span>';
+
+        const kursDoc = await getDoc(doc(db, "dyk_courses", kursId));
+        const enrolled = kursDoc.exists() ? (kursDoc.data().enrolled_students || []) : [];
+        const enrolledIds = new Set(enrolled.map(s => s.student_id));
+
+        const snap = await getDocs(query(collection(db, "students"), where("class_id", "==", sinif)));
+        let ogrenciler = [];
+        snap.forEach(d => ogrenciler.push({ id: d.id, ...d.data() }));
+        ogrenciler.sort((a, b) => (a.name || "").localeCompare(b.name || "", "tr"));
+
+        if (!ogrenciler.length) { container.innerHTML = '<span style="color:#999;font-size:13px;">Bu sınıfta öğrenci yok.</span>'; return; }
+
+        container.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:4px;">` +
+          ogrenciler.map(o => {
+            const checked = enrolledIds.has(o.id) ? "checked disabled" : "";
+            const style = enrolledIds.has(o.id) ? "opacity:0.5;" : "";
+            return `<label style="display:flex;align-items:center;gap:6px;padding:5px 8px;background:#fff;border-radius:6px;cursor:pointer;font-size:13px;${style}">
+              <input type="checkbox" ${checked} data-id="${o.id}" data-name="${(o.name||"").replace(/"/g,"&quot;")}" data-no="${o.student_number||""}" data-sinif="${sinif}" style="width:14px;height:14px;">
+              <span>${o.name || ""}</span>
+            </label>`;
+          }).join("") + `</div>`;
+      };
+
+      window.dykOgrenciEkle = async function(kursId) {
+        const container = document.getElementById("dyk-sinif-ogr-" + kursId);
+        if (!container) return;
+        const checkboxlar = container.querySelectorAll('input[type="checkbox"]:checked:not(:disabled)');
+        if (!checkboxlar.length) return;
+
+        const kursDoc = await getDoc(doc(db, "dyk_courses", kursId));
+        const enrolled = kursDoc.exists() ? [...(kursDoc.data().enrolled_students || [])] : [];
+        const enrolledIds = new Set(enrolled.map(s => s.student_id));
+
+        checkboxlar.forEach(c => {
+          if (!enrolledIds.has(c.dataset.id)) {
+            enrolled.push({
+              student_id: c.dataset.id,
+              student_name: c.dataset.name,
+              student_number: c.dataset.no,
+              class_id: c.dataset.sinif
+            });
+          }
+        });
+
+        await updateDoc(doc(db, "dyk_courses", kursId), { enrolled_students: enrolled });
+        _dykPanelAcik.delete(kursId);
+        const btn = document.querySelector(`[onclick="dykOgrenciPaneliToggle('${kursId}')"]`);
+        if (btn) btn.textContent = "Öğrenciler (" + enrolled.length + ")";
+        await dykOgrenciPaneliYukle(kursId);
+      };
+
+      window.dykOgrenciKaldir = async function(kursId, studentId) {
+        const kursDoc = await getDoc(doc(db, "dyk_courses", kursId));
+        if (!kursDoc.exists()) return;
+        const enrolled = (kursDoc.data().enrolled_students || []).filter(s => s.student_id !== studentId);
+        await updateDoc(doc(db, "dyk_courses", kursId), { enrolled_students: enrolled });
+        _dykPanelAcik.delete(kursId);
+        const btn = document.querySelector(`[onclick="dykOgrenciPaneliToggle('${kursId}')"]`);
+        if (btn) btn.textContent = "Öğrenciler (" + enrolled.length + ")";
+        await dykOgrenciPaneliYukle(kursId);
+      };
 
       window.dykKursEkle = async function () {
         const ad = document.getElementById("dykKursAdi").value.trim();
@@ -4791,7 +4684,7 @@
           "</div><button class=\"btn btn-gri btn-sm\" onclick=\"navigator.clipboard.writeText(document.getElementById('kazManuelSonucMetin').textContent).then(()=>alert('Kopyalandi!'))\">Kopyala</button></div>";
       };
 
-      function mesajGoster(id, metin, tip) {
+      window.mesajGoster = function mesajGoster(id, metin, tip) {
         const el = document.getElementById(id);
         if (!el) return;
         el.textContent = metin;

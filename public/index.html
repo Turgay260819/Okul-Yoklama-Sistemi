@@ -166,10 +166,10 @@
         const rol = userDoc.data().rol;
 
         // Role göre yönlendir
-        if (rol === 'admin' || rol === 'mudur_yardimcisi') {
-          window.location.href = '/admin.html';
-        } else if (rol === 'ogretmen') {
-          window.location.href = '/ogretmen.html';
+        if (rol === 'admin' || rol === 'mudur_yardimcisi' || rol === 'ogretmen') {
+          window.location.href = '/portal.html';
+        } else if (rol === 'ogrenci') {
+          window.location.href = '/ogrenci.html';
         } else {
           throw new Error('Tanımsız kullanıcı rolü.');
         }

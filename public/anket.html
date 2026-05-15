@@ -700,6 +700,7 @@
       let aktifOgretmenId = null;
       let aktifOgretmenAd = null;
       let tumOgretmenler = [];
+      let tumSiniflar = [];
       let seciliHedefler = new Set();
       let soruSayaci = 0;
       let duzenlenenAnketId = null;
@@ -747,6 +748,10 @@
         tumOgretmenler.sort((a, b) =>
           (a.ad || "").localeCompare(b.ad || "", "tr"),
         );
+        const sinifSnap = await getDocs(collection(db, "classes"));
+        tumSiniflar = [];
+        sinifSnap.forEach((d) => tumSiniflar.push({ id: d.id, ...d.data() }));
+        tumSiniflar.sort((a, b) => (a.class_name || "").localeCompare(b.class_name || "", "tr"));
       }
 
       // ── YARDIMCI ──
@@ -1081,8 +1086,18 @@
             ),
           );
           const yanıtSayisi = yanSnap.size;
-          const hedefIds = hedefOgretmenleri(a.hedef_kitle);
-          const toplamHedef = hedefIds.length;
+          let toplamHedef = 0;
+          let hedefEtiket = "";
+          if (a.hedef_kitle?.tip === "ogrenci_sinif") {
+            const sinifAdi = a.hedef_kitle.sinif || "";
+            const ogSnap = await getDocs(query(collection(db, "students"), where("class_id", "==", sinifAdi)));
+            toplamHedef = ogSnap.size;
+            hedefEtiket = `🎓 ${sinifAdi} sınıfı`;
+          } else {
+            const hedefIds = hedefOgretmenleri(a.hedef_kitle);
+            toplamHedef = hedefIds.length;
+            hedefEtiket = "👥 Öğretmenler";
+          }
 
           html += `<div class="anket-kart ${durum}">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;">
@@ -1091,7 +1106,7 @@
                 <div class="anket-kart-alt">
                   <span class="rozet ${durumRenk}">${durumMetin}</span>
                   <span>📝 ${(a.sorular || []).length} soru</span>
-                  <span>👥 ${yanıtSayisi}/${toplamHedef} yanıt</span>
+                  <span>${hedefEtiket} — ${yanıtSayisi}/${toplamHedef} yanıt</span>
                   ${a.son_tarih ? `<span>⏰ ${tarihi_formatla(a.son_tarih)}</span>` : ""}
                   ${a.anonim ? '<span class="rozet rozet-mor">Anonim</span>' : ""}
                 </div>
@@ -1154,11 +1169,12 @@
           <div class="kart">
             <div class="kart-baslik">Hedef Kitle</div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
-              <button type="button" class="btn btn-sm btn-mavi" onclick="hedefSec('hepsi')">Tüm Öğretmenler</button>
-              <button type="button" class="btn btn-sm btn-gri" onclick="hedefSec('zumre')">Zümreye Göre</button>
-              <button type="button" class="btn btn-sm btn-gri" onclick="hedefSec('sinif')">Sınıf Rehberine Göre</button>
-              <button type="button" class="btn btn-sm btn-gri" onclick="hedefSec('sube')">Şube Rehberine Göre</button>
-              <button type="button" class="btn btn-sm btn-gri" onclick="hedefSec('manuel')">Manuel Seçim</button>
+              <button type="button" id="hedefBtn-hepsi" class="btn btn-sm btn-mavi" onclick="hedefSec('hepsi')">Tüm Öğretmenler</button>
+              <button type="button" id="hedefBtn-zumre" class="btn btn-sm btn-gri" onclick="hedefSec('zumre')">Zümreye Göre</button>
+              <button type="button" id="hedefBtn-sinif" class="btn btn-sm btn-gri" onclick="hedefSec('sinif')">Sınıf Rehberine Göre</button>
+              <button type="button" id="hedefBtn-sube" class="btn btn-sm btn-gri" onclick="hedefSec('sube')">Şube Rehberine Göre</button>
+              <button type="button" id="hedefBtn-manuel" class="btn btn-sm btn-gri" onclick="hedefSec('manuel')">Manuel Seçim</button>
+              <button type="button" id="hedefBtn-ogrenci_sinif" class="btn btn-sm btn-gri" onclick="hedefSec('ogrenci_sinif')" style="background:#e8f0fe; color:#1a73e8; border:1px solid #c5d9f7;">🎓 Öğrenci Sınıfı</button>
             </div>
             <div id="hedefDetay"></div>
             <div id="hedefSayac" style="font-size:13px;color:#888;margin-top:8px;"></div>
@@ -1204,6 +1220,7 @@
       let seciliSinif = "";
       let seciliSube = "";
       let seciliOgretmenler = new Set();
+      let seciliOgrenciSinif = "";
 
       window.hedefSec = (tip) => {
         seciliHedefTip = tip;
@@ -1231,7 +1248,22 @@
         } else if (tip === "manuel") {
           det.innerHTML = `<div class="hedef-chip-wrap">${tumOgretmenler.map((o) => `<span class="hedef-chip ogretmen-chip ${seciliOgretmenler.has(o.id) ? "secili" : ""}" onclick="ogretmenToggle('${o.id}', this)">${o.ad}</span>`).join("")}</div>`;
           hedefSayacGuncelle();
+        } else if (tip === "ogrenci_sinif") {
+          if (tumSiniflar.length === 0) {
+            det.innerHTML = '<div style="color:#888;font-size:13px;">Sınıf tanımlı değil.</div>';
+          } else {
+            det.innerHTML = `<div class="hedef-chip-wrap">${tumSiniflar.map((s) => `<span class="hedef-chip ${seciliOgrenciSinif === s.class_name ? "secili" : ""}" onclick="ogrenciSinifSec('${s.class_name}', this)">${s.class_name}</span>`).join("")}</div>`;
+          }
+          hedefSayacGuncelle();
         }
+        // Aktif buton stilini güncelle
+        document.querySelectorAll('[id^="hedefBtn-"]').forEach(b => {
+          b.className = b.id === 'hedefBtn-ogrenci_sinif'
+            ? (b.id === `hedefBtn-${tip}` ? 'btn btn-sm btn-mavi' : 'btn btn-sm btn-gri')
+            : 'btn btn-sm btn-gri';
+        });
+        const aktifBtn = document.getElementById(`hedefBtn-${tip}`);
+        if (aktifBtn) aktifBtn.classList.replace('btn-gri', 'btn-mavi');
       };
 
       window.zumreSec = (brans, el) => {
@@ -1268,12 +1300,23 @@
         }
         hedefSayacGuncelle();
       };
+      window.ogrenciSinifSec = (sinifAdi, el) => {
+        seciliOgrenciSinif = sinifAdi;
+        document.querySelectorAll("#hedefDetay .hedef-chip").forEach((c) => c.classList.remove("secili"));
+        el.classList.add("secili");
+        hedefSayacGuncelle();
+      };
 
       function hedefSayacGuncelle() {
         const hedef = hedefObjesi();
-        const ids = hedefOgretmenleri(hedef);
         const el = document.getElementById("hedefSayac");
-        if (el) el.textContent = ids.length + " öğretmen seçildi";
+        if (!el) return;
+        if (seciliHedefTip === "ogrenci_sinif") {
+          el.textContent = seciliOgrenciSinif ? `Hedef: ${seciliOgrenciSinif} sınıfı öğrencileri` : "Sınıf seçilmedi";
+        } else {
+          const ids = hedefOgretmenleri(hedef);
+          el.textContent = ids.length + " öğretmen seçildi";
+        }
       }
 
       function hedefObjesi() {
@@ -1286,6 +1329,8 @@
           return { tip: "sube_rehberi", deger: seciliSube };
         if (seciliHedefTip === "manuel")
           return { tip: "manuel", ogretmenler: Array.from(seciliOgretmenler) };
+        if (seciliHedefTip === "ogrenci_sinif")
+          return { tip: "ogrenci_sinif", sinif: seciliOgrenciSinif };
         return { tip: "hepsi" };
       }
 
@@ -1520,48 +1565,74 @@
         const yanitlar = [];
         yanSnap.forEach((d) => yanitlar.push(d.data()));
 
-        const hedefIds = hedefOgretmenleri(anket.hedef_kitle);
-        const yanıtliIds = new Set(yanitlar.map((y) => y.ogretmen_id));
-        const yanıtlamayanlar = hedefIds
-          .filter((id) => !yanıtliIds.has(id))
-          .map((id) => tumOgretmenler.find((o) => o.id === id)?.ad)
-          .filter(Boolean);
+        const ogrenciAnketi = anket.hedef_kitle?.tip === "ogrenci_sinif";
+        let hedefKisiSayisi = 0;
+        let yanıtlamayanlar = [];
+        let katilimBasligi = "";
+
+        if (ogrenciAnketi) {
+          // Hedef: sınıftaki tüm öğrenciler
+          const sinifAdi = anket.hedef_kitle.sinif || "";
+          const ogrenciSnap = await getDocs(query(collection(db, "students"), where("class_id", "==", sinifAdi)));
+          const hedefOgrenciler = [];
+          ogrenciSnap.forEach((d) => hedefOgrenciler.push(d.data()));
+          hedefKisiSayisi = hedefOgrenciler.length;
+
+          const yanitliNolar = new Set(yanitlar.map((y) => y.ogrenci_no));
+          yanıtlamayanlar = hedefOgrenciler
+            .filter((o) => !yanitliNolar.has(o.student_number))
+            .map((o) => o.name);
+          katilimBasligi = `🎓 ${sinifAdi} Sınıfı`;
+        } else {
+          const hedefIds = hedefOgretmenleri(anket.hedef_kitle);
+          hedefKisiSayisi = hedefIds.length;
+          const yanıtliIds = new Set(yanitlar.map((y) => y.ogretmen_id));
+          yanıtlamayanlar = hedefIds
+            .filter((id) => !yanıtliIds.has(id))
+            .map((id) => tumOgretmenler.find((o) => o.id === id)?.ad)
+            .filter(Boolean);
+          katilimBasligi = "👥 Öğretmenler";
+        }
 
         let html = `
           <button class="btn btn-gri btn-sm" onclick="adminFormlarGoster()" style="margin-bottom:16px;">← Geri</button>
           <div class="kart">
             <div class="kart-baslik">${anket.baslik} — Sonuçlar</div>
+            <div style="font-size:13px;color:#888;margin-bottom:10px;">${katilimBasligi}</div>
             <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
-              <span class="rozet rozet-yesil">✓ ${yanitlar.length} yanıt</span>
+              <span class="rozet rozet-yesil">✓ ${yanitlar.length} yanıtladı</span>
               <span class="rozet rozet-kirmizi">✗ ${yanıtlamayanlar.length} yanıtlamadı</span>
-              <span class="rozet rozet-mavi">👥 ${hedefIds.length} hedef</span>
+              <span class="rozet rozet-mavi">👥 ${hedefKisiSayisi} hedef</span>
             </div>`;
+
+        // Yanıt verenler accordion
+        if (!anket.anonim && yanitlar.length) {
+          const katilimciBaslik = ogrenciAnketi ? "Yanıtlayan Öğrenciler" : "Yanıtlayan Öğretmenler";
+          const katilimciAd = (y) => ogrenciAnketi ? (y.ogrenci_ad || "Bilinmiyor") : (y.ogretmen_ad || "Bilinmiyor");
+          html += `<div style="background:#e6f4ea;border-radius:8px;padding:12px;margin-bottom:14px;">
+          <div style="font-size:13px;font-weight:700;color:#1e7e34;margin-bottom:8px;">✓ ${katilimciBaslik} (${yanitlar.length})</div>`;
+          yanitlar.forEach((y) => {
+            html += `<div style="margin-bottom:4px;">
+            <div style="cursor:pointer;padding:6px 10px;background:white;border-radius:6px;font-size:13px;font-weight:600;color:#333;" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
+              📋 ${katilimciAd(y)} <span style="color:#888;font-size:11px;">▼</span>
+            </div>
+            <div style="display:none;background:white;border-radius:6px;padding:10px;margin-top:2px;">`;
+            sorular.forEach((s, idx) => {
+              const val = y.yanitlar?.["s" + idx];
+              if (val === undefined || val === null || val === "") return;
+              const gosterVal = Array.isArray(val) ? val.join(", ") : val;
+              html += `<div style="margin-bottom:5px;font-size:13px;"><span style="color:#888;">${idx + 1}. ${s.metin}:</span> <strong>${gosterVal}</strong></div>`;
+            });
+            html += `</div></div>`;
+          });
+          html += "</div>";
+        }
 
         // Yanıtlamayanlar listesi
         if (yanıtlamayanlar.length) {
-          // Yanıt verenler accordion
-          if (!anket.anonim && yanitlar.length) {
-            html += `<div style="background:#e6f4ea;border-radius:8px;padding:12px;margin-bottom:14px;">
-            <div style="font-size:13px;font-weight:700;color:#1e7e34;margin-bottom:8px;">✓ Yanıtlayan Öğretmenler (${yanitlar.length})</div>`;
-            yanitlar.forEach((y, yi) => {
-              html += `<div style="margin-bottom:4px;">
-              <div style="cursor:pointer;padding:6px 10px;background:white;border-radius:6px;font-size:13px;font-weight:600;color:#333;" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
-                📋 ${y.ogretmen_ad || "Bilinmiyor"} <span style="color:#888;font-size:11px;">▼</span>
-              </div>
-              <div style="display:none;background:white;border-radius:6px;padding:10px;margin-top:2px;">`;
-              sorular.forEach((s, idx) => {
-                const val = y.yanitlar?.["s" + idx];
-                if (val === undefined || val === null || val === "") return;
-                const gosterVal = Array.isArray(val) ? val.join(", ") : val;
-                html += `<div style="margin-bottom:5px;font-size:13px;"><span style="color:#888;">${idx + 1}. ${s.metin}:</span> <strong>${gosterVal}</strong></div>`;
-              });
-              html += `</div></div>`;
-            });
-            html += "</div>";
-          }
-
+          const katilmayanBaslik = ogrenciAnketi ? "Yanıtlamayan Öğrenciler" : "Yanıtlamayan Öğretmenler";
           html += `<div style="background:#fce8e6;border-radius:8px;padding:12px;margin-bottom:14px;">
-            <div style="font-size:13px;font-weight:700;color:#c5221f;margin-bottom:6px;">Yanıtlamayan Öğretmenler:</div>
+            <div style="font-size:13px;font-weight:700;color:#c5221f;margin-bottom:6px;">✗ ${katilmayanBaslik} (${yanıtlamayanlar.length}):</div>
             <div style="font-size:13px;color:#333;">${yanıtlamayanlar.join(", ")}</div>
             <button class="kopyala-btn" style="margin-top:8px;" onclick="kopyala('${yanıtlamayanlar.join(", ")}')">📋 Kopyala</button>
           </div>`;

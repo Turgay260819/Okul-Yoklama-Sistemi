@@ -59,6 +59,110 @@ exports.ogretmenOlustur = onCall(async (request) => {
 });
 
 // ===========================
+// ÖĞRETMEN GÜNCELLE
+// ===========================
+exports.ogretmenGuncelle = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Giriş yapılmamış.");
+  }
+
+  const callerDoc = await admin.firestore()
+    .collection("users")
+    .doc(request.auth.uid)
+    .get();
+
+  const callerRole = callerDoc.data()?.rol;
+  if (callerRole !== "admin" && callerRole !== "mudur_yardimcisi") {
+    throw new HttpsError("permission-denied", "Yetkiniz yok.");
+  }
+
+  const { ogretmenId, ad, email, sifre } = request.data;
+  if (!ogretmenId) throw new HttpsError("invalid-argument", "ogretmenId zorunlu.");
+
+  const teacherSnap = await admin.firestore().collection("teachers").doc(ogretmenId).get();
+  if (!teacherSnap.exists) throw new HttpsError("not-found", "Öğretmen bulunamadı.");
+  const uid = teacherSnap.data().uid;
+  if (!uid) throw new HttpsError("internal", "Öğretmenin Auth uid bilgisi yok.");
+
+  try {
+    const authUpdate = {};
+    if (ad)    authUpdate.displayName = ad;
+    if (email) authUpdate.email = email;
+    if (sifre) authUpdate.password = sifre;
+    if (Object.keys(authUpdate).length) {
+      await admin.auth().updateUser(uid, authUpdate);
+    }
+
+    const firestoreUpdate = {};
+    if (ad)    firestoreUpdate.ad    = ad;
+    if (email) firestoreUpdate.email = email;
+    if (Object.keys(firestoreUpdate).length) {
+      await admin.firestore().collection("teachers").doc(ogretmenId).update(firestoreUpdate);
+      await admin.firestore().collection("users").doc(uid).update(firestoreUpdate);
+    }
+
+    return { success: true };
+  } catch (err) {
+    throw new HttpsError("internal", err.message);
+  }
+});
+
+// ===========================
+// ÖĞRENCİ OLUŞTUR
+// ===========================
+exports.ogrenciOlustur = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Giriş yapılmamış.");
+  }
+
+  const callerDoc = await admin.firestore()
+    .collection("users")
+    .doc(request.auth.uid)
+    .get();
+
+  const callerRole = callerDoc.data()?.rol;
+  if (callerRole !== "admin" && callerRole !== "mudur_yardimcisi") {
+    throw new HttpsError("permission-denied", "Yetkiniz yok.");
+  }
+
+  const { ad, ogrenci_no } = request.data;
+
+  // İlk adı al, Türkçe karakterleri normalize et, küçük harfe çevir
+  const ilkAd = (ad || "").split(" ")[0]
+    .toLowerCase()
+    .replace(/ş/g, "s").replace(/ç/g, "c").replace(/ğ/g, "g")
+    .replace(/ü/g, "u").replace(/ö/g, "o").replace(/ı/g, "i")
+    .replace(/İ/gi, "i").replace(/[^a-z0-9]/g, "");
+  const email = `${ilkAd}${ogrenci_no}@gmail.com`;
+  const sifre = String(ogrenci_no);
+
+  try {
+    const userRecord = await admin.auth().createUser({
+      email,
+      password: sifre,
+      displayName: ad
+    });
+
+    const uid = userRecord.uid;
+
+    await admin.firestore().collection("users").doc(uid).set({
+      ad,
+      email,
+      rol: "ogrenci",
+      ogrenci_no,
+      ilk_giris: true,
+      bildirim_aktif: false,
+      created_at: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    return { success: true, uid };
+
+  } catch (err) {
+    throw new HttpsError("internal", err.message);
+  }
+});
+
+// ===========================
 // GÜN SONU KONTROL
 // Her gün 16:00'da çalışır
 // ===========================

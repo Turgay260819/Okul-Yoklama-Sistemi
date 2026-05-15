@@ -60,13 +60,71 @@ async function ogretmenleriListele() {
     container.innerHTML = '<div class="bos-mesaj">Henuz ogretmen eklenmemis</div>';
     return;
   }
-  let html =
-    "<table><thead><tr><th>Ad Soyad</th><th>Brans</th><th>E-posta</th><th></th></tr></thead><tbody>";
-  tumOgretmenler.forEach(
-    (o) =>
-      (html += `<tr><td><strong>${o.ad}</strong></td><td>${o.brans}</td><td>${o.email}</td><td><button class="btn btn-kirmizi btn-sm" onclick="ogretmenSil('${o.id}','${o.ad}')">Sil</button></td></tr>`),
-  );
-  html += "</tbody></table>";
+
+  // Branşa göre grupla
+  const bransGrup = {};
+  tumOgretmenler.forEach((o) => {
+    const brans = o.brans || "Diğer";
+    if (!bransGrup[brans]) bransGrup[brans] = [];
+    bransGrup[brans].push(o);
+  });
+
+  let html = "";
+  Object.keys(bransGrup)
+    .sort((a, b) => a.localeCompare(b, "tr"))
+    .forEach((brans) => {
+      const liste = bransGrup[brans].sort((a, b) => (a.ad || "").localeCompare(b.ad || "", "tr"));
+      const bransId = "brans-" + brans.replace(/[^a-zA-Z0-9]/g, "_");
+
+      html += `<div style="margin-bottom:4px;">
+        <div class="akor-kademe-baslik" onclick="akordiyonToggle('${bransId}')">
+          <span>${brans} <span style="font-size:12px;font-weight:400;color:var(--text2);">(${liste.length} öğretmen)</span></span>
+          <span id="ok-${bransId}" style="font-size:12px;color:var(--text2);">▶</span>
+        </div>
+        <div id="${bransId}" style="display:none;padding:2px 0 2px 0;">
+          <table style="width:100%;"><tbody>`;
+
+      liste.forEach((o) => {
+        const adEsc = (o.ad || "").replace(/'/g, "\\'").replace(/"/g, "&quot;");
+        const emailEsc = (o.email || "").replace(/"/g, "&quot;");
+        html += `<tr>
+          <td style="padding:8px 12px;"><strong>${o.ad}</strong></td>
+          <td style="padding:8px 6px;color:var(--text2);font-size:13px;">${o.email}</td>
+          <td style="padding:8px 12px;white-space:nowrap;text-align:right;">
+            <button class="btn btn-gri btn-sm" onclick="ogretmenDuzenleAc('${o.id}')">Düzenle</button>
+            <button class="btn btn-kirmizi btn-sm" onclick="ogretmenSil('${o.id}','${adEsc}')">Sil</button>
+          </td>
+        </tr>
+        <tr id="edit-${o.id}" style="display:none;">
+          <td colspan="3" style="padding:0;">
+            <div style="padding:12px;background:#f8f9fa;border-top:1px solid var(--border);">
+              <div class="form-grid" style="margin-bottom:8px;">
+                <div class="form-group">
+                  <label style="font-size:12px;">Ad Soyad</label>
+                  <input id="edit-ad-${o.id}" value="${adEsc}" style="font-size:13px;">
+                </div>
+                <div class="form-group">
+                  <label style="font-size:12px;">E-posta</label>
+                  <input type="email" id="edit-email-${o.id}" value="${emailEsc}" style="font-size:13px;">
+                </div>
+                <div class="form-group">
+                  <label style="font-size:12px;">Yeni Şifre <span style="font-weight:400;color:var(--text2);">(boş = değiştirme)</span></label>
+                  <input type="password" id="edit-sifre-${o.id}" placeholder="Yeni şifre..." style="font-size:13px;">
+                </div>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <button class="btn btn-yesil btn-sm" onclick="ogretmenGuncelle('${o.id}')">Kaydet</button>
+                <button class="btn btn-gri btn-sm" onclick="ogretmenDuzenleAc('${o.id}')">İptal</button>
+                <span id="edit-mesaj-${o.id}" style="font-size:13px;"></span>
+              </div>
+            </div>
+          </td>
+        </tr>`;
+      });
+
+      html += `</tbody></table></div></div>`;
+    });
+
   container.innerHTML = html;
 }
 
@@ -74,9 +132,42 @@ window.ogretmenSil = async function (id, ad) {
   const { db, deleteDoc, doc } = window.__portal;
   if (!confirm('"' + ad + '" adli ogretmeni silmek istediginize emin misiniz?'))
     return;
-  await deleteDoc(doc(db, "teachers", id));
-  mesajGoster("ogretmenEkleMesaj", ad + " silindi.", "basari");
-  await ogretmenleriListele();
+  try {
+    await deleteDoc(doc(db, "teachers", id));
+    mesajGoster("ogretmenEkleMesaj", ad + " silindi.", "basari");
+    await ogretmenleriListele();
+  } catch (err) {
+    mesajGoster("ogretmenEkleMesaj", "Hata: " + err.message, "hata");
+  }
+};
+
+window.ogretmenDuzenleAc = function (id) {
+  const row = document.getElementById("edit-" + id);
+  if (!row) return;
+  row.style.display = row.style.display === "none" ? "" : "none";
+};
+
+window.ogretmenGuncelle = async function (id) {
+  const { functions, httpsCallable } = window.__portal;
+  const ad = document.getElementById("edit-ad-" + id)?.value.trim();
+  const email = document.getElementById("edit-email-" + id)?.value.trim();
+  const sifre = document.getElementById("edit-sifre-" + id)?.value;
+  const mesajEl = document.getElementById("edit-mesaj-" + id);
+  if (!ad || !email) {
+    if (mesajEl) mesajEl.innerHTML = '<span style="color:#ea4335;">Ad ve e-posta zorunlu.</span>';
+    return;
+  }
+  if (mesajEl) mesajEl.innerHTML = '<span style="color:#1a73e8;">Kaydediliyor...</span>';
+  try {
+    const fn = httpsCallable(functions, "ogretmenGuncelle");
+    const payload = { ogretmenId: id, ad, email };
+    if (sifre) payload.sifre = sifre;
+    await fn(payload);
+    mesajGoster("ogretmenEkleMesaj", "Öğretmen bilgileri güncellendi.", "basari");
+    await ogretmenleriListele();
+  } catch (err) {
+    if (mesajEl) mesajEl.innerHTML = '<span style="color:#ea4335;">Hata: ' + err.message + '</span>';
+  }
 };
 
 window.ogretmenEkle = async function () {
@@ -150,9 +241,13 @@ window.sinifEkle = async function () {
 window.sinifSil = async function (id, isim) {
   const { db, deleteDoc, doc } = window.__portal;
   if (!confirm(`"${isim}" sinifini silmek istediginize emin misiniz?`)) return;
-  await deleteDoc(doc(db, "classes", id));
-  await siniflariListele();
-  await sinifDropdownlariniDoldur();
+  try {
+    await deleteDoc(doc(db, "classes", id));
+    await siniflariListele();
+    await sinifDropdownlariniDoldur();
+  } catch (err) {
+    mesajGoster("sinifEkleMesaj", "Hata: " + err.message, "hata");
+  }
 };
 
 async function sinifDropdownlariniDoldur() {
@@ -223,8 +318,12 @@ window.ogrenciEkle = async function () {
 window.ogrenciSil = async function (id, isim) {
   const { db, deleteDoc, doc } = window.__portal;
   if (!confirm(`"${isim}" adli ogrenciyi silmek istediginize emin misiniz?`)) return;
-  await deleteDoc(doc(db, "students", id));
-  window.ogrencileriGetir();
+  try {
+    await deleteDoc(doc(db, "students", id));
+    window.ogrencileriGetir();
+  } catch (err) {
+    mesajGoster("ogrenciEkleMesaj", "Hata: " + err.message, "hata");
+  }
 };
 
 async function donemBilgisiniGetir() {

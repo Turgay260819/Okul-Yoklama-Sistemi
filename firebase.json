@@ -53,13 +53,13 @@
         "source": "/fisler.html",
         "destination": "/fisler.html"
       },
-      {
-        "source": "/admin.html",
-        "destination": "/admin.html"
+{
+        "source": "/ogrenci.html",
+        "destination": "/ogrenci.html"
       },
       {
-        "source": "/ogretmen.html",
-        "destination": "/ogretmen.html"
+        "source": "/gezi.html",
+        "destination": "/gezi.html"
       },
       {
         "source": "/",

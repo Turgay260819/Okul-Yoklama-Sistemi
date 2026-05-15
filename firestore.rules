@@ -18,6 +18,10 @@ service cloud.firestore {
       return getRole() == 'ogretmen';
     }
 
+    function isOgrenci() {
+      return getRole() == 'ogrenci';
+    }
+
     function isYonetim() {
       return isAdmin() || isMudurYardimcisi();
     }
@@ -223,6 +227,24 @@ service cloud.firestore {
     match /ogrenci_yetenekler/{docId} {
       allow read: if isLoggedIn();
       allow write: if isLoggedIn();
+    }
+    match /geziler/{docId} {
+      allow read: if isLoggedIn();
+      allow write: if isYonetim();
+    }
+    match /gezi_katilim/{docId} {
+      allow read: if isLoggedIn();
+      allow create: if isLoggedIn();
+      allow update: if isLoggedIn();
+      allow delete: if isYonetim();
+    }
+    match /gezi_koltuk/{docId} {
+      allow read: if isLoggedIn();
+      allow write: if isYonetim();
+    }
+    match /bildirimler/{docId} {
+      allow read: if isLoggedIn();
+      allow write: if isYonetim();
     }
   }
 

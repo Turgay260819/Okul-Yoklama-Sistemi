@@ -9,7 +9,13 @@
       "Bash(dir firebase.json .firebaserc)",
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Read(//c/Users/pc/Desktop/**)",
+      "Bash(python3 -c ' *)",
+      "Bash(python -c ' *)",
+      "Bash(grep -E \"\\\\.html$\")",
+      "Bash(node -e ' *)",
+      "Bash(node *)"
     ]
   }
 }

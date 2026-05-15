@@ -250,7 +250,7 @@
   <body>
     <div class="topbar">
       <h1>Veri Import</h1>
-      <a href="/admin.html" class="btn-geri">Admin Paneline Don</a>
+      <a href="/portal.html" class="btn-geri">Ana Panele Don</a>
     </div>
 
     <div class="icerik">
@@ -498,9 +498,9 @@
           const sheet = workbook.Sheets[workbook.SheetNames[0]];
           const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-          // 1. satır başlık, 2. satır not, 3. satırdan veri
+          // 1. satır başlık, 2. satırdan veri
           const veriRows = rows
-            .slice(2)
+            .slice(1)
             .filter((r) => r.some((c) => c !== undefined && c !== ""));
 
           if (tip === "ogretmen") {
