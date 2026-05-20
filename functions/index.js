@@ -29,15 +29,26 @@ exports.ogretmenOlustur = onCall(async (request) => {
 
   const { ad, brans, email, sifre } = request.data;
 
+  let uid;
   try {
     const userRecord = await admin.auth().createUser({
       email,
       password: sifre,
       displayName: ad
     });
+    uid = userRecord.uid;
+  } catch (err) {
+    if (err.code === "auth/email-already-exists") {
+      // Orphaned Auth account — reuse existing UID
+      const existing = await admin.auth().getUserByEmail(email);
+      uid = existing.uid;
+      await admin.auth().updateUser(uid, { displayName: ad, password: sifre });
+    } else {
+      throw new HttpsError("internal", err.message);
+    }
+  }
 
-    const uid = userRecord.uid;
-
+  try {
     await admin.firestore().collection("teachers").add({
       uid, ad, brans, email,
       telegram_id: "",
@@ -53,6 +64,44 @@ exports.ogretmenOlustur = onCall(async (request) => {
 
     return { success: true, uid };
 
+  } catch (err) {
+    throw new HttpsError("internal", err.message);
+  }
+});
+
+// ===========================
+// ÖĞRETMEN SİL
+// ===========================
+exports.ogretmenSil = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Giriş yapılmamış.");
+  }
+
+  const callerDoc = await admin.firestore()
+    .collection("users")
+    .doc(request.auth.uid)
+    .get();
+
+  const callerRole = callerDoc.data()?.rol;
+  if (callerRole !== "admin" && callerRole !== "mudur_yardimcisi") {
+    throw new HttpsError("permission-denied", "Yetkiniz yok.");
+  }
+
+  const { ogretmenId } = request.data;
+  if (!ogretmenId) throw new HttpsError("invalid-argument", "ogretmenId zorunlu.");
+
+  const teacherSnap = await admin.firestore().collection("teachers").doc(ogretmenId).get();
+  if (!teacherSnap.exists) throw new HttpsError("not-found", "Öğretmen bulunamadı.");
+
+  const uid = teacherSnap.data().uid;
+
+  try {
+    await admin.firestore().collection("teachers").doc(ogretmenId).delete();
+    if (uid) {
+      await admin.firestore().collection("users").doc(uid).delete();
+      await admin.auth().deleteUser(uid);
+    }
+    return { success: true };
   } catch (err) {
     throw new HttpsError("internal", err.message);
   }

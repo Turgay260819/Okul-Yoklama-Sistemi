@@ -145,11 +145,12 @@ window.branslarNormalizeEt = async function () {
 };
 
 window.ogretmenSil = async function (id, ad) {
-  const { db, deleteDoc, doc } = window.__portal;
+  const { functions, httpsCallable } = window.__portal;
   if (!confirm('"' + ad + '" adli ogretmeni silmek istediginize emin misiniz?'))
     return;
   try {
-    await deleteDoc(doc(db, "teachers", id));
+    const ogretmenSilFn = httpsCallable(functions, "ogretmenSil");
+    await ogretmenSilFn({ ogretmenId: id });
     mesajGoster("ogretmenEkleMesaj", ad + " silindi.", "basari");
     await ogretmenleriListele();
   } catch (err) {
