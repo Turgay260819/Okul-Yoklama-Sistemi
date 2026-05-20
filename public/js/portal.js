@@ -137,6 +137,16 @@ authBaslat(async (user, rol) => {
   document.getElementById("geriBtn").style.display = "none";
 });
 
+window.nobetYukle = () => {
+  document.getElementById("sayfa-nobet").innerHTML =
+    '<iframe src="/nobet.html" style="width:100%;height:85vh;border:none;border-radius:12px;"></iframe>';
+};
+
+window.disiplinYukle = () => {
+  document.getElementById("sayfa-disiplin").innerHTML =
+    '<iframe src="/disiplin.html" style="width:100%;height:85vh;border:none;border-radius:12px;"></iframe>';
+};
+
 // Service Worker
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
