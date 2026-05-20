@@ -1,3 +1,17 @@
+const BRANS_MAP = {
+  "din kulturu":                  "Din Kültürü",
+  "din kültürü ve ahlak bilgisi": "Din Kültürü",
+  "ilköğretim matematik":         "Matematik",
+  "i̇lköğretim matematik":   "Matematik",
+  "rehberlik":                    "Rehber Öğretmen",
+};
+
+export function bransNormalize(brans) {
+  if (!brans) return brans;
+  return BRANS_MAP[brans.trim().toLowerCase()] ?? brans;
+}
+window.bransNormalize = bransNormalize;
+
 // Escapes user-provided strings before injecting into innerHTML
 export function esc(str) {
   return String(str ?? "")

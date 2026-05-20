@@ -62,10 +62,10 @@ async function ogretmenleriListele() {
     return;
   }
 
-  // Branşa göre grupla
+  // Branşa göre grupla (normalize ederek)
   const bransGrup = {};
   tumOgretmenler.forEach((o) => {
-    const brans = o.brans || "Diğer";
+    const brans = (window.bransNormalize?.(o.brans)) || o.brans || "Diğer";
     if (!bransGrup[brans]) bransGrup[brans] = [];
     bransGrup[brans].push(o);
   });
@@ -128,6 +128,21 @@ async function ogretmenleriListele() {
 
   container.innerHTML = html;
 }
+
+window.branslarNormalizeEt = async function () {
+  const { db, getDocs, updateDoc, collection, doc } = window.__portal;
+  const snap = await getDocs(collection(db, "teachers"));
+  const guncellemeler = [];
+  snap.forEach((d) => {
+    const mevcutBrans = d.data().brans;
+    const yeniBrans = window.bransNormalize?.(mevcutBrans);
+    if (yeniBrans && yeniBrans !== mevcutBrans)
+      guncellemeler.push(updateDoc(doc(db, "teachers", d.id), { brans: yeniBrans }));
+  });
+  await Promise.all(guncellemeler);
+  mesajGoster("bransNormalizeMesaj", guncellemeler.length + " öğretmen güncellendi.", "basari");
+  await ogretmenleriListele();
+};
 
 window.ogretmenSil = async function (id, ad) {
   const { db, deleteDoc, doc } = window.__portal;

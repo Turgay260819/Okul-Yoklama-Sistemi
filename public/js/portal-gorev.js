@@ -4,7 +4,7 @@ import {
   collection, query, where, orderBy, doc, serverTimestamp, httpsCallable,
 } from "./portal-config.js";
 import { state } from "./portal-state.js";
-import { esc, mesajGoster, tarihEkle, sor } from "./portal-utils.js";
+import { esc, mesajGoster, tarihEkle, sor, bransNormalize } from "./portal-utils.js";
 
 // ── GÖREV SAYFASI ──
 export function gorevSayfasiBaslat() {
@@ -15,7 +15,7 @@ window.gorevSayfasiBaslat = gorevSayfasiBaslat;
 
 function _branslariDoldur() {
   const select = document.getElementById("gorevBrans");
-  const branslar = [...new Set(state.ogretmenler.map((o) => o.brans).filter(Boolean))].sort();
+  const branslar = [...new Set(state.ogretmenler.map((o) => bransNormalize(o.brans)).filter(Boolean))].sort();
   select.innerHTML = '<option value="">Brans secin...</option>';
   branslar.forEach((b) => (select.innerHTML += `<option value="${b}">${esc(b)}</option>`));
 }
