@@ -17,7 +17,8 @@
       "Bash(node -e ' *)",
       "Bash(node *)",
       "Bash(grep -E \"\\\\.\\(html|js|json\\)$\")",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(grep -E \"\\\\.\\(html|js\\)$\")"
     ]
   }
 }
