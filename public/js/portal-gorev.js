@@ -4,7 +4,7 @@ import {
   collection, query, where, orderBy, doc, serverTimestamp, httpsCallable,
 } from "./portal-config.js";
 import { state } from "./portal-state.js";
-import { esc, mesajGoster, tarihEkle, sor, bransNormalize } from "./portal-utils.js";
+import { esc, mesajGoster, tarihEkle, sor, bransNormalize, sor_giris } from "./portal-utils.js";
 
 // ── GÖREV SAYFASI ──
 export function gorevSayfasiBaslat() {
@@ -28,6 +28,7 @@ window.gorevSekme = (id, el) => {
   if (id === "liste") gorevleriniYukle();
   else if (id === "siralar") _siralariYukle();
   else if (id === "istatistik") _gorevIstatistikYukle();
+  else if (id === "raporlar") _gorevRaporlariYukle();
   else if (id === "takvim") _kilitliGunleriYukle();
 };
 
@@ -200,12 +201,13 @@ window.gorevOlustur = async () => {
 
 async function _gorevAtamaAlgoritm(tur, brans, sayi) {
   const siraKey = tur === "brans" ? "brans_" + brans : "genel";
-  let havuz = tur === "brans" ? state.ogretmenler.filter((o) => o.brans === brans) : [...state.ogretmenler];
+  let havuz = tur === "brans" ? state.ogretmenler.filter((o) => bransNormalize(o.brans) === brans) : [...state.ogretmenler];
 
-  const [oncelikSnap, siraSnap, acikGorevSnap] = await Promise.all([
+  const [oncelikSnap, siraSnap, acikGorevSnap, raporSnap] = await Promise.all([
     getDocs(query(collection(db, "oncelik_kuyrugu"), where("kullanildi", "==", false))),
     getDocs(query(collection(db, "ogretmen_sirasi"), where("sira_turu", "==", siraKey))),
     getDocs(query(collection(db, "gorevler"), where("durum", "==", "acik"))),
+    getDocs(collection(db, "ogretmen_rapor")),
   ]);
 
   const oncelikIds = new Set();
@@ -214,9 +216,16 @@ async function _gorevAtamaAlgoritm(tur, brans, sayi) {
   siraSnap.forEach((d) => (siraMap[d.data().ogretmen_id] = d.data()));
   const acikGorevOgretmenler = new Set();
   acikGorevSnap.forEach((d) => (d.data().atanan_ids || []).forEach((id) => acikGorevOgretmenler.add(id)));
+  const raporlar = [];
+  raporSnap.forEach((d) => raporlar.push(d.data()));
+
+  function raporluMu(ogretmenId) {
+    return raporlar.some((r) => r.ogretmen_id === ogretmenId && r.baslangic_tarihi <= bugun && r.bitis_tarihi >= bugun);
+  }
 
   function uygunMu(ogr, atlaKooldown = false) {
     if (acikGorevOgretmenler.has(ogr.id)) return false;
+    if (raporluMu(ogr.id)) return false;
     if (!atlaKooldown && siraMap[ogr.id]?.cooldown_bitis >= bugun) return false;
     return true;
   }
@@ -249,59 +258,156 @@ async function _gorevAtamaAlgoritm(tur, brans, sayi) {
 }
 
 // ── SIRALAR ──
+let _guncelSiraTuru = "genel";
+
 async function _siralariYukle() {
   const container = document.getElementById("siraListesiIcerik");
   container.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
-  const siraSnap = await getDocs(collection(db, "ogretmen_sirasi"));
+  const [siraSnap, raporSnap] = await Promise.all([
+    getDocs(collection(db, "ogretmen_sirasi")),
+    getDocs(collection(db, "ogretmen_rapor")),
+  ]);
   const siralar = [];
   siraSnap.forEach((d) => siralar.push({ id: d.id, ...d.data() }));
-  const turler = [...new Set(siralar.map((s) => s.sira_turu))].sort();
-  if (!turler.length) {
-    document.getElementById("siraTabBar").innerHTML = "";
-    container.innerHTML = '<div class="bos-mesaj">Henuz sira kaydi yok. Gorev olusturdukca sira olusur.</div>';
-    return;
-  }
+  const raporlar = [];
+  raporSnap.forEach((d) => raporlar.push({ id: d.id, ...d.data() }));
+
+  // Sekmeleri: mevcut sıra türleri + genel (her zaman göster)
+  const turler = [...new Set(["genel", ...siralar.map((s) => s.sira_turu)])].sort();
   const tabBar = document.getElementById("siraTabBar");
   tabBar.innerHTML = turler.map((t, i) =>
-    `<button class="sekme-btn ${i === 0 ? "aktif" : ""}" onclick="siraTabGoster('${t}',this)">${t === "genel" ? "Genel Sira" : t.replace("brans_", "")}</button>`,
+    `<button class="sekme-btn ${i === 0 ? "aktif" : ""}" onclick="siraTabGoster('${esc(t)}',this)">${t === "genel" ? "Genel Sira" : esc(t.replace("brans_", ""))}</button>`,
   ).join("");
-  _siraTabGosterIcerik(turler[0], siralar);
+  _guncelSiraTuru = turler[0];
+  _siraTabGosterIcerik(turler[0], siralar, raporlar);
 }
 
 window.siraTabGoster = (tur, el) => {
+  _guncelSiraTuru = tur;
   document.querySelectorAll("#siraTabBar .sekme-btn").forEach((b) => b.classList.remove("aktif"));
   el.classList.add("aktif");
-  getDocs(collection(db, "ogretmen_sirasi")).then((snap) => {
+  Promise.all([
+    getDocs(collection(db, "ogretmen_sirasi")),
+    getDocs(collection(db, "ogretmen_rapor")),
+  ]).then(([siraSnap, raporSnap]) => {
     const siralar = [];
-    snap.forEach((d) => siralar.push({ id: d.id, ...d.data() }));
-    _siraTabGosterIcerik(tur, siralar);
+    siraSnap.forEach((d) => siralar.push({ id: d.id, ...d.data() }));
+    const raporlar = [];
+    raporSnap.forEach((d) => raporlar.push({ id: d.id, ...d.data() }));
+    _siraTabGosterIcerik(tur, siralar, raporlar);
   });
 };
 
-function _siraTabGosterIcerik(tur, siralar) {
-  const filtered = siralar.filter((s) => s.sira_turu === tur).sort((a, b) => a.son_atama.localeCompare(b.son_atama));
+function _siraTabGosterIcerik(tur, siralar, raporlar) {
   const container = document.getElementById("siraListesiIcerik");
-  if (!filtered.length) { container.innerHTML = '<div class="bos-mesaj">Bu sira turunde kayit yok.</div>'; return; }
-  let siradakiBulundu = false;
+  const isAdmin = state.rol === "admin" || state.rol === "mudur_yardimcisi";
+
+  // Sıra kaydı olan öğretmenler bu tur için
+  const siraMap = {};
+  siralar.filter((s) => s.sira_turu === tur).forEach((s) => (siraMap[s.ogretmen_id] = s));
+
+  // Aktif raporlu öğretmenler
+  const raporluIds = new Set(
+    raporlar.filter((r) => r.baslangic_tarihi <= bugun && r.bitis_tarihi >= bugun).map((r) => r.ogretmen_id)
+  );
+  const raporMap = {};
+  raporlar.forEach((r) => {
+    if (!raporMap[r.ogretmen_id]) raporMap[r.ogretmen_id] = [];
+    raporMap[r.ogretmen_id].push(r);
+  });
+
+  // Tüm öğretmenler: sıra kaydı olanlar önce (son_atama'ya göre), olmayanlar sona
+  const siraKayitlilar = Object.values(siraMap).sort((a, b) => (a.son_atama || "").localeCompare(b.son_atama || ""));
+  const siraKayitliIds = new Set(siraKayitlilar.map((s) => s.ogretmen_id));
+  const kayitsizlar = state.ogretmenler.filter((o) => !siraKayitliIds.has(o.id));
+
   let html = "";
-  filtered.forEach((s, i) => {
+  let siradakiBulundu = false;
+
+  siraKayitlilar.forEach((s, i) => {
     const cooldownVar = s.cooldown_bitis && s.cooldown_bitis >= bugun;
-    const siradaki = !siradakiBulundu && !cooldownVar;
+    const raporlu = raporluIds.has(s.ogretmen_id);
+    const siradaki = !siradakiBulundu && !cooldownVar && !raporlu;
     if (siradaki) siradakiBulundu = true;
+    const ogrRaporlari = raporMap[s.ogretmen_id] || [];
     html += `<div class="sira-item">
       <div class="sira-no ${siradaki ? "siradaki" : ""}">${i + 1}</div>
       <div class="sira-isim">${esc(s.ogretmen_ad)}</div>
       <div class="sira-meta">
-        ${cooldownVar
-          ? `<span class="rozet rozet-sari">⏳ ${esc(s.cooldown_bitis)} kadar bekleme</span>`
-          : siradaki
-            ? '<span class="rozet rozet-mavi">Siradaki</span>'
-            : `<span style="color:var(--text2);">Son: ${esc(s.son_atama || "—")}</span>`}
+        ${raporlu ? '<span class="rozet rozet-kirmizi">🏥 Raporlu</span>' : ""}
+        ${cooldownVar && !raporlu ? `<span class="rozet rozet-sari">⏳ ${esc(s.cooldown_bitis)} kadar</span>` : ""}
+        ${siradaki ? '<span class="rozet rozet-mavi">Siradaki</span>' : ""}
+        ${!raporlu && !cooldownVar && !siradaki ? `<span style="color:var(--text2);font-size:12px;">Son: ${esc(s.son_atama || "—")}</span>` : ""}
+        ${ogrRaporlari.map((r) => `<span style="font-size:11px;color:#888;">${esc(r.baslangic_tarihi)}–${esc(r.bitis_tarihi)}</span>`).join("")}
       </div>
+      ${isAdmin ? `<div style="display:flex;gap:4px;flex-shrink:0;">
+        <button class="btn btn-sm" style="background:#fff0f0;color:#c62828;border:1px solid #ffcdd2;" onclick="raporEkleAc('${esc(s.ogretmen_id)}','${esc(s.ogretmen_ad)}')">🏥 Rapor</button>
+        <button class="btn btn-kirmizi btn-sm" onclick="siraKaydiniSil('${esc(s.id)}','${esc(s.ogretmen_ad)}')">Sil</button>
+      </div>` : ""}
     </div>`;
   });
-  container.innerHTML = html;
+
+  if (kayitsizlar.length) {
+    html += `<div style="margin-top:12px;padding:8px 12px;background:#f8f9fa;border-radius:6px;font-size:12px;color:var(--text2);">Henüz görev almamış öğretmenler (sonraki görevde listeye girer):</div>`;
+    kayitsizlar.forEach((o) => {
+      const raporlu = raporluIds.has(o.id);
+      const ogrRaporlari = raporMap[o.id] || [];
+      html += `<div class="sira-item" style="opacity:0.7;">
+        <div class="sira-no">—</div>
+        <div class="sira-isim">${esc(o.ad)}</div>
+        <div class="sira-meta">
+          ${raporlu ? '<span class="rozet rozet-kirmizi">🏥 Raporlu</span>' : '<span style="color:var(--text2);font-size:12px;">Henuz gorev almadi</span>'}
+          ${ogrRaporlari.map((r) => `<span style="font-size:11px;color:#888;">${esc(r.baslangic_tarihi)}–${esc(r.bitis_tarihi)}</span>`).join("")}
+        </div>
+        ${isAdmin ? `<div style="display:flex;gap:4px;flex-shrink:0;">
+          <button class="btn btn-sm" style="background:#fff0f0;color:#c62828;border:1px solid #ffcdd2;" onclick="raporEkleAc('${esc(o.id)}','${esc(o.ad)}')">🏥 Rapor</button>
+        </div>` : ""}
+      </div>`;
+    });
+  }
+
+  container.innerHTML = html || '<div class="bos-mesaj">Ogretmen bulunamadi.</div>';
 }
+
+// Rapor ekleme
+let _raporPendingId = null;
+window.raporEkleAc = (ogretmenId, ogretmenAd) => {
+  _raporPendingId = { id: ogretmenId, ad: ogretmenAd };
+  document.getElementById("raporOgretmenAdi").textContent = ogretmenAd;
+  document.getElementById("raporBaslangic").value = bugun;
+  document.getElementById("raporBitis").value = bugun;
+  document.getElementById("raporAciklama").value = "";
+  document.getElementById("raporModalMesaj").style.display = "none";
+  document.getElementById("raporModal").classList.add("aktif");
+};
+
+window.raporKaydet = async () => {
+  if (!_raporPendingId) return;
+  const bas = document.getElementById("raporBaslangic").value;
+  const bit = document.getElementById("raporBitis").value;
+  const aciklama = document.getElementById("raporAciklama").value.trim();
+  if (!bas || !bit || bit < bas) {
+    mesajGoster("raporModalMesaj", "Gecerli tarih araligi girin.", "hata");
+    return;
+  }
+  await addDoc(collection(db, "ogretmen_rapor"), {
+    ogretmen_id: _raporPendingId.id,
+    ogretmen_ad: _raporPendingId.ad,
+    baslangic_tarihi: bas,
+    bitis_tarihi: bit,
+    aciklama,
+    olusturulma: serverTimestamp(),
+  });
+  document.getElementById("raporModal").classList.remove("aktif");
+  _raporPendingId = null;
+  siraTabGoster(_guncelSiraTuru, document.querySelector("#siraTabBar .sekme-btn.aktif"));
+};
+
+window.siraKaydiniSil = async (siraId, ogretmenAd) => {
+  if (!await sor("Sira Kaydini Sil", `"${ogretmenAd}" adli ogretmenin sira kaydi silinecek. Bu ogretmen bir sonraki gorevde yeniden listeye girer.`, "Sil", "btn-kirmizi")) return;
+  await deleteDoc(doc(db, "ogretmen_sirasi", siraId));
+  siraTabGoster(_guncelSiraTuru, document.querySelector("#siraTabBar .sekme-btn.aktif"));
+};
 
 // ── İSTATİSTİK ──
 async function _gorevIstatistikYukle() {
@@ -376,4 +482,118 @@ window.kilitSil = async (id) => {
   if (!await sor("Kilidi Kaldir", "Bu gunun kilidini kaldirmak istediginizden emin misiniz?", "Kaldir", "btn-kirmizi")) return;
   await deleteDoc(doc(db, "takvim_kilidi", id));
   _kilitliGunleriYukle();
+};
+
+// ── GÖREV RAPORLARI SEKMESİ ──
+async function _gorevRaporlariYukle() {
+  const container = document.getElementById("gorevRaporlariIcerik");
+  container.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
+
+  const [gorevSnap, siraSnap, raporSnap] = await Promise.all([
+    getDocs(collection(db, "gorevler")),
+    getDocs(collection(db, "ogretmen_sirasi")),
+    getDocs(collection(db, "ogretmen_rapor")),
+  ]);
+
+  const gorevler = [];
+  gorevSnap.forEach((d) => gorevler.push({ id: d.id, ...d.data() }));
+  const siralar = [];
+  siraSnap.forEach((d) => siralar.push({ id: d.id, ...d.data() }));
+  const raporlar = [];
+  raporSnap.forEach((d) => raporlar.push({ id: d.id, ...d.data() }));
+
+  // Öğretmen bazında istatistik
+  const ogretmenStat = {};
+  state.ogretmenler.forEach((o) => {
+    ogretmenStat[o.id] = { ad: o.ad, brans: bransNormalize(o.brans) || "—", toplam: 0, acik: 0, tamamlandi: 0, tamamlanmadi: 0 };
+  });
+  gorevler.forEach((g) => {
+    (g.atanan_ids || []).forEach((id) => {
+      if (!ogretmenStat[id]) ogretmenStat[id] = { ad: "?", brans: "?", toplam: 0, acik: 0, tamamlandi: 0, tamamlanmadi: 0 };
+      ogretmenStat[id].toplam++;
+      if (g.durum === "acik") ogretmenStat[id].acik++;
+      else if (g.durum === "tamamlandi") ogretmenStat[id].tamamlandi++;
+      else if (g.durum === "tamamlanmadi") ogretmenStat[id].tamamlanmadi++;
+    });
+  });
+
+  // Branş bazında grupla
+  const bransGrubu = {};
+  Object.values(ogretmenStat).forEach((o) => {
+    if (!bransGrubu[o.brans]) bransGrubu[o.brans] = [];
+    bransGrubu[o.brans].push(o);
+  });
+
+  // Sıra bilgisi: her sıra türü için siradaki öğretmeni bul
+  const siraTablosu = {};
+  const siraKeys = [...new Set(siralar.map((s) => s.sira_turu))].sort();
+  const raporluIds = new Set(
+    raporlar.filter((r) => r.baslangic_tarihi <= bugun && r.bitis_tarihi >= bugun).map((r) => r.ogretmen_id)
+  );
+  siraKeys.forEach((tur) => {
+    const turSiralar = siralar.filter((s) => s.sira_turu === tur).sort((a, b) => (a.son_atama || "").localeCompare(b.son_atama || ""));
+    const siradaki = turSiralar.find((s) => !(s.cooldown_bitis >= bugun) && !raporluIds.has(s.ogretmen_id));
+    siraTablosu[tur] = { liste: turSiralar, siradaki: siradaki?.ogretmen_ad || "—" };
+  });
+
+  // Aktif raporlar
+  const aktifRaporlar = raporlar.filter((r) => r.bitis_tarihi >= bugun).sort((a, b) => a.baslangic_tarihi.localeCompare(b.baslangic_tarihi));
+
+  let html = "";
+
+  // Aktif raporlar tablosu
+  html += `<div class="kart"><div class="kart-baslik">🏥 Aktif ve Yaklaşan Raporlar</div>`;
+  if (aktifRaporlar.length) {
+    html += `<table><thead><tr><th>Öğretmen</th><th>Baslangic</th><th>Bitis</th><th>Aciklama</th><th></th></tr></thead><tbody>`;
+    aktifRaporlar.forEach((r) => {
+      const aktif = r.baslangic_tarihi <= bugun;
+      html += `<tr>
+        <td><strong>${esc(r.ogretmen_ad)}</strong></td>
+        <td>${esc(r.baslangic_tarihi)}</td>
+        <td>${esc(r.bitis_tarihi)}</td>
+        <td>${esc(r.aciklama || "—")}</td>
+        <td><button class="btn btn-kirmizi btn-sm" onclick="raporSil('${r.id}')">Sil</button></td>
+      </tr>`;
+    });
+    html += `</tbody></table>`;
+  } else {
+    html += `<div class="bos-mesaj">Aktif rapor yok.</div>`;
+  }
+  html += `</div>`;
+
+  // Branş sıra durumu
+  html += `<div class="kart"><div class="kart-baslik">📊 Branş Sıra Durumu</div>`;
+  if (siraKeys.length) {
+    html += `<table><thead><tr><th>Tur</th><th>Siradaki</th><th>Toplam Kayit</th></tr></thead><tbody>`;
+    siraKeys.forEach((tur) => {
+      const bilgi = siraTablosu[tur];
+      html += `<tr><td><strong>${esc(tur === "genel" ? "Genel" : tur.replace("brans_", ""))}</strong></td><td><span class="rozet rozet-mavi">${esc(bilgi.siradaki)}</span></td><td>${bilgi.liste.length}</td></tr>`;
+    });
+    html += `</tbody></table>`;
+  } else {
+    html += `<div class="bos-mesaj">Henuz sira kaydi yok.</div>`;
+  }
+  html += `</div>`;
+
+  // Öğretmen bazında görev tablosu
+  html += `<div class="kart"><div class="kart-baslik">👤 Öğretmen Bazında Görev Dağılımı</div>`;
+  const sorted = Object.values(ogretmenStat).sort((a, b) => b.toplam - a.toplam || a.ad.localeCompare(b.ad, "tr"));
+  if (sorted.some((o) => o.toplam > 0)) {
+    html += `<table><thead><tr><th>Ogretmen</th><th>Brans</th><th>Toplam</th><th>Acik</th><th>Tamamlandi</th><th>Tamamlanmadi</th></tr></thead><tbody>`;
+    sorted.forEach((o) => {
+      html += `<tr><td><strong>${esc(o.ad)}</strong></td><td>${esc(o.brans)}</td><td><strong>${o.toplam}</strong></td><td>${o.acik}</td><td style="color:var(--yesil)">${o.tamamlandi}</td><td style="color:var(--kirmizi)">${o.tamamlanmadi}</td></tr>`;
+    });
+    html += `</tbody></table>`;
+  } else {
+    html += `<div class="bos-mesaj">Henuz gorev verisi yok.</div>`;
+  }
+  html += `</div>`;
+
+  container.innerHTML = html;
+}
+
+window.raporSil = async (raporId) => {
+  if (!await sor("Raporu Sil", "Bu rapor kaydı silinecek.", "Sil", "btn-kirmizi")) return;
+  await deleteDoc(doc(db, "ogretmen_rapor", raporId));
+  _gorevRaporlariYukle();
 };

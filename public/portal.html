@@ -250,6 +250,7 @@
                 <button class="sekme-btn" onclick="gorevSekme('yeni', this)">Yeni Gorev</button>
                 <button class="sekme-btn" onclick="gorevSekme('siralar', this)">Sira Durumu</button>
                 <button class="sekme-btn" onclick="gorevSekme('istatistik', this)">Istatistikler</button>
+                <button class="sekme-btn" onclick="gorevSekme('raporlar', this)">Raporlar</button>
                 <button class="sekme-btn" onclick="gorevSekme('takvim', this)">Takvim Kilidi</button>
               </div>
 
@@ -313,6 +314,10 @@
 
               <div class="sekme-icerik" id="gsekme-istatistik">
                 <div id="gorevIstatistikIcerik"><div class="yukleniyor">Yukleniyor...</div></div>
+              </div>
+
+              <div class="sekme-icerik" id="gsekme-raporlar">
+                <div id="gorevRaporlariIcerik"><div class="yukleniyor">Yukleniyor...</div></div>
               </div>
 
               <div class="sekme-icerik" id="gsekme-takvim">
@@ -587,6 +592,7 @@
                 <button class="sekme-btn" onclick="ayarSekme('dyk', this)">DYK Kurslari</button>
                 <button class="sekme-btn" onclick="ayarSekme('derssaatleri', this)">Ders Saatleri</button>
                 <button class="sekme-btn" onclick="ayarSekme('sistem', this)">Sistem</button>
+                <button class="sekme-btn" onclick="ayarSekme('dersler', this)">Ders Listesi</button>
               </div>
               <div class="sekme-icerik aktif" id="asekme-ogretmenler">
                 <div class="kart">
@@ -780,6 +786,7 @@
                   <div class="mesaj" id="telegramTestMesaj"></div>
                 </div>
               </div>
+              <div class="sekme-icerik" id="asekme-dersler"></div>
             </div>
 
           </div>
@@ -839,6 +846,33 @@
         <div class="gom-butonlar">
           <button class="btn btn-gri" id="ggm-iptal">Iptal</button>
           <button class="btn btn-mavi" id="ggm-tamam">Tamam</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- RAPOR EKLE MODAL -->
+    <div class="modal-zemin" id="raporModal">
+      <div class="modal-kutu">
+        <div class="modal-baslik">Rapor Tarihi Gir</div>
+        <div style="padding:16px 0;display:flex;flex-direction:column;gap:12px;">
+          <div id="raporOgretmenAdi" style="font-weight:700;font-size:15px;color:var(--mavi)"></div>
+          <div class="form-group mb-0">
+            <label>Baslangic Tarihi</label>
+            <input type="date" id="raporBaslangic" />
+          </div>
+          <div class="form-group mb-0">
+            <label>Bitis Tarihi</label>
+            <input type="date" id="raporBitis" />
+          </div>
+          <div class="form-group mb-0">
+            <label>Aciklama (opsiyonel)</label>
+            <input type="text" id="raporAciklama" placeholder="Hastalik, ameliyat..." />
+          </div>
+          <div class="mesaj" id="raporModalMesaj"></div>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button class="btn btn-gri" onclick="document.getElementById('raporModal').classList.remove('aktif')">Iptal</button>
+          <button class="btn btn-kirmizi" onclick="raporKaydet()">Rapor Ekle</button>
         </div>
       </div>
     </div>

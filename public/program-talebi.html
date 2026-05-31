@@ -376,7 +376,7 @@
       <h1>📐 Ders Programı Talep Sistemi</h1>
       <div class="topbar-sag">
         <span id="donemRozet" class="rozet rozet-kirmizi">Talep Kapalı</span>
-        <a href="/portal.html" class="btn btn-beyaz">Ana Sayfa</a>
+        <button class="btn btn-beyaz" onclick="window.close()">Ana Sayfa</button>
       </div>
     </div>
 
@@ -428,6 +428,7 @@
       let ayarlar = { donem_acik: false };
       let tumTanimlar = [];
       let tumSiniflar = [];
+      let tumDersListesi = [];
       let subeToplam = {};
       let tumMatrisler = {};
       let benimMatris = {};
@@ -467,6 +468,7 @@
 
         await ayarlariYukle();
         await tanimlariYukle();
+        await dersListesiniYukle();
         await tumMatrisleriYukle();
 
         document.getElementById("yukleniyor").style.display = "none";
@@ -497,6 +499,29 @@
         tumTanimlar = [];
         snap.forEach((d) => tumTanimlar.push({ id: d.id, ...d.data() }));
       }
+
+      async function dersListesiniYukle() {
+        const snap = await getDocs(collection(db, "ders_listesi"));
+        tumDersListesi = [];
+        snap.forEach((d) => tumDersListesi.push({ id: d.id, ...d.data() }));
+        tumDersListesi.sort((a, b) => (a.ders_adi || "").localeCompare(b.ders_adi || "", "tr"));
+      }
+
+      window.yeniDersListesiEkle = async () => {
+        const ad = prompt("Yeni ders adı:");
+        if (!ad?.trim()) return;
+        const adTrimmed = ad.trim();
+        if (tumDersListesi.some((d) => d.ders_adi === adTrimmed)) {
+          alert("Bu ders zaten listede var.");
+          return;
+        }
+        const docRef = await addDoc(collection(db, "ders_listesi"), { ders_adi: adTrimmed });
+        tumDersListesi.push({ id: docRef.id, ders_adi: adTrimmed });
+        tumDersListesi.sort((a, b) => (a.ders_adi || "").localeCompare(b.ders_adi || "", "tr"));
+        ogretmenDerslerGoster();
+        const sel = document.getElementById("yeniDers");
+        if (sel) sel.value = adTrimmed;
+      };
 
       async function tumMatrisleriYukle() {
         const snap = await getDocs(collection(db, "program_talep_matris"));
@@ -666,7 +691,13 @@
               </div>
               <div class="form-group" style="margin-bottom:0;">
                 <label>Ders Adı</label>
-                <input type="text" id="yeniDers" placeholder="Matematik">
+                <div style="display:flex;gap:4px;align-items:center;">
+                  <select id="yeniDers" style="flex:1;">
+                    <option value="">Seçin...</option>
+                    ${tumDersListesi.map((d) => `<option value="${d.ders_adi}">${d.ders_adi}</option>`).join("")}
+                  </select>
+                  <button class="btn btn-gri btn-sm" onclick="yeniDersListesiEkle()" title="Yeni ders ekle">+</button>
+                </div>
               </div>
               <div class="form-group" style="margin-bottom:0;">
                 <label>Haftalık Saat</label>

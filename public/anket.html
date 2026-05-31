@@ -645,7 +645,7 @@
     <div class="topbar">
       <h1>📋 Anket & Form Sistemi</h1>
       <div class="topbar-sag">
-        <a href="/portal.html" class="btn btn-beyaz">← Ana Sayfa</a>
+        <button class="btn btn-beyaz" onclick="window.close()">← Ana Sayfa</button>
       </div>
     </div>
 
@@ -804,6 +804,12 @@
 
       // ── ÖĞRETMEN SAYFASI ──
       async function ogretmenSayfasi() {
+        const urlId = new URLSearchParams(window.location.search).get("id");
+        if (urlId) {
+          window.history.replaceState({}, "", "/anket.html");
+          await formDoldur(urlId);
+          return;
+        }
         const c = document.getElementById("anaIcerik");
         // Aktif anketleri getir
         const snap = await getDocs(

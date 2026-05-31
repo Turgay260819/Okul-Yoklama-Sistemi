@@ -37,6 +37,7 @@ window.ayarSekme = function (id, el) {
   document.getElementById("asekme-" + id).classList.add("aktif");
   el.classList.add("aktif");
   if (id === "dyk" && window.dykAyarlarYukle) window.dykAyarlarYukle();
+  else if (id === "dersler") _dersListesiYukle();
 };
 
 window.ayarlarYukle = async function () {
@@ -384,4 +385,50 @@ window.telegramTest = async function () {
   } catch (err) {
     mesajGoster("telegramTestMesaj", "Hata: " + err.message, "hata");
   }
+};
+
+async function _dersListesiYukle() {
+  const { db, getDocs, collection } = window.__portal;
+  const snap = await getDocs(collection(db, "ders_listesi"));
+  const dersler = [];
+  snap.forEach((d) => dersler.push({ id: d.id, ...d.data() }));
+  dersler.sort((a, b) => (a.ders_adi || "").localeCompare(b.ders_adi || "", "tr"));
+
+  const c = document.getElementById("asekme-dersler");
+  let html = `<div class="kart"><div class="kart-baslik">Ders Listesi</div>`;
+  if (dersler.length) {
+    html += `<table><thead><tr><th>Ders Adı</th><th></th></tr></thead><tbody>`;
+    dersler.forEach((d) => {
+      html += `<tr><td><strong>${d.ders_adi}</strong></td><td style="text-align:right;"><button class="btn btn-kirmizi btn-sm" onclick="dersListesiSil('${d.id}')">Sil</button></td></tr>`;
+    });
+    html += `</tbody></table>`;
+  } else {
+    html += `<div class="bos-mesaj">Henuz ders eklenmemis.</div>`;
+  }
+  html += `<div style="margin-top:16px;display:flex;gap:10px;align-items:flex-end;">
+    <div class="form-group" style="margin-bottom:0;flex:1;">
+      <label>Ders Adı</label>
+      <input type="text" id="yeniDersListesiInput" placeholder="Matematik">
+    </div>
+    <button class="btn btn-yesil" onclick="dersListesiEkle()">+ Ekle</button>
+  </div>
+  <div class="mesaj" id="dersListesiMesaj"></div></div>`;
+  c.innerHTML = html;
+}
+
+window.dersListesiEkle = async function () {
+  const { db, addDoc, collection, serverTimestamp } = window.__portal;
+  const ad = document.getElementById("yeniDersListesiInput")?.value?.trim();
+  if (!ad) { mesajGoster("dersListesiMesaj", "Ders adı girin.", "hata"); return; }
+  await addDoc(collection(db, "ders_listesi"), { ders_adi: ad, olusturulma: serverTimestamp() });
+  mesajGoster("dersListesiMesaj", "Ders eklendi.", "basari");
+  document.getElementById("yeniDersListesiInput").value = "";
+  _dersListesiYukle();
+};
+
+window.dersListesiSil = async function (id) {
+  const { db, deleteDoc, doc } = window.__portal;
+  if (!confirm("Bu dersi silmek istediginize emin misiniz?")) return;
+  await deleteDoc(doc(db, "ders_listesi", id));
+  _dersListesiYukle();
 };

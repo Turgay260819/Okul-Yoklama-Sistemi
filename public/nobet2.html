@@ -430,7 +430,7 @@
           ⚙ Noktalar
         </button>
         <button class="btn btn-beyaz" onclick="yerlesimAc()">✏ Yerleşim</button>
-        <a href="/portal.html" class="btn btn-beyaz">Ana Sayfa</a>
+        <button class="btn btn-beyaz" onclick="window.close()">Ana Sayfa</button>
       </div>
     </div>
     <div id="yukleniyor" class="yukleniyor">Yükleniyor...</div>
@@ -757,10 +757,13 @@
       window.nobetIleri = async () => {
         const bas = new Date(nobetVerisi.hafta_baslangic + "T12:00:00");
         bas.setDate(bas.getDate() + 7);
+        const rotasyonAktif = nobetVerisi.rotasyon_aktif !== false;
         nobetVerisi = {
           ...nobetVerisi,
           hafta_baslangic: bas.toISOString().split("T")[0],
-          rotasyon_sayaci: (nobetVerisi.rotasyon_sayaci || 0) + 1,
+          rotasyon_sayaci: rotasyonAktif
+            ? (nobetVerisi.rotasyon_sayaci || 0) + 1
+            : (nobetVerisi.rotasyon_sayaci || 0),
           son_guncelleme: serverTimestamp(),
         };
         await setDoc(doc(db, "nobet2_ayarlar", "mevcut"), nobetVerisi);
@@ -771,10 +774,13 @@
       window.nobetGeriAl = async () => {
         const bas = new Date(nobetVerisi.hafta_baslangic + "T12:00:00");
         bas.setDate(bas.getDate() - 7);
+        const rotasyonAktif = nobetVerisi.rotasyon_aktif !== false;
         nobetVerisi = {
           ...nobetVerisi,
           hafta_baslangic: bas.toISOString().split("T")[0],
-          rotasyon_sayaci: (nobetVerisi.rotasyon_sayaci || 0) - 1,
+          rotasyon_sayaci: rotasyonAktif
+            ? (nobetVerisi.rotasyon_sayaci || 0) - 1
+            : (nobetVerisi.rotasyon_sayaci || 0),
           son_guncelleme: serverTimestamp(),
         };
         await setDoc(doc(db, "nobet2_ayarlar", "mevcut"), nobetVerisi);

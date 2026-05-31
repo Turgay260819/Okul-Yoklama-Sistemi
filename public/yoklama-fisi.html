@@ -136,11 +136,11 @@
         margin-top: 1mm;
       }
 
-      /* FİŞ GRID - 2 sütun 4 satır */
+      /* FİŞ GRID - 2 sütun 2 satır = 4 şube/sayfa */
       .fis-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        grid-template-rows: repeat(4, minmax(0, 1fr));
+        grid-template-rows: repeat(2, minmax(0, 1fr));
         gap: 2mm;
         flex: 1;
         overflow: hidden;
@@ -258,6 +258,8 @@
       }
 
       /* YAZDIR */
+      @page { size: A4; margin: 5mm; }
+
       @media print {
         * {
           -webkit-print-color-adjust: exact;
@@ -332,9 +334,7 @@
         Fişleri Oluştur
       </button>
       <button class="btn btn-yesil" onclick="window.print()">Yazdır</button>
-      <a href="/portal.html" style="text-decoration: none">
-        <button class="btn btn-gri">Ana Sayfa</button>
-      </a>
+      <button class="btn btn-gri" onclick="window.close()">Ana Sayfa</button>
 
       <div id="durum"></div>
     </div>
@@ -468,80 +468,51 @@
           let toplamSayfa = 0;
           let html = "";
 
-          seviyeler.forEach((sev) => {
-            const buSeviyeSiniflari = siniflar.filter((s) => s.grade === sev);
-            if (buSeviyeSiniflari.length === 0) return;
-
-            toplamSayfa++;
-            html += `<div class="a4-sayfa">`;
-            html += `<div class="sayfa-baslik">
+          // Tek fiş HTML üretici (hem yoklama fisi1 hem fisi2 için)
+          function fisSayfasiHtml(sev, sayfaNo, buSeviyeSiniflari, tarihStr) {
+            const baslangic = sayfaNo * 4;
+            if (baslangic >= buSeviyeSiniflari.length) return "";
+            const subeAdi = buSeviyeSiniflari[baslangic]?.class_name + (buSeviyeSiniflari[baslangic + 3] ? "–" + (buSeviyeSiniflari[Math.min(baslangic + 3, buSeviyeSiniflari.length - 1)]?.class_name || "") : "");
+            let h = `<div class="a4-sayfa">`;
+            h += `<div class="sayfa-baslik">
         <div class="okul-adi">${OKUL_ADI} — ÖĞRENCİ GÜNLÜK YOKLAMA FİŞLERİ</div>
-        <div class="alt-baslik">${sev}. SINIFLAR — ${tarihStr}</div>
+        <div class="alt-baslik">${sev}. SINIFLAR (${subeAdi}) — ${tarihStr}</div>
       </div>`;
-            html += `<div class="fis-grid">`;
-
-            // 7 şube + 1 boş = 8 yer (2x4)
-            for (let i = 0; i < 8; i++) {
+            h += `<div class="fis-grid">`;
+            for (let i = baslangic; i < baslangic + 4; i++) {
               const sinif = buSeviyeSiniflari[i];
-              if (!sinif) {
-                html += `<div class="fis fis-bos"></div>`;
-                continue;
-              }
-
+              if (!sinif) { h += `<div class="fis fis-bos"></div>`; continue; }
               const sinifAdi = sinif.class_name;
               const sinifProgram = (program[sinifAdi] || [])
                 .sort((a, b) => a.lesson_number - b.lesson_number)
-                .filter(
-                  (d, idx, arr) =>
-                    arr.findIndex(
-                      (x) => x.lesson_number === d.lesson_number,
-                    ) === idx,
-                );
+                .filter((d, idx, arr) => arr.findIndex((x) => x.lesson_number === d.lesson_number) === idx);
               const sinifYok = yoklamalar[sinifAdi] || {};
               const n = sinifProgram.length;
-
               if (n === 0) {
-                html += `<div class="fis" style="max-height:100%;overflow:hidden;">
+                h += `<div class="fis" style="max-height:100%;overflow:hidden;">
     <div class="fis-bilgi"><span>${sinifAdi}</span><span>${tarihStr.split(" ")[0]}</span></div>
-    <div style="padding:2mm; font-size:7pt; color:#888; text-align:center;">Ders programı tanımlanmamış</div>
+    <div style="padding:2mm;font-size:7pt;color:#888;text-align:center;">Ders programı tanımlanmamış</div>
   </div>`;
                 continue;
               }
-
-              // Sütun genişliği hesapla
               const dersW = Math.floor(93 / n);
-
-              // Satırları oluştur
-              let drsRow = "",
-                satRow = "",
-                yokRow = "",
-                ogrRow = "",
-                imzRow = "";
+              let drsRow = "", satRow = "", yokRow = "", ogrRow = "", imzRow = "";
               for (let k = 0; k < n; k++) {
                 const ders = sinifProgram[k];
                 const dersNo = ders.lesson_number;
-                const dersKisa = (ders.lesson_name || "")
-                  .substring(0, 4)
-                  .toUpperCase();
+                const dersKisa = (ders.lesson_name || "").substring(0, 4).toUpperCase();
                 const ogr = ogretmenler[ders.teacher_id];
                 const ogrKisa = kisalt(ogr?.ad || "");
-                const yoklar = sinifYok[dersNo] || [];
-                const yokMetin = yoklar.join(" ");
-
+                const yokMetin = (sinifYok[dersNo] || []).join(" ");
                 drsRow += `<td class="dh">${dersKisa}</td>`;
                 satRow += `<td class="dh">${dersNo}</td>`;
                 yokRow += `<td class="yh"><div class="yh-ic">${yokMetin}</div></td>`;
                 ogrRow += `<td class="dh" style="font-size:6.5pt;">${ogrKisa}</td>`;
                 imzRow += `<td class="ih"></td>`;
               }
-
               const colgroup = `<col style="width:7mm">${Array(n).fill(`<col style="width:${dersW}%">`).join("")}`;
-
-              html += `<div class="fis">
-          <div class="fis-bilgi">
-            <span>${sinifAdi}</span>
-            <span>${tarihStr.split(" ")[0]}</span>
-          </div>
+              h += `<div class="fis">
+          <div class="fis-bilgi"><span>${sinifAdi}</span><span>${tarihStr.split(" ")[0]}</span></div>
           <table class="fis-tablo">
             <colgroup>${colgroup}</colgroup>
             <tr><td class="etiket">DRS</td>${drsRow}</tr>
@@ -559,8 +530,18 @@
           </div>
         </div>`;
             }
+            h += `</div></div>`;
+            return h;
+          }
 
-            html += `</div></div>`;
+          seviyeler.forEach((sev) => {
+            const buSeviyeSiniflari = siniflar.filter((s) => s.grade === sev);
+            if (buSeviyeSiniflari.length === 0) return;
+            // Her seviye için 2 sayfa: sayfa 0 → şubeler 0-3, sayfa 1 → şubeler 4-7
+            for (let sayfaNo = 0; sayfaNo < 2; sayfaNo++) {
+              const sayfaHtml = fisSayfasiHtml(sev, sayfaNo, buSeviyeSiniflari, tarihStr);
+              if (sayfaHtml) { html += sayfaHtml; toplamSayfa++; }
+            }
           });
 
           alan.innerHTML =

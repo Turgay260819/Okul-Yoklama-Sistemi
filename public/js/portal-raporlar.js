@@ -69,6 +69,19 @@ window.gunlukRaporGetir = async function () {
       : a.class_name.localeCompare(b.class_name),
   );
 
+  // O günün haftanın günü adını hesapla (schedule'daki day alanıyla eşleşsin)
+  const _GUNLER_TR = ["pazar", "pazartesi", "sali", "carsamba", "persembe", "cuma", "cumartesi"];
+  const gunAdi = _GUNLER_TR[new Date(tarih + "T12:00:00").getDay()];
+
+  // O gün için programdaki ders sayısını sınıf bazında çek
+  const schedSnap = await getDocs(query(collection(db, "schedule"), where("day", "==", gunAdi)));
+  const sinifProgramDersSayisi = {};
+  schedSnap.forEach((d) => {
+    const v = d.data();
+    if (!sinifProgramDersSayisi[v.class_id]) sinifProgramDersSayisi[v.class_id] = new Set();
+    sinifProgramDersSayisi[v.class_id].add(v.lesson_number);
+  });
+
   const attSnap = await getDocs(
     query(collection(db, "attendance"), where("date", "==", tarih)),
   );
@@ -96,7 +109,8 @@ window.gunlukRaporGetir = async function () {
 
   const sinifDevamsiz = {};
   Object.values(ogrenciDersler).forEach((ogr) => {
-    const toplamDers = sinifDersler[ogr.class_id] || 1;
+    // Programdaki toplam ders sayısını kullan; program yoksa kaydedilen ders sayısını kullan
+    const toplamDers = sinifProgramDersSayisi[ogr.class_id]?.size || sinifDersler[ogr.class_id] || 1;
     if (!sinifDevamsiz[ogr.class_id])
       sinifDevamsiz[ogr.class_id] = { tamGun: [], yarimGun: [] };
     if (ogr.yok >= toplamDers) {

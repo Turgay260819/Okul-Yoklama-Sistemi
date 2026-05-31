@@ -68,6 +68,8 @@
       .incelendi strong { font-size: 8pt; display: block; }
       .imza-cizgi { border-top: 0.5px dotted #888; margin-top: 3mm; height: 5mm; }
 
+      @page { size: A4; margin: 5mm; }
+
       @media print {
         * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         body { background: white; }
@@ -91,7 +93,7 @@
       </div>
       <button class="btn btn-mavi" onclick="fisleriOlustur()">Fisleri Olustur</button>
       <button class="btn btn-yesil" onclick="window.print()">Yazdir</button>
-      <a href="/portal.html" style="text-decoration:none"><button class="btn btn-gri">Ana Sayfa</button></a>
+      <button class="btn btn-gri" onclick="window.close()">Ana Sayfa</button>
       <div id="durum"></div>
     </div>
     <div id="yazdir-alani"><div class="bos-mesaj">Tarih secip "Fisleri Olustur" butonuna tiklayin.</div></div>
@@ -175,8 +177,7 @@
         }
 
         const tarihStr = formatTarih(tarih);
-        let sayfaHtml = `<div class="a4-sayfa">`;
-        sayfaHtml += `<div class="sayfa-baslik"><div class="okul-adi">${OKUL_ADI} — DYK YOKLAMA FİŞLERİ</div><div class="alt-baslik">${tarihStr}</div></div>`;
+        const fisHtmller = [];
 
         for (const kurs of gosterilecek) {
           const ogr = ogretmenler[kurs.teacher_id];
@@ -184,28 +185,38 @@
           const yoklar = devamsizlik[kurs.id] || [];
           const yokSet = new Set(yoklar);
 
-          // Sınıf öğrencilerini al
           const ogrSnap = await getDocs(query(collection(db, "students"), where("class_id", "==", kurs.class_id)));
           const ogrenciler = [];
           ogrSnap.forEach((d) => ogrenciler.push(d.data()));
           ogrenciler.sort((a, b) => (a.name || "").localeCompare(b.name || "", "tr"));
 
-          sayfaHtml += `<div class="fis">`;
-          sayfaHtml += `<div class="fis-baslik"><span>${kurs.class_id} — ${kurs.course_name}</span><span>Ogretmen: ${ogrAd} &nbsp;|&nbsp; Tarih: ${tarihStr.split(" ")[0]}</span></div>`;
-          sayfaHtml += `<table class="fis-tablo"><thead><tr><th class="no">No</th><th class="isim">Ad Soyad</th><th>Geldi mi?</th><th class="imza">İmza</th></tr></thead><tbody>`;
+          let fis = `<div class="fis">`;
+          fis += `<div class="fis-baslik"><span>${kurs.class_id} — ${kurs.course_name}</span><span>Ogretmen: ${ogrAd} &nbsp;|&nbsp; Tarih: ${tarihStr.split(" ")[0]}</span></div>`;
+          fis += `<table class="fis-tablo"><thead><tr><th class="no">No</th><th class="isim">Ad Soyad</th><th>Geldi mi?</th><th class="imza">İmza</th></tr></thead><tbody>`;
 
           ogrenciler.forEach((o) => {
             const yok = yokSet.has(o.student_number);
-            sayfaHtml += `<tr><td class="no">${o.student_number}</td><td class="isim">${o.name}</td><td style="text-align:center;font-size:10pt;">${yok ? "✗" : ""}</td><td class="imza"></td></tr>`;
+            fis += `<tr><td class="no">${o.student_number}</td><td class="isim">${o.name}</td><td style="text-align:center;font-size:10pt;">${yok ? "✗" : ""}</td><td class="imza"></td></tr>`;
           });
 
-          sayfaHtml += `</tbody></table>`;
-          sayfaHtml += `<div class="fis-alt"><div class="incelendi"><span>İNCELENDİ — MÜD.YARD.</span><strong>${MUDUR_YARDIMCISI}</strong><div class="imza-cizgi"></div></div></div>`;
-          sayfaHtml += `</div>`;
+          fis += `</tbody></table>`;
+          fis += `<div class="fis-alt"><div class="incelendi"><span>İNCELENDİ — MÜD.YARD.</span><strong>${MUDUR_YARDIMCISI}</strong><div class="imza-cizgi"></div></div></div>`;
+          fis += `</div>`;
+          fisHtmller.push(fis);
         }
 
-        sayfaHtml += `</div>`;
-        alan.innerHTML = sayfaHtml;
+        const toplamSayfa = Math.ceil(fisHtmller.length / 4);
+        let html = "";
+        for (let i = 0; i < fisHtmller.length; i += 4) {
+          const sayfaNo = Math.floor(i / 4) + 1;
+          const sayfaEtiketi = toplamSayfa > 1 ? ` — Sayfa ${sayfaNo}/${toplamSayfa}` : "";
+          html += `<div class="a4-sayfa">`;
+          html += `<div class="sayfa-baslik"><div class="okul-adi">${OKUL_ADI} — DYK YOKLAMA FİŞLERİ</div><div class="alt-baslik">${tarihStr}${sayfaEtiketi}</div></div>`;
+          html += fisHtmller.slice(i, i + 4).join("");
+          html += `</div>`;
+        }
+
+        alan.innerHTML = html;
         durum.textContent = `✓ ${gosterilecek.length} kurs fisi olusturuldu. Yazdirmak icin butona tiklayin.`;
       };
     </script>

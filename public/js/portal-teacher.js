@@ -705,14 +705,16 @@ export async function ogretmenGorevleriniYukle() {
     return;
   }
   const snap = await getDocs(
-    query(collection(db, "gorevler"), where("atanan_ids", "array-contains", state.ogretmenDoc.id), { orderBy: ["olusturulma_tarihi", "desc"] }),
+    query(collection(db, "gorevler"), where("atanan_ids", "array-contains", state.ogretmenDoc.id)),
   );
   if (snap.empty) { container.innerHTML = '<div class="bos-mesaj">Henuz gorev atanmamis.</div>'; return; }
+  const gorevler = [];
+  snap.forEach((d) => gorevler.push({ id: d.id, ...d.data() }));
+  gorevler.sort((a, b) => (b.olusturulma_tarihi || "").localeCompare(a.olusturulma_tarihi || ""));
   const durumRozet = { acik: "rozet-mavi", tamamlandi: "rozet-yesil", tamamlanmadi: "rozet-kirmizi", iptal: "rozet-gri" };
   const durumEtiket = { acik: "Acik", tamamlandi: "Tamamlandi", tamamlanmadi: "Tamamlanmadi", iptal: "Iptal" };
   let html = "";
-  snap.forEach((d) => {
-    const g = d.data();
+  gorevler.forEach((g) => {
     const gecti = g.son_tarih && g.son_tarih < bugun && g.durum === "acik";
     html += `<div class="gorev-kart ${g.durum || "acik"}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;">

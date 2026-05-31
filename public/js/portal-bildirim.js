@@ -78,7 +78,7 @@ window.bildirimOku = async (bildirimId, tip, referansId) => {
   document.getElementById("bildirimPanel")?.classList.remove("acik");
 
   if (tip === "anket") {
-    window.location.href = "/anket.html";
+    window.location.href = "/anket.html" + (referansId ? "?id=" + referansId : "");
   } else if (tip === "gorev") {
     window.sayfaGoster("gorevlerim", "Görevlerim", document.getElementById("menu-gorevlerim"));
   }
