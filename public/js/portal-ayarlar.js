@@ -297,7 +297,7 @@ window.emailUret = function (ad) {
   return `${isim || "ogrenci"}${Math.floor(1000 + Math.random() * 9000)}@gmail.com`;
 };
 window.sifreUret = function () {
-  return String(Math.floor(10000 + Math.random() * 90000));
+  return String(Math.floor(100000 + Math.random() * 900000));
 };
 window.ogrenciEmailOtoUret = function () {
   const ad = document.getElementById("ayarOgrenciAd")?.value.trim();
@@ -337,11 +337,11 @@ window.ogrencileriGetir = async function () {
   Object.entries(sinifGruplari).sort((a,b) => a[0].localeCompare(b[0],"tr")).forEach(([sinif, liste]) => {
     const sinifId = sinif.replace(/[^a-zA-Z0-9]/g,"_");
     html += `<div class="accordion-item" style="margin-bottom:6px;">
-      <div class="accordion-baslik" onclick="this.nextElementSibling.classList.toggle('acik')">
+      <div class="accordion-baslik" style="cursor:pointer;" onclick="const ic=this.nextElementSibling;ic.style.display=ic.style.display==='none'?'block':'none';">
         <span>📚 ${sinif} <span style="font-size:12px;color:#888;">(${liste.length} öğrenci)</span></span>
         <span>▼</span>
       </div>
-      <div class="accordion-icerik">
+      <div class="accordion-icerik" style="display:none;">
         <table style="width:100%;border-collapse:collapse;font-size:13px;">
           <thead><tr style="background:#f8f9fa;">
             <th style="padding:7px;text-align:left;border-bottom:1px solid #e0e0e0;">Ad Soyad</th>
@@ -491,11 +491,11 @@ window.sifreListesiGoster = async function () {
   Object.entries(sinifGruplari).sort((a,b) => a[0].localeCompare(b[0],"tr")).forEach(([sinif, liste]) => {
     const sinifId = sinif.replace(/[^a-zA-Z0-9]/g,"_");
     html += `<div class="accordion-item" style="margin-bottom:8px;">
-      <div class="accordion-baslik print-show" onclick="this.nextElementSibling.classList.toggle('acik')">
+      <div class="accordion-baslik print-show" style="cursor:pointer;" onclick="const ic=this.nextElementSibling;ic.style.display=ic.style.display==='none'?'block':'none';">
         <span><strong>${sinif}</strong> <span style="font-size:12px;color:#888;">(${liste.length} öğrenci)</span></span>
         <span class="no-print">▼</span>
       </div>
-      <div class="accordion-icerik acik">
+      <div class="accordion-icerik" style="display:block;">
         <table style="width:100%;border-collapse:collapse;font-size:13px;">
           <thead><tr style="background:#1557b0;color:white;">
             <th style="padding:8px;text-align:left;">No</th>
