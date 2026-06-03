@@ -51,6 +51,7 @@ exports.ogretmenOlustur = onCall(async (request) => {
   try {
     await admin.firestore().collection("teachers").add({
       uid, ad, brans, email,
+      kimlik_sifre: sifre,
       telegram_id: "",
       notification_enabled: true,
       created_at: admin.firestore.FieldValue.serverTimestamp()
@@ -145,9 +146,14 @@ exports.ogretmenGuncelle = onCall(async (request) => {
     const firestoreUpdate = {};
     if (ad)    firestoreUpdate.ad    = ad;
     if (email) firestoreUpdate.email = email;
+    if (sifre) firestoreUpdate.kimlik_sifre = sifre;
     if (Object.keys(firestoreUpdate).length) {
       await admin.firestore().collection("teachers").doc(ogretmenId).update(firestoreUpdate);
-      await admin.firestore().collection("users").doc(uid).update(firestoreUpdate);
+      const usersUpdate = {};
+      if (ad)    usersUpdate.ad    = ad;
+      if (email) usersUpdate.email = email;
+      if (Object.keys(usersUpdate).length)
+        await admin.firestore().collection("users").doc(uid).update(usersUpdate);
     }
 
     return { success: true };

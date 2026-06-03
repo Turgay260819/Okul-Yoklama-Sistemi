@@ -599,6 +599,7 @@
             <div class="sayfa" id="sayfa-ayarlar">
               <div class="sekme-bar">
                 <button class="sekme-btn aktif" onclick="ayarSekme('ogretmenler', this)">Ogretmenler</button>
+                <button class="sekme-btn" onclick="ayarSekme('ogretmen-sifre', this)">Ogretmen Sifre Listesi</button>
                 <button class="sekme-btn" onclick="ayarSekme('siniflar', this)">Siniflar</button>
                 <button class="sekme-btn" onclick="ayarSekme('ogrenciler', this)">Ogrenciler</button>
                 <button class="sekme-btn" onclick="ayarSekme('sifre-listesi', this)">Sifre Listesi</button>
@@ -646,10 +647,18 @@
                       </select>
                     </div>
                     <div class="form-group">
-                      <label>E-posta</label><input type="email" id="ayarOgretmenEmail" placeholder="ogretmen@okul.com" />
+                      <label>E-posta (Kullanici Adi)</label>
+                      <div style="display:flex;gap:6px;">
+                        <input type="email" id="ayarOgretmenEmail" placeholder="ogretmen@okul.com" style="flex:1;" />
+                        <button class="btn btn-gri btn-sm" onclick="ogretmenEmailOtoUret()" title="Otomatik uret" style="white-space:nowrap;">⟳</button>
+                      </div>
                     </div>
                     <div class="form-group">
-                      <label>Sifre</label><input type="password" id="ayarOgretmenSifre" placeholder="••••••••" />
+                      <label>Sifre</label>
+                      <div style="display:flex;gap:6px;">
+                        <input type="text" id="ayarOgretmenSifre" placeholder="Sifre" style="flex:1;" />
+                        <button class="btn btn-gri btn-sm" onclick="document.getElementById('ayarOgretmenSifre').value=sifreUret()" title="Otomatik uret" style="white-space:nowrap;">⟳</button>
+                      </div>
                     </div>
                   </div>
                   <button class="btn btn-yesil" onclick="ogretmenEkle()">+ Ogretmen Ekle</button>
@@ -662,6 +671,16 @@
                   </div>
                   <div class="mesaj" id="bransNormalizeMesaj"></div>
                   <div id="ayarOgretmenListesi"><div class="yukleniyor">Yukleniyor...</div></div>
+                </div>
+              </div>
+              <div class="sekme-icerik" id="asekme-ogretmen-sifre">
+                <div class="kart">
+                  <div class="kart-baslik" style="display:flex;justify-content:space-between;align-items:center;">
+                    <span>Ogretmen Giris Bilgileri Listesi</span>
+                    <button class="btn btn-gri btn-sm no-print" onclick="window.print()">🖨 Yazdir</button>
+                  </div>
+                  <p style="font-size:13px;color:#888;margin-bottom:12px;">Kullanici adi ve sifresi atanmis tum ogretmenler. Bransa gore gruplu.</p>
+                  <div id="ogretmen-sifre-listesi-icerik"><div class="yukleniyor">Yukleniyor...</div></div>
                 </div>
               </div>
               <div class="sekme-icerik" id="asekme-siniflar">

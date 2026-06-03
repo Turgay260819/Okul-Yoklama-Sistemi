@@ -40,6 +40,7 @@ window.ayarSekme = function (id, el) {
   else if (id === "dersler") _dersListesiYukle();
   else if (id === "sifre-listesi") window.sifreListesiGoster();
   else if (id === "ogrenciler") window.ogrencileriGetir();
+  else if (id === "ogretmen-sifre") window.ogretmenSifreListesiGoster();
 };
 
 window.ayarlarYukle = async function () {
@@ -190,21 +191,85 @@ window.ogretmenGuncelle = async function (id) {
   }
 };
 
+window.ogretmenEmailOtoUret = function () {
+  const ad = document.getElementById("ayarOgretmenAd")?.value.trim();
+  if (ad) {
+    document.getElementById("ayarOgretmenEmail").value = window.emailUret(ad);
+    document.getElementById("ayarOgretmenSifre").value = window.sifreUret();
+  }
+};
+
+window.ogretmenSifreListesiGoster = async function () {
+  const { db, getDocs, collection } = window.__portal;
+  const container = document.getElementById("ogretmen-sifre-listesi-icerik");
+  container.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
+
+  const snap = await getDocs(collection(db, "teachers"));
+  const hesaplılar = [];
+  snap.forEach(d => { const v = d.data(); if (v.kimlik_sifre) hesaplılar.push({ id: d.id, ...v }); });
+
+  if (!hesaplılar.length) {
+    container.innerHTML = '<div class="bos-mesaj">Henüz şifresi atanmış öğretmen yok.</div>';
+    return;
+  }
+
+  hesaplılar.sort((a, b) => (a.brans||"").localeCompare(b.brans||"","tr") || (a.ad||"").localeCompare(b.ad||"","tr"));
+
+  const bransGruplari = {};
+  hesaplılar.forEach(o => {
+    const b = o.brans || "Diğer";
+    if (!bransGruplari[b]) bransGruplari[b] = [];
+    bransGruplari[b].push(o);
+  });
+
+  let html = `<p style="font-size:13px;color:#888;margin-bottom:12px;">${hesaplılar.length} öğretmenin giriş bilgileri.</p>`;
+
+  Object.entries(bransGruplari).sort((a,b) => a[0].localeCompare(b[0],"tr")).forEach(([brans, liste]) => {
+    const bid = brans.replace(/[^a-zA-Z0-9]/g,"_");
+    html += `<div class="accordion-item" style="margin-bottom:8px;">
+      <div class="accordion-baslik print-show" style="cursor:pointer;" onclick="const ic=this.nextElementSibling;ic.style.display=ic.style.display==='none'?'block':'none';">
+        <span><strong>${brans}</strong> <span style="font-size:12px;color:#888;">(${liste.length} öğretmen)</span></span>
+        <span class="no-print">▼</span>
+      </div>
+      <div style="display:block;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead><tr style="background:#1557b0;color:white;">
+            <th style="padding:8px;text-align:left;">Ad Soyad</th>
+            <th style="padding:8px;text-align:left;">Kullanici Adi (E-posta)</th>
+            <th style="padding:8px;text-align:left;">Sifre</th>
+          </tr></thead><tbody>`;
+    liste.forEach((o, i) => {
+      html += `<tr style="${i%2===0?"background:#fafafa;":""}">
+        <td style="padding:7px;border-bottom:1px solid #f0f0f0;font-weight:600;">${o.ad||""}</td>
+        <td style="padding:7px;border-bottom:1px solid #f0f0f0;font-family:monospace;">${o.email||""}</td>
+        <td style="padding:7px;border-bottom:1px solid #f0f0f0;font-family:monospace;font-weight:700;">${o.kimlik_sifre||""}</td>
+      </tr>`;
+    });
+    html += `</tbody></table></div></div>`;
+  });
+
+  container.innerHTML = html;
+};
+
 window.ogretmenEkle = async function () {
   const { functions, httpsCallable } = window.__portal;
   const ad = document.getElementById("ayarOgretmenAd").value.trim();
   const brans = document.getElementById("ayarOgretmenBrans").value.trim();
-  const email = document.getElementById("ayarOgretmenEmail").value.trim();
-  const sifre = document.getElementById("ayarOgretmenSifre").value;
-  if (!ad || !brans || !email || !sifre) {
-    mesajGoster("ogretmenEkleMesaj", "Tum alanlari doldurun.", "hata");
+  let email = document.getElementById("ayarOgretmenEmail").value.trim();
+  let sifre = document.getElementById("ayarOgretmenSifre").value.trim();
+  if (!ad || !brans) {
+    mesajGoster("ogretmenEkleMesaj", "Ad ve brans zorunludur.", "hata");
     return;
   }
+  if (!email) email = window.emailUret(ad);
+  if (!sifre) sifre = window.sifreUret();
+  document.getElementById("ayarOgretmenEmail").value = email;
+  document.getElementById("ayarOgretmenSifre").value = sifre;
   mesajGoster("ogretmenEkleMesaj", "Ekleniyor...", "bilgi");
   try {
     const fn = httpsCallable(functions, "ogretmenOlustur");
     await fn({ ad, brans, email, sifre });
-    mesajGoster("ogretmenEkleMesaj", "Ogretmen eklendi.", "basari");
+    mesajGoster("ogretmenEkleMesaj", `Öğretmen eklendi. Kullanıcı: ${email} / Şifre: ${sifre}`, "basari");
     ["ayarOgretmenAd", "ayarOgretmenBrans", "ayarOgretmenEmail", "ayarOgretmenSifre"].forEach(
       (id) => (document.getElementById(id).value = ""),
     );
