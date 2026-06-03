@@ -412,15 +412,21 @@
     const container = document.getElementById('aktifHaftaIcerik');
     container.innerHTML = '<div class="yukleniyor">Yükleniyor...</div>';
 
+    try {
     const snap = await getDocs(query(collection(db, 'oto_nobet_haftalar'), where('durum', '==', 'acik')));
     if (snap.empty) {
-      // Dağıtılmış son haftayı göster
-      const sonSnap = await getDocs(query(collection(db, 'oto_nobet_haftalar'), where('durum', '==', 'dagildi'), orderBy('olusturulma', 'desc'), limit(1)));
+      // Dağıtılmış son haftayı göster — orderBy olmadan çek, client-side sırala
+      const sonSnap = await getDocs(query(collection(db, 'oto_nobet_haftalar'), where('durum', '==', 'dagildi')));
       if (sonSnap.empty) {
         container.innerHTML = '<div class="bos-mesaj">Henüz aktif veya dağıtılmış hafta yok. Hafta Yönetimi\'nden yeni hafta oluşturun.</div>';
         return;
       }
-      const h = { id: sonSnap.docs[0].id, ...sonSnap.docs[0].data() };
+      const sirali = sonSnap.docs.sort((a, b) => {
+        const ta = a.data().olusturulma?.toMillis?.() || a.data().baslangic || '';
+        const tb = b.data().olusturulma?.toMillis?.() || b.data().baslangic || '';
+        return tb > ta ? 1 : -1;
+      });
+      const h = { id: sirali[0].id, ...sirali[0].data() };
       container.innerHTML = '<div style="margin-bottom:16px;"><span class="rozet rozet-mavi">Son Dağıtılan Hafta</span></div>' + dagitimTablosuHTML(h) + await aylikRaporMiniHTML();
       return;
     }
@@ -453,7 +459,7 @@
     html += `<div class="stat-grid">
       <div class="stat-kart"><div class="stat-sayi">${tumOgretmenler.length}</div><div class="stat-etiket">Toplam Öğretmen</div></div>
       <div class="stat-kart"><div class="stat-sayi" style="color:#34a853">${girenSayisi}</div><div class="stat-etiket">İstek Girdi</div></div>
-      <div class="stat-kart"><div class="stat-sayi" style="color:#ea4335">${girmenYeni}</div><div class="stat-etiket">Henüz Girmedi</div></div>
+      <div class="stat-kart"><div class="stat-sayi" style="color:#ea4335">${girmeyen}</div><div class="stat-etiket">Henüz Girmedi</div></div>
     </div>`;
 
     // Gün bazında istek sayıları
@@ -501,17 +507,11 @@
     </div>`;
 
     container.innerHTML = html;
-
-    // girmeyen hesabını düzelt (HTML injection hatası önlemi)
-    container.querySelector('.stat-sayi:last-child') && 
-      (container.querySelectorAll('.stat-sayi')[2].textContent = girmenYeni);
+    } catch (err) {
+      console.error('aktifHaftaYukle hata:', err);
+      container.innerHTML = `<div class="bos-mesaj" style="color:#c5221f;">Yüklenirken hata oluştu: ${err.message}</div>`;
+    }
   }
-
-  // Yardımcı: girmeyen sayısı
-  let girmenYeni = 0;
-
-  // Önceki aktifHaftaYukle'deki hatayı düzelt
-  const _orijinalAktifHaftaYukle = aktifHaftaYukle;
 
   window.nobetDagit = async (haftaId) => {
     if (!confirm('Otomatik nöbet dağıtımı yapılacak. Onaylıyor musunuz?')) return;
