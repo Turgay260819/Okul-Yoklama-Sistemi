@@ -89,6 +89,17 @@
       }
       .soru-metin { font-size: 14px; font-weight: 700; color: #333; margin-bottom: 10px; }
       .soru-satir { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+      .rehber-atama-satir {
+        display: flex; align-items: center; gap: 12px; padding: 8px 0;
+        border-bottom: 1px solid #f0f0f0;
+      }
+      .rehber-atama-satir:last-child { border-bottom: none; }
+      .rehber-sinif { font-weight: 700; color: #333; min-width: 48px; font-size: 14px; }
+      .rehber-atama-satir select {
+        flex: 1; padding: 8px 10px; border: 2px solid #e0e0e0;
+        border-radius: 8px; font-size: 13px; font-family: inherit; outline: none;
+      }
+      .rehber-atama-satir select:focus { border-color: #1a73e8; }
       .soru-satir input {
         flex: 1; padding: 8px 12px; border: 2px solid #e0e0e0;
         border-radius: 8px; font-size: 13px; font-family: inherit; outline: none;
@@ -916,7 +927,29 @@
           </div>`;
         }).join("");
 
+        // Rehber atama kartı
+        const rehberAtamaSatirlari = tumSiniflar.map(sinif => {
+          const mevcutRehber = tumOgretmenler.find(o => o.rehberSube === sinif.class_name);
+          const ogretmenOptions = `<option value="">-- Atanmamış --</option>` +
+            tumOgretmenler.map(o =>
+              `<option value="${o.id}"${mevcutRehber?.id === o.id ? " selected" : ""}>${o.ad}</option>`
+            ).join("");
+          return `<div class="rehber-atama-satir">
+            <span class="rehber-sinif">${sinif.class_name}</span>
+            <select data-sinif="${sinif.class_name}">${ogretmenOptions}</select>
+          </div>`;
+        }).join("");
+
         c.innerHTML = `
+          <div class="kart">
+            <div class="kart-baslik">📌 Şube Rehber Öğretmeni Atamaları</div>
+            <p style="font-size:13px;color:#888;margin-bottom:16px;">Her sınıf için şube rehber öğretmenini atayın. Atanan öğretmen, o sınıftaki öğrencilere rehber sorularını girebilecektir.</p>
+            <div id="rehber-atama-wrap">${rehberAtamaSatirlari.length ? rehberAtamaSatirlari : '<div class="bos-mesaj">Sistemde sınıf bulunamadı.</div>'}</div>
+            <div style="margin-top:14px; display:flex; align-items:center; gap:12px;">
+              <button class="btn btn-yesil" onclick="rehberAtamalariniKaydet()">💾 Atamaları Kaydet</button>
+              <span id="rehberAtamaMesaj" style="font-size:13px;"></span>
+            </div>
+          </div>
           <div class="kart">
             <div class="kart-baslik">🎓 Şube Rehber Öğretmeni Soruları</div>
             <p style="font-size:13px;color:#888;margin-bottom:16px;">Rehber öğretmenin öğrenciyle ilgili dolduracağı açık uçlu sorular.</p>
@@ -966,6 +999,36 @@
       window.bransSoruSil = (bid, idx) => {
         const el = document.getElementById(`bs-satir-${bid}-${idx}`);
         if (el) el.remove();
+      };
+
+      window.rehberAtamalariniKaydet = async () => {
+        const mesajEl = document.getElementById("rehberAtamaMesaj");
+        mesajEl.style.color = "#1a73e8";
+        mesajEl.textContent = "Kaydediliyor...";
+
+        // Her sınıf için seçilen öğretmeni topla: sinifAdi -> ogretmenId
+        const yeniAtamalar = {};
+        document.querySelectorAll("#rehber-atama-wrap [data-sinif]").forEach(sel => {
+          yeniAtamalar[sel.dataset.sinif] = sel.value || "";
+        });
+
+        // Her öğretmen için yeni rehberSube değerini belirle
+        const batch = writeBatch(db);
+        let degisimVar = false;
+        tumOgretmenler.forEach(o => {
+          const atananSinif = Object.entries(yeniAtamalar).find(([, id]) => id === o.id)?.[0] || "";
+          const eskiDeger = o.rehberSube || "";
+          if (atananSinif !== eskiDeger) {
+            batch.update(doc(db, "teachers", o.id), { rehberSube: atananSinif });
+            o.rehberSube = atananSinif;
+            degisimVar = true;
+          }
+        });
+
+        if (degisimVar) await batch.commit();
+        mesajEl.style.color = "#1e7e34";
+        mesajEl.textContent = "Atamalar kaydedildi!";
+        setTimeout(() => mesajEl.textContent = "", 3000);
       };
 
       window.soruKaydet = async () => {
