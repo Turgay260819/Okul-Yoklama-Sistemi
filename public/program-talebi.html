@@ -370,7 +370,7 @@
         }
       }
     </style>
-    <script>if(new URLSearchParams(location.search).get("embedded"))document.addEventListener("DOMContentLoaded",()=>document.querySelector("h1")?.remove());</script>
+    <script>if(new URLSearchParams(location.search).get("embedded"))document.addEventListener("DOMContentLoaded",()=>{document.querySelector("h1")?.remove();const tb=document.querySelector(".topbar");if(tb){const b=document.createElement("button");b.className="btn btn-beyaz";b.style.cssText="padding:6px 14px;font-size:13px;margin-left:auto;";b.textContent="← Menüye Dön";b.onclick=()=>{try{window.parent.ogretmenGeri();}catch(e){}};tb.appendChild(b);}});</script>
   </head>
   <body>
     <div class="topbar">
