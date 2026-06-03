@@ -216,9 +216,9 @@
       .yh-ic {
         max-height: 25mm;
         overflow: hidden;
-        font-size: 6pt;
-        line-height: 1.15;
-        word-break: break-all;
+        font-size: 8pt;
+        line-height: 1.2;
+        text-align: center;
       }
 
       /* İmza satırı */
@@ -514,7 +514,11 @@
                   const dersW2 = Math.floor(93 / dersNoListe.length);
                   const colgroup2 = `<col style="width:7mm">${dersNoListe.map(() => `<col style="width:${dersW2}%">`).join("")}`;
                   const satRow2 = dersNoListe.map(d => `<td class="dh">${d}</td>`).join("");
-                  const yokRow2 = dersNoListe.map(d => `<td class="yh"><div class="yh-ic">${(sinifYok[d] || []).join(" ")}</div></td>`).join("");
+                  const yokRow2 = dersNoListe.map(d => {
+                    const yl = [...(sinifYok[d] || [])].sort((a,b) => { const na=parseInt(a),nb=parseInt(b); return isNaN(na)||isNaN(nb)?String(a).localeCompare(String(b)):na-nb; });
+                    const yfs = yl.length<=7?"8pt":yl.length<=9?"7pt":yl.length<=11?"6pt":yl.length<=13?"5pt":"4.5pt";
+                    return `<td class="yh"><div class="yh-ic" style="font-size:${yfs};">${yl.join("<br>")}</div></td>`;
+                  }).join("");
                   h += `<div class="fis">
     <div class="fis-bilgi"><span>${sinifAdi}</span><span>${tarihStr.split(" ")[0]}</span></div>
     <table class="fis-tablo">
@@ -534,10 +538,13 @@
                 const dersKisa = (ders.lesson_name || "").substring(0, 4).toUpperCase();
                 const ogr = ogretmenler[ders.teacher_id];
                 const ogrKisa = kisalt(ogr?.ad || "");
-                const yokMetin = (sinifYok[dersNo] || []).join(" ");
+                const yoklar = sinifYok[dersNo] || [];
+                const yokSirali = [...yoklar].sort((a, b) => { const na = parseInt(a), nb = parseInt(b); return isNaN(na)||isNaN(nb) ? String(a).localeCompare(String(b)) : na - nb; });
+                const yokFs = yokSirali.length <= 7 ? "8pt" : yokSirali.length <= 9 ? "7pt" : yokSirali.length <= 11 ? "6pt" : yokSirali.length <= 13 ? "5pt" : "4.5pt";
+                const yokMetin = yokSirali.join("<br>");
                 drsRow += `<td class="dh">${dersKisa}</td>`;
                 satRow += `<td class="dh">${dersNo}</td>`;
-                yokRow += `<td class="yh"><div class="yh-ic">${yokMetin}</div></td>`;
+                yokRow += `<td class="yh"><div class="yh-ic" style="font-size:${yokFs};">${yokMetin}</div></td>`;
                 ogrRow += `<td class="dh" style="font-size:6.5pt;">${ogrKisa}</td>`;
                 imzRow += `<td class="ih"></td>`;
               }
