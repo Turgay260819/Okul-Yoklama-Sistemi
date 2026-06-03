@@ -440,15 +440,28 @@
           const ogretmenler = {};
           ogSnap.forEach((d) => (ogretmenler[d.id] = d.data()));
 
-          // Ders programını getir
-          const progSnap = await getDocs(collection(db, "schedule"));
+          // Ders programını getir — önce today_lessons (tarihe özgü), yoksa schedule
+          const todayLessonsSnap = await getDocs(
+            query(collection(db, "today_lessons"), where("date", "==", tarih))
+          );
           const program = {};
-          progSnap.forEach((d) => {
-            const veri = d.data();
-            const key = (veri.class_id || "").trim().toUpperCase();
-            if (!program[key]) program[key] = [];
-            program[key].push(veri);
-          });
+          if (!todayLessonsSnap.empty) {
+            todayLessonsSnap.forEach((d) => {
+              const veri = d.data();
+              const key = (veri.class_id || "").trim().toUpperCase();
+              if (!program[key]) program[key] = [];
+              program[key].push(veri);
+            });
+          } else {
+            // today_lessons yoksa schedule'dan al (eski tarihler için)
+            const progSnap = await getDocs(collection(db, "schedule"));
+            progSnap.forEach((d) => {
+              const veri = d.data();
+              const key = (veri.class_id || "").trim().toUpperCase();
+              if (!program[key]) program[key] = [];
+              program[key].push(veri);
+            });
+          }
 
           // Yoklamaları getir
           const yokSnap = await getDocs(
@@ -553,7 +566,10 @@
           }
 
           seviyeler.forEach((sev) => {
-            const buSeviyeSiniflari = siniflar.filter((s) => s.grade === sev);
+            const buSeviyeSiniflari = siniflar.filter((s) =>
+              Number(s.grade) === sev ||
+              (!s.grade && Number((s.class_name || "").charAt(0)) === sev)
+            );
             if (buSeviyeSiniflari.length === 0) return;
             // Her seviye için 2 sayfa: sayfa 0 → şubeler 0-3, sayfa 1 → şubeler 4-7
             for (let sayfaNo = 0; sayfaNo < 2; sayfaNo++) {
