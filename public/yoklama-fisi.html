@@ -445,8 +445,9 @@
           const program = {};
           progSnap.forEach((d) => {
             const veri = d.data();
-            if (!program[veri.class_id]) program[veri.class_id] = [];
-            program[veri.class_id].push(veri);
+            const key = (veri.class_id || "").trim().toUpperCase();
+            if (!program[key]) program[key] = [];
+            program[key].push(veri);
           });
 
           // Yoklamaları getir
@@ -456,9 +457,9 @@
           const yoklamalar = {};
           yokSnap.forEach((d) => {
             const veri = d.data();
-            if (!yoklamalar[veri.class_id]) yoklamalar[veri.class_id] = {};
-            yoklamalar[veri.class_id][veri.lesson_number] =
-              veri.absent_students || [];
+            const key = (veri.class_id || "").trim().toUpperCase();
+            if (!yoklamalar[key]) yoklamalar[key] = {};
+            yoklamalar[key][veri.lesson_number] = veri.absent_students || [];
           });
 
           // Hangi seviyeleri işleyeceğiz
@@ -483,16 +484,33 @@
               const sinif = buSeviyeSiniflari[i];
               if (!sinif) { h += `<div class="fis fis-bos"></div>`; continue; }
               const sinifAdi = sinif.class_name;
-              const sinifProgram = (program[sinifAdi] || [])
+              const sinifKey = sinifAdi.trim().toUpperCase();
+              const sinifProgram = (program[sinifKey] || [])
                 .sort((a, b) => a.lesson_number - b.lesson_number)
                 .filter((d, idx, arr) => arr.findIndex((x) => x.lesson_number === d.lesson_number) === idx);
-              const sinifYok = yoklamalar[sinifAdi] || {};
+              const sinifYok = yoklamalar[sinifKey] || {};
               const n = sinifProgram.length;
               if (n === 0) {
-                h += `<div class="fis" style="max-height:100%;overflow:hidden;">
+                const dersNoListe = Object.keys(sinifYok).map(Number).filter(Boolean).sort((a, b) => a - b);
+                if (dersNoListe.length === 0) {
+                  h += `<div class="fis" style="max-height:100%;overflow:hidden;">
     <div class="fis-bilgi"><span>${sinifAdi}</span><span>${tarihStr.split(" ")[0]}</span></div>
     <div style="padding:2mm;font-size:7pt;color:#888;text-align:center;">Ders programı tanımlanmamış</div>
   </div>`;
+                } else {
+                  const dersW2 = Math.floor(93 / dersNoListe.length);
+                  const colgroup2 = `<col style="width:7mm">${dersNoListe.map(() => `<col style="width:${dersW2}%">`).join("")}`;
+                  const satRow2 = dersNoListe.map(d => `<td class="dh">${d}</td>`).join("");
+                  const yokRow2 = dersNoListe.map(d => `<td class="yh"><div class="yh-ic">${(sinifYok[d] || []).join(" ")}</div></td>`).join("");
+                  h += `<div class="fis">
+    <div class="fis-bilgi"><span>${sinifAdi}</span><span>${tarihStr.split(" ")[0]}</span></div>
+    <table class="fis-tablo">
+      <colgroup>${colgroup2}</colgroup>
+      <tr><td class="etiket">SAT</td>${satRow2}</tr>
+      <tr><td class="etiket">YOK</td>${yokRow2}</tr>
+    </table>
+  </div>`;
+                }
                 continue;
               }
               const dersW = Math.floor(93 / n);
