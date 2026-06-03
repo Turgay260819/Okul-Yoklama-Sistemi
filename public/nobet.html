@@ -137,6 +137,22 @@
       display: flex; align-items: center; gap: 8px;
       padding: 8px 0; border-bottom: 1px solid #f0f0f0;
     }
+
+    .gun-degisme-nobet {
+      background: white; border: 2px solid #1557b0;
+      border-radius: 10px; padding: 18px 20px; margin-bottom: 20px;
+    }
+    .gun-degisme-nobet h3 { font-size: 15px; color: #1557b0; margin-bottom: 6px; }
+    .gun-degisme-nobet table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; }
+    .gun-degisme-nobet th {
+      background: #1557b0; color: white;
+      padding: 9px 12px; text-align: left; font-weight: 600;
+    }
+    .gun-degisme-nobet td { padding: 9px 12px; border-bottom: 1px solid #f0f0f0; color: #333; vertical-align: middle; }
+    .gun-degisme-nobet tr:last-child td { border-bottom: none; }
+    .gun-degisme-nobet tr:hover td { background: #f0f4ff; }
+    .gdn-buHafta td { background: #fff8e1 !important; }
+    .gdn-gecti td { opacity: 0.45; }
     .nokta-item:last-child { border-bottom: none; }
     .nokta-no { font-size: 12px; color: #888; min-width: 24px; }
     .nokta-ad { flex: 1; font-size: 14px; font-weight: 600; color: #333; }
@@ -154,11 +170,20 @@
     <div id="yukleniyor" class="yukleniyor">Yukleniyor...</div>
     <div id="anaIcerik" style="display:none;">
 
-      <!-- KENDİ NÖBETİM -->
+      <!-- KENDİ NÖBETİM (nobet_ayarlar - mevcut hafta) -->
       <div id="benimNobetimKarti" style="display:none;">
         <div class="benim-nobetim">
           <h3>Bu Haftaki Nobetiniz</h3>
           <div id="benimNobetim"></div>
+        </div>
+      </div>
+
+      <!-- GÜN DEĞİŞME NÖBETİ PROGRAMI (nobet2_ayarlar) -->
+      <div id="gunDegismeKarti" style="display:none;">
+        <div class="gun-degisme-nobet">
+          <h3>📅 Gün Değişme Nöbeti Programım</h3>
+          <p style="font-size:13px; color:#666; margin-bottom:4px;">26 Haziran 2026 tarihine kadar haftalık nöbet programınız</p>
+          <div id="gunDegismeIcerik"><div class="yukleniyor">Yükleniyor...</div></div>
         </div>
       </div>
 
@@ -199,7 +224,7 @@
     import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
     import {
       getFirestore, doc, getDoc, setDoc, getDocs,
-      collection, serverTimestamp
+      collection, query, where, serverTimestamp
     } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     const firebaseConfig = {
@@ -289,6 +314,12 @@
 
       await noktalariYukle();
       await nobetYukle();
+
+      if (aktifRol === 'ogretmen') {
+        const ogSnap = await getDocs(query(collection(db, 'teachers'), where('uid', '==', user.uid)));
+        const teacherId = ogSnap.empty ? null : ogSnap.docs[0].id;
+        await gunDegismeNobetimYukle(teacherId);
+      }
     });
 
     async function nobetYukle() {
@@ -400,6 +431,113 @@
           html += '<div class="nobet-satir"><span class="nobet-gun">' + n.gun + '</span><span class="nobet-nokta">' + n.nokta + '</span></div>';
         });
         document.getElementById('benimNobetim').innerHTML = html;
+      }
+    }
+
+    async function gunDegismeNobetimYukle(teacherId) {
+      const karti = document.getElementById('gunDegismeKarti');
+      const icerik = document.getElementById('gunDegismeIcerik');
+      karti.style.display = 'block';
+
+      try {
+        const [nbDoc, nokDoc] = await Promise.all([
+          getDoc(doc(db, 'nobet2_ayarlar', 'mevcut')),
+          getDoc(doc(db, 'nobet2_ayarlar', 'noktalar'))
+        ]);
+
+        if (!nbDoc.exists()) {
+          icerik.innerHTML = '<div style="color:#888;padding:12px;">Gün değişme nöbeti henüz tanımlanmamış.</div>';
+          return;
+        }
+
+        const nb = nbDoc.data();
+        const NOKTALAR2 = nokDoc.exists() ? (nokDoc.data().liste || []) : [];
+        const slotlar = nb.slotlar || [];
+        const N2 = NOKTALAR2.length;
+
+        if (!N2) {
+          icerik.innerHTML = '<div style="color:#888;padding:12px;">Nöbet noktaları tanımlanmamış.</div>';
+          return;
+        }
+
+        const teacherSlot = teacherId ? slotlar.find(s => s.ogretmen_id === teacherId) : null;
+
+        if (!teacherSlot) {
+          icerik.innerHTML = '<div style="color:#888;padding:12px;">Gün değişme nöbet programında kaydınız bulunmuyor.</div>';
+          return;
+        }
+
+        const slotToPos2 = (slot) => ({ gi: Math.floor(slot / N2), ni: slot % N2 });
+
+        function serbestSlotListesi2(slots) {
+          const sgn = new Set();
+          slots.forEach(s => { if (s.sabitlik === 'sgn') sgn.add(s.baslangic_slot); });
+          const liste = [];
+          for (let adim = 0; adim < 5 * N2; adim++) {
+            const gi = adim % 5;
+            const ni = adim % N2;
+            const slot = gi * N2 + ni;
+            if (!sgn.has(slot) && !liste.includes(slot)) liste.push(slot);
+          }
+          return liste;
+        }
+
+        function pozHesapla2(s, sayac, slots) {
+          if (s.sabitlik === 'sgn') return slotToPos2(s.baslangic_slot);
+          const serbest = serbestSlotListesi2(slots);
+          if (!serbest.length) return slotToPos2(s.baslangic_slot);
+          const basIdx = serbest.indexOf(s.baslangic_slot);
+          const idx = basIdx < 0 ? 0 : basIdx;
+          const yeniIdx = (((idx + sayac) % serbest.length) + serbest.length) % serbest.length;
+          return slotToPos2(serbest[yeniIdx]);
+        }
+
+        const GUNLER2 = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma'];
+        const BITIS = new Date('2026-06-26T12:00:00');
+        const rotasyonAktif = nb.rotasyon_aktif !== false;
+        const baseSayac = nb.rotasyon_sayaci || 0;
+        const fmt = (d) => d.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        const fmt2 = (d) => d.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit' });
+        const today = new Date(); today.setHours(0,0,0,0);
+
+        let html = `<table>
+          <thead><tr>
+            <th>Hafta</th>
+            <th>Nöbet Günü</th>
+            <th>Tarih</th>
+            <th>Nöbet Noktası</th>
+          </tr></thead><tbody>`;
+
+        let hafta = new Date(nb.hafta_baslangic + 'T12:00:00');
+        let weekOffset = 0;
+
+        while (hafta <= BITIS) {
+          const sayac = baseSayac + (rotasyonAktif ? weekOffset : 0);
+          const pos = pozHesapla2(teacherSlot, sayac, slotlar);
+          const haftaBitis = new Date(hafta); haftaBitis.setDate(hafta.getDate() + 4);
+          const gunTarihi = new Date(hafta); gunTarihi.setDate(hafta.getDate() + pos.gi);
+          gunTarihi.setHours(0,0,0,0);
+          const haftaBasKarsi = new Date(hafta); haftaBasKarsi.setHours(0,0,0,0);
+          const haftaBitKarsi = new Date(haftaBitis); haftaBitKarsi.setHours(0,0,0,0);
+          const buHafta = haftaBasKarsi <= today && today <= haftaBitKarsi;
+          const gecti = haftaBitKarsi < today;
+          const sinif = buHafta ? 'gdn-buHafta' : gecti ? 'gdn-gecti' : '';
+
+          html += `<tr class="${sinif}">
+            <td>${fmt2(hafta)} – ${fmt2(haftaBitis)}</td>
+            <td><strong>${GUNLER2[pos.gi] || ''}</strong></td>
+            <td>${fmt(gunTarihi)}</td>
+            <td style="color:#1557b0; font-weight:700;">${NOKTALAR2[pos.ni] || ''}</td>
+          </tr>`;
+
+          hafta.setDate(hafta.getDate() + 7);
+          weekOffset++;
+        }
+
+        html += '</tbody></table>';
+        icerik.innerHTML = html;
+      } catch (err) {
+        icerik.innerHTML = '<div style="color:#c5221f;padding:12px;">Hata: ' + err.message + '</div>';
       }
     }
 
