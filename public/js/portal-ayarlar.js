@@ -97,6 +97,7 @@ async function ogretmenleriListele() {
           <td style="padding:8px 6px;color:var(--text2);font-size:13px;">${o.email}</td>
           <td style="padding:8px 12px;white-space:nowrap;text-align:right;">
             <button class="btn btn-gri btn-sm" onclick="ogretmenDuzenleAc('${o.id}')">Düzenle</button>
+            <button class="btn btn-mavi btn-sm" onclick="ogretmenOtoKimlikVer('${o.id}','${adEsc}')">Kimlik Ver</button>
             <button class="btn btn-kirmizi btn-sm" onclick="ogretmenSil('${o.id}','${adEsc}')">Sil</button>
           </td>
         </tr>
@@ -188,6 +189,21 @@ window.ogretmenGuncelle = async function (id) {
     await ogretmenleriListele();
   } catch (err) {
     if (mesajEl) mesajEl.innerHTML = '<span style="color:#ea4335;">Hata: ' + err.message + '</span>';
+  }
+};
+
+window.ogretmenOtoKimlikVer = async function (id, ad) {
+  const { functions, httpsCallable } = window.__portal;
+  const email = window.emailUret(ad);
+  const sifre = window.sifreUret();
+  if (!confirm(`"${ad}" için yeni kimlik atanacak:\nKullanıcı: ${email}\nŞifre: ${sifre}\n\nOnaylıyor musunuz?`)) return;
+  try {
+    const fn = httpsCallable(functions, "ogretmenGuncelle");
+    await fn({ ogretmenId: id, email, sifre });
+    alert(`Kimlik atandı!\nKullanıcı: ${email}\nŞifre: ${sifre}`);
+    await ogretmenleriListele();
+  } catch (err) {
+    alert("Hata: " + err.message);
   }
 };
 
