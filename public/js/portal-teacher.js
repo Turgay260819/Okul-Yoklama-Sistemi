@@ -648,9 +648,20 @@ window.dykKursSil = async function (id) {
 };
 
 // ── MANUEL YOKLAMA ──
+let _manuelProgram = [];
+
 window.manuelOgrencileriGetir = async () => {
   const sinif = document.getElementById("manuelSinif").value;
   if (!sinif) return;
+
+  // Schedule'ı yükle ve cache'le, sonra dropdown'ı güncelle
+  const progSnap = await getDocs(
+    query(collection(db, "schedule"), where("class_id", "==", sinif))
+  );
+  _manuelProgram = [];
+  progSnap.forEach(d => _manuelProgram.push(d.data()));
+  manuelDersAdiGuncelle();
+
   const snap = await getDocs(
     query(collection(db, "students"), where("class_id", "==", sinif), where("status", "==", "active")),
   );
@@ -664,6 +675,29 @@ window.manuelOgrencileriGetir = async () => {
   document.getElementById("manuelOgrenciListesi").innerHTML = html || '<div class="bos-mesaj">Ogrenci yok.</div>';
   document.getElementById("manuelOgrenciKarti").style.display = "block";
 };
+window.manuelDersAdiGuncelle = () => {
+  const dersNo = parseInt(document.getElementById("manuelDersNo")?.value || "0");
+  const select = document.getElementById("manuelDersAdi");
+  if (!select) return;
+  if (!dersNo || !_manuelProgram.length) {
+    select.innerHTML = '<option value="">Önce sınıf ve ders numarası seçin</option>';
+    return;
+  }
+  const isimler = [...new Set(
+    _manuelProgram
+      .filter(d => Number(d.lesson_number) === dersNo && d.lesson_name)
+      .map(d => d.lesson_name)
+  )].sort((a, b) => a.localeCompare(b, "tr"));
+
+  if (!isimler.length) {
+    select.innerHTML = '<option value="">Bu ders saati için program yok</option>';
+  } else {
+    select.innerHTML = '<option value="">Ders seçin...</option>' +
+      isimler.map(n => `<option value="${n}">${n}</option>`).join('');
+    if (isimler.length === 1) select.value = isimler[0];
+  }
+};
+
 window.manuelIsaretle = (no) => {
   const chk = document.getElementById("man-chk-" + no);
   chk.checked = !chk.checked;

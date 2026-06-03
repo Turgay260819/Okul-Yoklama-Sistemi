@@ -202,13 +202,13 @@
                   </div>
                   <div class="form-group">
                     <label>Sinif</label>
-                    <select id="manuelSinif" onchange="manuelOgrencileriGetir()">
+                    <select id="manuelSinif" onchange="manuelOgrencileriGetir(); manuelDersAdiGuncelle()">
                       <option value="">Sinif secin...</option>
                     </select>
                   </div>
                   <div class="form-group">
                     <label>Ders Numarasi</label>
-                    <select id="manuelDersNo">
+                    <select id="manuelDersNo" onchange="manuelDersAdiGuncelle()">
                       <option value="1">1. Ders</option>
                       <option value="2">2. Ders</option>
                       <option value="3">3. Ders</option>
@@ -221,7 +221,9 @@
                   </div>
                   <div class="form-group">
                     <label>Ders Adi</label>
-                    <input type="text" id="manuelDersAdi" placeholder="Matematik" />
+                    <select id="manuelDersAdi">
+                      <option value="">Önce sınıf ve ders numarası seçin</option>
+                    </select>
                   </div>
                 </div>
               </div>
