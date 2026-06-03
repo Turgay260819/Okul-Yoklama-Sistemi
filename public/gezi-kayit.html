@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gezi Kaydı</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { font-family: "Segoe UI", sans-serif; background: #f0f4f8; color: #1a1d2e; }
+      .topbar {
+        background: #1557b0; color: white; padding: 13px 24px;
+        display: flex; justify-content: space-between; align-items: center;
+      }
+      .topbar h1 { font-size: 16px; font-weight: 700; }
+      .btn { padding: 8px 18px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+      .btn-yesil { background: #34a853; color: white; }
+      .btn-gri { background: #666; color: white; }
+      .btn-kirmizi { background: #ea4335; color: white; }
+      .icerik { max-width: 760px; margin: 0 auto; padding: 24px 16px; }
+      .kart { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 16px; }
+      .kart-baslik { font-size: 15px; font-weight: 700; color: #333; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid #f0f0f0; }
+      .form-group { margin-bottom: 14px; }
+      .form-group label { display: block; font-size: 12px; font-weight: 700; color: #6b7280; margin-bottom: 5px; text-transform: uppercase; }
+      .form-group input { width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; font-family: inherit; outline: none; }
+      .form-group input:focus { border-color: #1a73e8; }
+      .gezi-kart { border: 2px solid #e0e0e0; border-radius: 10px; padding: 16px; margin-bottom: 12px; }
+      .gezi-kart h3 { font-size: 15px; font-weight: 700; margin-bottom: 4px; color: #333; }
+      .gezi-kart p { font-size: 13px; color: #666; margin-bottom: 10px; }
+      .rozet { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+      .rozet-yesil { background: #e6f4ea; color: #1e7e34; }
+      .rozet-gri { background: #f1f3f4; color: #555; }
+      .mesaj { padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; margin-top: 10px; display: none; }
+      .mesaj-basari { background: #e6f4ea; color: #1e7e34; display: block; }
+      .mesaj-hata { background: #fce8e6; color: #c5221f; display: block; }
+      .yukleniyor { text-align: center; padding: 40px; color: #666; }
+    </style>
+    <script>if(new URLSearchParams(location.search).get("embedded"))document.addEventListener("DOMContentLoaded",()=>document.querySelector("h1")?.remove());</script>
+  </head>
+  <body>
+    <div class="topbar">
+      <h1>🚌 Gezi Kaydı</h1>
+    </div>
+
+    <div class="icerik">
+      <div id="yukleniyorEl" class="yukleniyor">⏳ Yükleniyor...</div>
+      <div id="anaIcerik" style="display:none;"></div>
+    </div>
+
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+      import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+      import {
+        getFirestore, doc, getDoc, addDoc, deleteDoc,
+        getDocs, collection, query, where, serverTimestamp,
+      } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+      const firebaseConfig = {
+        apiKey: "AIzaSyAHTCiicd4b94rG1-jN0STRbwcrLmkYudo",
+        authDomain: "okul-yoklama-sistemi-8081f.firebaseapp.com",
+        projectId: "okul-yoklama-sistemi-8081f",
+        storageBucket: "okul-yoklama-sistemi-8081f.firebasestorage.app",
+        messagingSenderId: "38230047763",
+        appId: "1:38230047763:web:dfab058df8928b66be13e6",
+      };
+
+      const app = initializeApp(firebaseConfig);
+      const auth = getAuth(app);
+      const db = getFirestore(app);
+
+      let aktifUid = null;
+      let aktifAd = null;
+      let aktifRol = null;
+
+      onAuthStateChanged(auth, async (user) => {
+        if (!user) { window.location.href = "/portal.html"; return; }
+        const ud = await getDoc(doc(db, "users", user.uid));
+        if (!ud.exists()) { window.location.href = "/portal.html"; return; }
+        aktifUid = user.uid;
+        aktifRol = ud.data().rol;
+        aktifAd = ud.data().ad || "";
+
+        if (aktifRol === "ogrenci") { window.location.href = "/portal.html"; return; }
+
+        document.getElementById("yukleniyorEl").style.display = "none";
+        document.getElementById("anaIcerik").style.display = "block";
+        await gezileriGoster();
+      });
+
+      async function gezileriGoster() {
+        const c = document.getElementById("anaIcerik");
+        const geziSnap = await getDocs(query(collection(db, "geziler"), where("durum", "==", "aktif")));
+        if (geziSnap.empty) {
+          c.innerHTML = '<div class="kart"><div style="text-align:center; padding:40px; color:#888;">Aktif gezi bulunamadı.</div></div>';
+          return;
+        }
+
+        const mevcutSnap = await getDocs(query(
+          collection(db, "gezi_katilacaklar"),
+          where("kullanici_id", "==", aktifUid)
+        ));
+        const mevcutMap = {};
+        mevcutSnap.forEach(d => { mevcutMap[d.data().gezi_id] = { docId: d.id, ...d.data() }; });
+
+        let html = '<div class="kart"><div class="kart-baslik">Aktif Geziler</div>';
+        geziSnap.forEach(d => {
+          const g = { id: d.id, ...d.data() };
+          const mevcut = mevcutMap[g.id];
+          const kayitliHtml = mevcut
+            ? `<span class="rozet rozet-yesil">✓ Kayıtlısınız</span>
+               <button class="btn btn-kirmizi" style="margin-left:10px; padding:5px 12px; font-size:12px;"
+                 onclick="kaydimSil('${g.id}','${mevcut.docId}')">Kaydı Sil</button>`
+            : "";
+          html += `<div class="gezi-kart" id="geziKart_${g.id}">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px;">
+              <div>
+                <h3>${g.baslik}</h3>
+                <p>📅 ${g.tarih || "—"}${g.aciklama ? " · " + g.aciklama : ""}</p>
+              </div>
+              <div id="durum_${g.id}">${kayitliHtml}</div>
+            </div>
+            ${mevcut ? "" : kayitFormHtml(g.id)}
+          </div>`;
+        });
+        html += "</div>";
+        c.innerHTML = html;
+      }
+
+      function kayitFormHtml(geziId) {
+        return `<div id="form_${geziId}" style="margin-top:12px; padding-top:12px; border-top:1px solid #f0f0f0;">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+            <div class="form-group">
+              <label>Ad Soyad</label>
+              <input type="text" id="ad_${geziId}" value="${aktifAd}" placeholder="Ad Soyad">
+            </div>
+            <div class="form-group">
+              <label>TC Kimlik No</label>
+              <input type="tel" id="tc_${geziId}" maxlength="11" placeholder="11 haneli TC">
+            </div>
+            <div class="form-group">
+              <label>Telefon No</label>
+              <input type="tel" id="tel_${geziId}" placeholder="05xx xxx xx xx">
+            </div>
+          </div>
+          <div id="mesaj_${geziId}" class="mesaj"></div>
+          <button class="btn btn-yesil" onclick="kayitKaydet('${geziId}')" style="margin-top:4px;">✓ Geziye Kaydol</button>
+        </div>`;
+      }
+
+      window.kayitKaydet = async (geziId) => {
+        const ad = document.getElementById("ad_" + geziId)?.value.trim();
+        const tc = document.getElementById("tc_" + geziId)?.value.trim();
+        const tel = document.getElementById("tel_" + geziId)?.value.trim();
+        const mesajEl = document.getElementById("mesaj_" + geziId);
+
+        if (!ad || !tc || !tel) {
+          mesajEl.textContent = "Tüm alanları doldurun.";
+          mesajEl.className = "mesaj mesaj-hata";
+          return;
+        }
+        if (tc.length !== 11 || !/^\d+$/.test(tc)) {
+          mesajEl.textContent = "TC Kimlik 11 haneli rakam olmalı.";
+          mesajEl.className = "mesaj mesaj-hata";
+          return;
+        }
+
+        const gorev = (aktifRol === "admin" || aktifRol === "mudur_yardimcisi") ? "İdareci" : "Öğretmen";
+
+        const eskiSnap = await getDocs(query(
+          collection(db, "gezi_katilacaklar"),
+          where("gezi_id", "==", geziId),
+          where("kullanici_id", "==", aktifUid)
+        ));
+        await Promise.all(eskiSnap.docs.map(d => deleteDoc(doc(db, "gezi_katilacaklar", d.id))));
+
+        await addDoc(collection(db, "gezi_katilacaklar"), {
+          gezi_id: geziId,
+          kullanici_id: aktifUid,
+          ad_soyad: ad,
+          tc_kimlik: tc,
+          telefon: tel,
+          gorev,
+          sinif: "",
+          created_at: serverTimestamp(),
+        });
+
+        mesajEl.textContent = "Kaydedildi!";
+        mesajEl.className = "mesaj mesaj-basari";
+        setTimeout(() => gezileriGoster(), 1000);
+      };
+
+      window.kaydimSil = async (geziId, docId) => {
+        if (!confirm("Gezi kaydınızı silmek istiyor musunuz?")) return;
+        await deleteDoc(doc(db, "gezi_katilacaklar", docId));
+        await gezileriGoster();
+      };
+    </script>
+  </body>
+</html>

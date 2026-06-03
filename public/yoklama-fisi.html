@@ -258,7 +258,7 @@
       }
 
       /* YAZDIR */
-      @page { size: A4; margin: 5mm; }
+      @page { size: A4; margin: 10mm 12mm; }
 
       @media print {
         * {
@@ -270,7 +270,7 @@
           background: white;
         }
         .fis-grid {
-          height: calc(297mm - 25mm);
+          height: calc(297mm - 20mm - 25mm);
         }
 
         .fis {
@@ -290,8 +290,8 @@
         .a4-sayfa {
           width: 100%;
           min-height: 0;
-          max-height: 297mm;
-          height: 297mm;
+          max-height: calc(297mm - 20mm);
+          height: calc(297mm - 20mm);
           overflow: hidden;
           page-break-inside: avoid;
           break-inside: avoid;
@@ -308,6 +308,7 @@
         }
       }
     </style>
+    <script>if(new URLSearchParams(location.search).get("embedded"))document.addEventListener("DOMContentLoaded",()=>document.querySelector("h1")?.remove());</script>
   </head>
   <body>
     <!-- KONTROL PANELİ -->
@@ -334,7 +335,6 @@
         Fişleri Oluştur
       </button>
       <button class="btn btn-yesil" onclick="window.print()">Yazdır</button>
-      <button class="btn btn-gri" onclick="window.close()">Ana Sayfa</button>
 
       <div id="durum"></div>
     </div>

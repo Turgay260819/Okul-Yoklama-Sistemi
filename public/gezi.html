@@ -146,13 +146,13 @@
       }
       .filtre-satir select { flex: 1; min-width: 200px; }
     </style>
+    <script>if(new URLSearchParams(location.search).get("embedded"))document.addEventListener("DOMContentLoaded",()=>document.querySelector("h1")?.remove());</script>
   </head>
   <body>
     <div class="topbar">
       <h1>🚌 Gezi Yönetimi</h1>
       <div class="topbar-sag">
         <span id="kullaniciAdi" style="font-size:13px; opacity:0.85;"></span>
-        <button class="btn btn-beyaz" onclick="window.close()">← Ana Sayfa</button>
       </div>
     </div>
 
@@ -164,6 +164,7 @@
         <button class="ana-sekme-btn aktif" onclick="anaSekmeSec('geziler', this)">🚌 Geziler</button>
         <button class="ana-sekme-btn" onclick="anaSekmeSec('katilim', this)">📋 Katılım</button>
         <button class="ana-sekme-btn" onclick="anaSekmeSec('koltuk', this)">💺 Koltuk Düzeni</button>
+        <button class="ana-sekme-btn" onclick="anaSekmeSec('katilimcilar', this)">🖨 Liste & Yazdır</button>
         <button class="ana-sekme-btn" onclick="anaSekmeSec('ogrenciler', this)">👤 Öğrenci Hesapları</button>
       </div>
 
@@ -247,6 +248,51 @@
           </div>
         </div>
 
+        <!-- ── KATILIMCILAR & YAZDIR SEKMESİ ── -->
+        <div id="panel-katilimcilar" class="sekme-panel">
+          <div class="kart">
+            <h3>Gezi Seçin</h3>
+            <div class="filtre-satir">
+              <select id="listGeziSec" onchange="listGeziSecildi(this.value)" style="flex:1; min-width:220px;">
+                <option value="">Gezi seçin</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="listAdminKayitWrap" style="display:none;">
+            <div class="kart">
+              <h3>İdareci Kaydı — Kendi Bilgilerim</h3>
+              <p style="font-size:13px; color:#666; margin-bottom:14px;">Bu geziye katılacaksanız aşağıdaki formu doldurun.</p>
+              <div class="form-grid">
+                <div class="form-group">
+                  <label>Ad Soyad</label>
+                  <input type="text" id="listAdSoyad" placeholder="Ad Soyad">
+                </div>
+                <div class="form-group">
+                  <label>TC Kimlik No</label>
+                  <input type="text" id="listTcKimlik" maxlength="11" placeholder="11 haneli TC Kimlik No">
+                </div>
+                <div class="form-group">
+                  <label>Telefon No</label>
+                  <input type="text" id="listTelefon" placeholder="05xx xxx xx xx">
+                </div>
+              </div>
+              <button class="btn btn-yesil" onclick="idarecikayitKaydet()">💾 Kaydı Ekle / Güncelle</button>
+              <span id="listKayitMesaj" style="margin-left:12px; font-size:13px;"></span>
+            </div>
+          </div>
+
+          <div id="listKatilimciWrap" style="display:none;">
+            <div class="kart">
+              <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:14px; padding-bottom:12px; border-bottom:1px solid #f0f0f0;">
+                <h3 style="margin:0; padding:0; border:none;" id="listBaslikMetin">Katılımcı Listesi</h3>
+                <button class="btn btn-mavi" onclick="katilimciListesiYazdir()">🖨 A4 Yazdır</button>
+              </div>
+              <div id="listTabloContainer"><div class="bos-mesaj">Yükleniyor...</div></div>
+            </div>
+          </div>
+        </div>
+
         <!-- ── ÖĞRENCI HESAPLARI SEKMESİ ── -->
         <div id="panel-ogrenciler" class="sekme-panel">
           <div class="kart">
@@ -313,7 +359,9 @@
           window.location.href = "/portal.html";
           return;
         }
-        document.getElementById("kullaniciAdi").textContent = ud.data().ad || "";
+        _adminUid = user.uid;
+        _adminAd = ud.data().ad || "";
+        document.getElementById("kullaniciAdi").textContent = _adminAd;
         await siniflariYukle();
         await gezileriYukle();
         document.getElementById("yukleniyorEkran").style.display = "none";
@@ -340,7 +388,16 @@
         document.getElementById("panel-" + sekme).classList.add("aktif");
         btn.classList.add("aktif");
         if (sekme === "ogrenciler") ogrenciListesiYukle();
+        if (sekme === "katilimcilar") listSekmesiBaslat();
       };
+
+      function listSekmesiBaslat() {
+        const sel = document.getElementById("listGeziSec");
+        sel.innerHTML = '<option value="">Gezi seçin</option>';
+        aktifGeziler.forEach(g => {
+          sel.innerHTML += `<option value="${g.id}">${g.baslik} (${g.tarih || ""})</option>`;
+        });
+      }
 
       // ── GEZILER ──
       window.gezileriYukle = async () => {
@@ -427,6 +484,204 @@
         if (!confirm("Bu geziyi silmek istediğinize emin misiniz?")) return;
         await deleteDoc(doc(db, "geziler", id));
         await gezileriYukle();
+      };
+
+      // ── KATILIMCILAR & YAZDIR ──
+      let _listAktifGezi = null;
+      let _adminUid = null;
+      let _adminAd = null;
+
+      window.listGeziSecildi = async (geziId) => {
+        _listAktifGezi = aktifGeziler.find(g => g.id === geziId) || null;
+        document.getElementById("listAdminKayitWrap").style.display = geziId ? "block" : "none";
+        document.getElementById("listKatilimciWrap").style.display = geziId ? "block" : "none";
+        if (!geziId) return;
+
+        // Admin'in mevcut kaydını yükle
+        if (_adminUid) {
+          const kayitSnap = await getDocs(query(
+            collection(db, "gezi_katilacaklar"),
+            where("gezi_id", "==", geziId),
+            where("kullanici_id", "==", _adminUid)
+          ));
+          if (!kayitSnap.empty) {
+            const k = kayitSnap.docs[0].data();
+            document.getElementById("listAdSoyad").value = k.ad_soyad || "";
+            document.getElementById("listTcKimlik").value = k.tc_kimlik || "";
+            document.getElementById("listTelefon").value = k.telefon || "";
+          } else {
+            document.getElementById("listAdSoyad").value = _adminAd || "";
+            document.getElementById("listTcKimlik").value = "";
+            document.getElementById("listTelefon").value = "";
+          }
+        }
+
+        await listKatilimciTablosuGoster(geziId);
+      };
+
+      async function listKatilimciTablosuGoster(geziId) {
+        const wrap = document.getElementById("listTabloContainer");
+        wrap.innerHTML = '<div class="yukleniyor-mesaj">Yükleniyor...</div>';
+        const gezi = aktifGeziler.find(g => g.id === geziId);
+        document.getElementById("listBaslikMetin").textContent =
+          `${gezi?.baslik || ""} — Katılımcı Listesi`;
+
+        const snap = await getDocs(query(
+          collection(db, "gezi_katilacaklar"),
+          where("gezi_id", "==", geziId)
+        ));
+        const liste = [];
+        snap.forEach(d => liste.push({ docId: d.id, ...d.data() }));
+
+        const siralama = { "İdareci": 0, "Öğretmen": 1, "Öğrenci": 2 };
+        liste.sort((a, b) => {
+          const gs = (siralama[a.gorev] ?? 3) - (siralama[b.gorev] ?? 3);
+          return gs !== 0 ? gs : (a.ad_soyad || "").localeCompare(b.ad_soyad || "", "tr");
+        });
+
+        if (!liste.length) {
+          wrap.innerHTML = '<div class="bos-mesaj">Henüz kayıtlı katılımcı yok.</div>';
+          return;
+        }
+
+        let html = `<table>
+          <thead><tr>
+            <th style="width:40px;">No</th>
+            <th>Ad Soyad</th>
+            <th>TC Kimlik</th>
+            <th>Görevi</th>
+            <th>Sınıf</th>
+            <th>Telefon</th>
+            <th style="width:60px;"></th>
+          </tr></thead><tbody>`;
+        liste.forEach((k, i) => {
+          html += `<tr>
+            <td>${i + 1}</td>
+            <td>${k.ad_soyad || ""}</td>
+            <td style="font-family:monospace;">${k.tc_kimlik || "—"}</td>
+            <td>${k.gorev || ""}</td>
+            <td>${k.sinif || "—"}</td>
+            <td>${k.telefon || "—"}</td>
+            <td><button class="btn btn-kirmizi" style="padding:3px 8px; font-size:11px;" onclick="katilimciSil('${k.docId}','${geziId}')">Sil</button></td>
+          </tr>`;
+        });
+        html += "</tbody></table>";
+        wrap.innerHTML = html;
+      }
+
+      window.idarecikayitKaydet = async () => {
+        const geziId = document.getElementById("listGeziSec").value;
+        const adSoyad = document.getElementById("listAdSoyad").value.trim();
+        const tc = document.getElementById("listTcKimlik").value.trim();
+        const tel = document.getElementById("listTelefon").value.trim();
+        const mesajEl = document.getElementById("listKayitMesaj");
+        if (!adSoyad || !tc || !tel) {
+          mesajEl.style.color = "#c5221f"; mesajEl.textContent = "Tüm alanları doldurun."; return;
+        }
+        if (tc.length !== 11 || !/^\d+$/.test(tc)) {
+          mesajEl.style.color = "#c5221f"; mesajEl.textContent = "TC Kimlik 11 haneli rakam olmalı."; return;
+        }
+
+        // Varsa eski kaydı sil
+        const eskiSnap = await getDocs(query(
+          collection(db, "gezi_katilacaklar"),
+          where("gezi_id", "==", geziId),
+          where("kullanici_id", "==", _adminUid)
+        ));
+        await Promise.all(eskiSnap.docs.map(d => deleteDoc(doc(db, "gezi_katilacaklar", d.id))));
+
+        await addDoc(collection(db, "gezi_katilacaklar"), {
+          gezi_id: geziId,
+          kullanici_id: _adminUid,
+          ad_soyad: adSoyad,
+          tc_kimlik: tc,
+          telefon: tel,
+          gorev: "İdareci",
+          sinif: "",
+          created_at: serverTimestamp(),
+        });
+        mesajEl.style.color = "#1e7e34"; mesajEl.textContent = "Kaydedildi!";
+        setTimeout(() => mesajEl.textContent = "", 3000);
+        await listKatilimciTablosuGoster(geziId);
+      };
+
+      window.katilimciSil = async (docId, geziId) => {
+        if (!confirm("Bu kaydı silmek istiyor musunuz?")) return;
+        await deleteDoc(doc(db, "gezi_katilacaklar", docId));
+        await listKatilimciTablosuGoster(geziId);
+      };
+
+      window.katilimciListesiYazdir = async () => {
+        const geziId = document.getElementById("listGeziSec").value;
+        if (!geziId) return;
+        const gezi = aktifGeziler.find(g => g.id === geziId);
+
+        const snap = await getDocs(query(
+          collection(db, "gezi_katilacaklar"),
+          where("gezi_id", "==", geziId)
+        ));
+        const liste = [];
+        snap.forEach(d => liste.push(d.data()));
+
+        const siralama = { "İdareci": 0, "Öğretmen": 1, "Öğrenci": 2 };
+        liste.sort((a, b) => {
+          const gs = (siralama[a.gorev] ?? 3) - (siralama[b.gorev] ?? 3);
+          return gs !== 0 ? gs : (a.ad_soyad || "").localeCompare(b.ad_soyad || "", "tr");
+        });
+
+        const tarihStr = gezi?.tarih
+          ? new Date(gezi.tarih + "T12:00:00").toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" })
+          : "";
+
+        const satirlar = liste.map((k, i) => `
+          <tr>
+            <td style="text-align:center;">${i + 1}</td>
+            <td>${k.ad_soyad || ""}</td>
+            <td style="text-align:center; font-family:monospace; font-size:12px;">${k.tc_kimlik || ""}</td>
+            <td style="text-align:center;">${k.gorev || ""}</td>
+            <td style="text-align:center;">${k.sinif || ""}</td>
+            <td style="text-align:center;">${k.telefon || ""}</td>
+          </tr>`).join("");
+
+        const html = `<!DOCTYPE html><html lang="tr"><head>
+          <meta charset="UTF-8">
+          <title>Gezi Katılımcı Listesi</title>
+          <style>
+            @page { size: A4; margin: 15mm 20mm; }
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { font-family: "Times New Roman", serif; font-size: 12pt; background: white; }
+            .okul-adi { text-align: center; font-size: 15pt; font-weight: bold; text-transform: uppercase; margin-bottom: 8pt; letter-spacing: 0.5px; }
+            .alt-baslik { text-align: center; font-size: 11pt; margin-bottom: 18pt; }
+            table { width: 100%; border-collapse: collapse; margin-top: 6pt; }
+            th { background: #f0f0f0; padding: 7pt 5pt; text-align: center; font-size: 11pt; font-weight: bold; border: 1pt solid #333; }
+            td { padding: 5pt 5pt; border: 0.5pt solid #555; font-size: 10.5pt; vertical-align: middle; }
+            th:nth-child(1), td:nth-child(1) { width: 8mm; text-align: center; }
+            th:nth-child(2), td:nth-child(2) { width: auto; }
+            th:nth-child(3), td:nth-child(3) { width: 30mm; text-align: center; }
+            th:nth-child(4), td:nth-child(4) { width: 22mm; text-align: center; }
+            th:nth-child(5), td:nth-child(5) { width: 16mm; text-align: center; }
+            th:nth-child(6), td:nth-child(6) { width: 26mm; text-align: center; }
+          </style>
+        </head><body>
+          <div class="okul-adi">T.C. KEŞAN KAYMAKAMLIĞI<br>AHMET YENİCE ORTAOKULU</div>
+          <div class="alt-baslik">${tarihStr} tarihinde <strong>${gezi?.baslik || ""}</strong> gezisine katılacak yönetici, öğretmen ve öğrenci listesidir.</div>
+          <table>
+            <thead><tr>
+              <th>No</th>
+              <th>Ad Soyad</th>
+              <th>TC Kimlik No</th>
+              <th>Görevi</th>
+              <th>Sınıf</th>
+              <th>Telefon</th>
+            </tr></thead>
+            <tbody>${satirlar}</tbody>
+          </table>
+        </body></html>`;
+
+        const w = window.open("", "_blank", "width=800,height=900");
+        w.document.write(html);
+        w.document.close();
+        setTimeout(() => w.print(), 400);
       };
 
       // ── KATILIM ──

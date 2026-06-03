@@ -53,6 +53,16 @@ window.sayfaYukle = (id) => {
   else if (id === "gorevlerim")   ogretmenGorevleriniYukle();
   else if (id === "kazanimlar")   kazanimSayfasiYukle();
   else if (id === "kazanimlarim") kazanimlarimYukle();
+  else if (id === "oto-nobet")      _iframeYukle("oto-nobet",      "/oto-nobet.html");
+  else if (id === "nobet2")         _iframeYukle("nobet2",         "/nobet2.html");
+  else if (id === "yoklama-fisi")   _iframeYukle("yoklama-fisi",   "/yoklama-fisi.html");
+  else if (id === "dyk-fisi")       _iframeYukle("dyk-fisi",       "/dyk-fisi.html");
+  else if (id === "program-talebi") _iframeYukle("program-talebi", "/program-talebi.html");
+  else if (id === "anket")          _iframeYukle("anket",          "/anket.html");
+  else if (id === "ogrenci-profil") _iframeYukle("ogrenci-profil", "/ogrenci-profil.html");
+  else if (id === "veri-import")    _iframeYukle("veri-import",    "/import.html");
+  else if (id === "geziler")        _iframeYukle("geziler",        "/gezi.html");
+  else if (id === "gezi-kayit")    _iframeYukle("gezi-kayit",    "/gezi-kayit.html");
 };
 
 // Populate shared dropdowns from loaded teachers/classes
@@ -137,15 +147,14 @@ authBaslat(async (user, rol) => {
   document.getElementById("geriBtn").style.display = "none";
 });
 
-window.nobetYukle = () => {
-  document.getElementById("sayfa-nobet").innerHTML =
-    '<iframe src="/nobet.html" style="width:100%;height:85vh;border:none;border-radius:12px;"></iframe>';
-};
+function _iframeYukle(sayfaId, src) {
+  const div = document.getElementById("sayfa-" + sayfaId);
+  if (!div || div.querySelector("iframe")) return;
+  div.innerHTML = `<iframe src="${src}?embedded=1" style="width:100%;height:85vh;border:none;border-radius:12px;"></iframe>`;
+}
 
-window.disiplinYukle = () => {
-  document.getElementById("sayfa-disiplin").innerHTML =
-    '<iframe src="/disiplin.html" style="width:100%;height:85vh;border:none;border-radius:12px;"></iframe>';
-};
+window.nobetYukle    = () => _iframeYukle("nobet",    "/nobet.html");
+window.disiplinYukle = () => _iframeYukle("disiplin", "/disiplin.html");
 
 // Service Worker
 if ("serviceWorker" in navigator) {

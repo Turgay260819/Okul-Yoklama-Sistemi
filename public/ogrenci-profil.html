@@ -123,13 +123,11 @@
       .print-baslik { display: none; }
       @media (max-width: 768px) { .icerik { padding: 12px; } }
     </style>
+    <script>if(new URLSearchParams(location.search).get("embedded"))document.addEventListener("DOMContentLoaded",()=>document.querySelector("h1")?.remove());</script>
   </head>
   <body>
     <div class="topbar">
       <h1>👤 Öğrenci Profil Sistemi</h1>
-      <div class="topbar-sag">
-        <button class="btn btn-beyaz" onclick="window.close()">← Ana Sayfa</button>
-      </div>
     </div>
     <div class="icerik">
       <div id="yukleniyor" class="yukleniyor">⏳ Yükleniyor...</div>
@@ -172,7 +170,7 @@
 
       const YETENEK_KATEGORILER = ["Spor", "Müzik", "Sanat", "Sahne Sanatları", "Akademik Üstünlük", "Teknoloji", "Liderlik", "Diğer"];
 
-      let sorular = { rehber_sorular: [...VARSAYILAN_REHBER_SORULAR], brans_sorular: [] };
+      let sorular = { rehber_sorular: [...VARSAYILAN_REHBER_SORULAR], brans_sorular: {} };
       let aktifRol = null;
       let aktifOgretmenId = null;
       let aktifOgretmenAd = null;
@@ -189,7 +187,8 @@
           if (d.exists()) {
             const data = d.data();
             sorular.rehber_sorular = data.rehber_sorular?.length ? data.rehber_sorular : [...VARSAYILAN_REHBER_SORULAR];
-            sorular.brans_sorular = data.brans_sorular || [];
+            const rawBrans = data.brans_sorular;
+            sorular.brans_sorular = (rawBrans && !Array.isArray(rawBrans)) ? rawBrans : {};
           }
         } catch (e) {}
       }
@@ -277,10 +276,10 @@
 
       function ogretmenVeriGirGoster() {
         const c = document.getElementById("osekme-veriGir");
-        const aktifSorular = aktifOgretmenRehber ? sorular.rehber_sorular : sorular.brans_sorular;
+        const aktifSorular = aktifOgretmenRehber ? sorular.rehber_sorular : (sorular.brans_sorular[aktifOgretmenBrans] || []);
 
         if (!aktifSorular.length && !aktifOgretmenRehber) {
-          c.innerHTML = `<div class="kart"><div class="bos-mesaj">Branş soruları henüz admin tarafından eklenmemiş.</div></div>`;
+          c.innerHTML = `<div class="kart"><div class="bos-mesaj">"${aktifOgretmenBrans || 'Bu branş'}" için sorular henüz admin tarafından eklenmemiş.</div></div>`;
           return;
         }
 
@@ -351,7 +350,7 @@
 
       window.ogrenciVeriFormu = async (ogrenciId, ogrenciAd, sinifId) => {
         const c = document.getElementById("osekme-veriGir");
-        const aktifSorular = aktifOgretmenRehber ? sorular.rehber_sorular : sorular.brans_sorular;
+        const aktifSorular = aktifOgretmenRehber ? sorular.rehber_sorular : (sorular.brans_sorular[aktifOgretmenBrans] || []);
         const soruTip = aktifOgretmenRehber ? "rehber" : "brans";
 
         const mevcutSnap = await getDocs(
@@ -396,7 +395,7 @@
       };
 
       window.veriKaydet = async (ogrenciId, sinifId, soruTip) => {
-        const aktifSorular = soruTip === "rehber" ? sorular.rehber_sorular : sorular.brans_sorular;
+        const aktifSorular = soruTip === "rehber" ? sorular.rehber_sorular : (sorular.brans_sorular[aktifOgretmenBrans] || []);
         const ogrenciAd = window._ogrenciAd || "";
         const yanitlar = [];
 
@@ -885,6 +884,8 @@
         const c = document.getElementById("asekme-ayarlar");
         await soruYukle();
 
+        const benzersizBranslar = [...new Set(tumOgretmenler.map((o) => o.brans).filter(Boolean))].sort((a, b) => a.localeCompare(b, "tr"));
+
         const rehberHtml = sorular.rehber_sorular.map((s, i) =>
           `<div class="soru-satir" id="rehber-satir-${i}">
             <input type="text" id="rehber-soru-${i}" value="${s.replace(/"/g, "&quot;")}">
@@ -892,14 +893,28 @@
           </div>`
         ).join("");
 
-        const bransHtml = sorular.brans_sorular.length
-          ? sorular.brans_sorular.map((s, i) =>
-              `<div class="soru-satir" id="brans-satir-${i}">
-                <input type="text" id="brans-soru-${i}" value="${s.replace(/"/g, "&quot;")}">
-                <button class="btn btn-kirmizi btn-sm" onclick="soruSil('brans', ${i})">Sil</button>
-              </div>`
-            ).join("")
-          : `<div id="brans-bos" style="color:#888;font-size:13px;margin-bottom:12px;">Henüz soru eklenmemiş.</div>`;
+        const bransAccordionHtml = benzersizBranslar.map((brans) => {
+          const bid = brans.replace(/\s+/g, "_");
+          const bransSorulari = sorular.brans_sorular[brans] || [];
+          const soruHtml = bransSorulari.length
+            ? bransSorulari.map((s, i) =>
+                `<div class="soru-satir" id="bs-satir-${bid}-${i}">
+                  <input type="text" data-brans="${brans.replace(/"/g, "&quot;")}" value="${s.replace(/"/g, "&quot;")}">
+                  <button class="btn btn-kirmizi btn-sm" onclick="bransSoruSil('${bid}', ${i})">Sil</button>
+                </div>`
+              ).join("")
+            : `<div id="bs-bos-${bid}" style="color:#888;font-size:13px;margin-bottom:8px;">Henüz soru eklenmemiş.</div>`;
+          return `<div class="accordion-item">
+            <div class="accordion-baslik" onclick="this.nextElementSibling.classList.toggle('acik')">
+              <span>📚 ${brans}</span>
+              <span style="color:#888;font-size:12px;">${bransSorulari.length} soru ▼</span>
+            </div>
+            <div class="accordion-icerik acik">
+              <div id="bs-wrap-${bid}">${soruHtml}</div>
+              <button class="btn btn-mavi btn-sm no-print" onclick="bransSoruEkle('${brans.replace(/'/g, "\\'")}','${bid}')" style="margin-top:6px;">+ Soru Ekle</button>
+            </div>
+          </div>`;
+        }).join("");
 
         c.innerHTML = `
           <div class="kart">
@@ -909,10 +924,9 @@
             <button class="btn btn-mavi btn-sm no-print" onclick="soruEkle('rehber')" style="margin-top:4px;margin-bottom:16px;">+ Soru Ekle</button>
           </div>
           <div class="kart">
-            <div class="kart-baslik">📚 Branş Öğretmeni Soruları</div>
-            <p style="font-size:13px;color:#888;margin-bottom:16px;">Branş öğretmenlerinin dolduracağı sorular. Admin tarafından düzenlenebilir.</p>
-            <div id="brans-sorular-wrap">${bransHtml}</div>
-            <button class="btn btn-mavi btn-sm no-print" onclick="soruEkle('brans')" style="margin-top:4px;margin-bottom:16px;">+ Soru Ekle</button>
+            <div class="kart-baslik">📚 Branş Öğretmeni Soruları — Branşa Göre</div>
+            <p style="font-size:13px;color:#888;margin-bottom:16px;">Her branş için farklı sorular tanımlayın.</p>
+            ${benzersizBranslar.length ? bransAccordionHtml : '<div class="bos-mesaj">Sistemde kayıtlı branş öğretmeni bulunamadı.</div>'}
           </div>
           <button class="btn btn-yesil" onclick="soruKaydet()">💾 Soruları Kaydet</button>
           <div class="mesaj" id="ayarMesaj"></div>`;
@@ -936,14 +950,36 @@
         if (el) el.remove();
       };
 
+      window.bransSoruEkle = (brans, bid) => {
+        const wrap = document.getElementById("bs-wrap-" + bid);
+        const bosEl = document.getElementById("bs-bos-" + bid);
+        if (bosEl) bosEl.remove();
+        const idx = wrap.querySelectorAll("input[type=text]").length;
+        const div = document.createElement("div");
+        div.className = "soru-satir";
+        div.id = `bs-satir-${bid}-${idx}`;
+        div.innerHTML = `<input type="text" data-brans="${brans.replace(/"/g, "&quot;")}" placeholder="Soru ${idx + 1}">
+          <button class="btn btn-kirmizi btn-sm" onclick="bransSoruSil('${bid}', ${idx})">Sil</button>`;
+        wrap.appendChild(div);
+      };
+
+      window.bransSoruSil = (bid, idx) => {
+        const el = document.getElementById(`bs-satir-${bid}-${idx}`);
+        if (el) el.remove();
+      };
+
       window.soruKaydet = async () => {
         const rehberSorular = Array.from(
           document.querySelectorAll("#rehber-sorular-wrap input[type=text]")
         ).map((i) => i.value.trim()).filter(Boolean);
 
-        const bransSorular = Array.from(
-          document.querySelectorAll("#brans-sorular-wrap input[type=text]")
-        ).map((i) => i.value.trim()).filter(Boolean);
+        const bransObjesi = {};
+        document.querySelectorAll("[data-brans]").forEach((input) => {
+          const brans = input.dataset.brans;
+          const val = input.value.trim();
+          if (!bransObjesi[brans]) bransObjesi[brans] = [];
+          if (val) bransObjesi[brans].push(val);
+        });
 
         if (!rehberSorular.length) {
           mesajGoster("ayarMesaj", "Rehber soruları boş bırakılamaz.", "hata");
@@ -953,11 +989,11 @@
         mesajGoster("ayarMesaj", "Kaydediliyor...", "bilgi");
         await setDoc(doc(db, "profil_ayarlar", "sorular"), {
           rehber_sorular: rehberSorular,
-          brans_sorular: bransSorular,
+          brans_sorular: bransObjesi,
           guncelleme: serverTimestamp(),
         });
         sorular.rehber_sorular = rehberSorular;
-        sorular.brans_sorular = bransSorular;
+        sorular.brans_sorular = bransObjesi;
         mesajGoster("ayarMesaj", "Sorular başarıyla kaydedildi!", "basari");
       };
 

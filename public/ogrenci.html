@@ -193,6 +193,29 @@
     </div>
   </div>
 
+  <!-- Gezi Kayıt Modal -->
+  <div id="geziKayitModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.45); z-index:200; align-items:center; justify-content:center;">
+    <div style="background:white; border-radius:12px; padding:28px; width:100%; max-width:420px; margin:16px;">
+      <h2 style="font-size:17px; color:#333; margin-bottom:8px;">🚌 Gezi Katılım Bilgileri</h2>
+      <p style="font-size:13px; color:#666; margin-bottom:18px;">Geziye katılmak için TC kimlik ve veli telefon numaranızı girin.</p>
+      <div style="margin-bottom:14px;">
+        <label style="display:block; font-size:12px; font-weight:700; color:#555; margin-bottom:5px;">TC KİMLİK NO</label>
+        <input type="tel" id="geziTcInput" maxlength="11" placeholder="11 haneli TC Kimlik No"
+          style="width:100%; padding:10px 12px; border:2px solid #e0e0e0; border-radius:8px; font-size:14px; outline:none;">
+      </div>
+      <div style="margin-bottom:14px;">
+        <label style="display:block; font-size:12px; font-weight:700; color:#555; margin-bottom:5px;">VELİ TELEFON NO</label>
+        <input type="tel" id="geziTelInput" placeholder="05xx xxx xx xx"
+          style="width:100%; padding:10px 12px; border:2px solid #e0e0e0; border-radius:8px; font-size:14px; outline:none;">
+      </div>
+      <div id="geziKayitMesaj" style="font-size:13px; color:#c5221f; margin-bottom:10px;"></div>
+      <div style="display:flex; gap:10px; justify-content:flex-end;">
+        <button onclick="geziKayitModalKapat()" style="padding:9px 18px; border:none; border-radius:8px; background:#e0e0e0; color:#444; font-size:13px; font-weight:600; cursor:pointer;">İptal</button>
+        <button onclick="geziKayitOnayla()" style="padding:9px 18px; border:none; border-radius:8px; background:#34a853; color:white; font-size:13px; font-weight:600; cursor:pointer;">Katılımı Onayla</button>
+      </div>
+    </div>
+  </div>
+
   <!-- İlk Giriş Şifre Değiştirme Modal -->
   <div class="modal-overlay aktif" id="ilkGirisModal" style="display:none;">
     <div class="modal" style="max-width:420px;">
@@ -228,7 +251,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getAuth, signOut, signInWithEmailAndPassword, onAuthStateChanged, updatePassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-    import { getFirestore, doc, getDoc, getDocs, addDoc, updateDoc, collection, query, where, orderBy, limit, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getFirestore, doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, collection, query, where, orderBy, limit, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyAHTCiicd4b94rG1-jN0STRbwcrLmkYudo",
@@ -709,8 +732,39 @@
       } catch (err) { console.error(err); }
     }
 
-    window.geziKatilimBildir = async (geziId, durum) => {
+    // TC/telefon modalı için
+    let _geziKayitBekleyen = null;
+    window.geziKatilimBildir = (geziId, durum) => {
       if (!aktifKullanici) return;
+      if (durum === 'katilmiyorum') {
+        geziKatilimKaydet(geziId, durum, null, null);
+        return;
+      }
+      _geziKayitBekleyen = geziId;
+      document.getElementById('geziTcInput').value = '';
+      document.getElementById('geziTelInput').value = '';
+      document.getElementById('geziKayitMesaj').textContent = '';
+      document.getElementById('geziKayitModal').style.display = 'flex';
+    };
+
+    window.geziKayitModalKapat = () => {
+      document.getElementById('geziKayitModal').style.display = 'none';
+      _geziKayitBekleyen = null;
+    };
+
+    window.geziKayitOnayla = async () => {
+      const tc = document.getElementById('geziTcInput').value.trim();
+      const tel = document.getElementById('geziTelInput').value.trim();
+      const mesaj = document.getElementById('geziKayitMesaj');
+      if (!tc || tc.length !== 11 || !/^\d+$/.test(tc)) {
+        mesaj.textContent = 'TC Kimlik 11 haneli rakam olmalı.'; return;
+      }
+      if (!tel) { mesaj.textContent = 'Telefon numarası zorunludur.'; return; }
+      await geziKatilimKaydet(_geziKayitBekleyen, 'katilyorum', tc, tel);
+      geziKayitModalKapat();
+    };
+
+    async function geziKatilimKaydet(geziId, durum, tc, tel) {
       try {
         await addDoc(collection(db, 'gezi_katilim'), {
           gezi_id: geziId,
@@ -720,14 +774,54 @@
           katilim_durumu: durum,
           created_at: serverTimestamp()
         });
+        if (durum === 'katilyorum' && tc) {
+          // Eski katilacaklar kaydını sil
+          const eskiSnap = await getDocs(query(
+            collection(db, 'gezi_katilacaklar'),
+            where('gezi_id', '==', geziId),
+            where('kullanici_id', '==', aktifKullanici.uid)
+          ));
+          await Promise.all(eskiSnap.docs.map(d => deleteDoc(doc(db, 'gezi_katilacaklar', d.id))));
+          await addDoc(collection(db, 'gezi_katilacaklar'), {
+            gezi_id: geziId,
+            kullanici_id: aktifKullanici.uid,
+            ad_soyad: aktifKullanici.ad,
+            tc_kimlik: tc,
+            telefon: tel,
+            gorev: 'Öğrenci',
+            sinif: aktifKullanici.sinif_id || '',
+            created_at: serverTimestamp()
+          });
+        } else if (durum === 'katilmiyorum') {
+          const eskiSnap = await getDocs(query(
+            collection(db, 'gezi_katilacaklar'),
+            where('gezi_id', '==', geziId),
+            where('kullanici_id', '==', aktifKullanici.uid)
+          ));
+          await Promise.all(eskiSnap.docs.map(d => deleteDoc(doc(db, 'gezi_katilacaklar', d.id))));
+        }
         gezileriYukle();
       } catch (err) { alert('Hata: ' + err.message); }
-    };
+    }
 
     window.geziKatilimGuncelle = async (geziId, docId, yeniDurum) => {
       try {
         await updateDoc(doc(db, 'gezi_katilim', docId), { katilim_durumu: yeniDurum });
-        gezileriYukle();
+        if (yeniDurum === 'katilmiyorum') {
+          const eskiSnap = await getDocs(query(
+            collection(db, 'gezi_katilacaklar'),
+            where('gezi_id', '==', geziId),
+            where('kullanici_id', '==', aktifKullanici.uid)
+          ));
+          await Promise.all(eskiSnap.docs.map(d => deleteDoc(doc(db, 'gezi_katilacaklar', d.id))));
+          gezileriYukle();
+        } else if (yeniDurum === 'katilyorum') {
+          _geziKayitBekleyen = geziId;
+          document.getElementById('geziTcInput').value = '';
+          document.getElementById('geziTelInput').value = '';
+          document.getElementById('geziKayitMesaj').textContent = '';
+          document.getElementById('geziKayitModal').style.display = 'flex';
+        }
       } catch (err) { alert('Hata: ' + err.message); }
     };
 

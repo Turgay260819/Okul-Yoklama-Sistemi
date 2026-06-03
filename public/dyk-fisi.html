@@ -79,6 +79,7 @@
         .a4-sayfa:last-child { page-break-after: auto; break-after: auto; }
       }
     </style>
+    <script>if(new URLSearchParams(location.search).get("embedded"))document.addEventListener("DOMContentLoaded",()=>document.querySelector("h1")?.remove());</script>
   </head>
   <body>
     <div class="kontrol">
@@ -93,7 +94,6 @@
       </div>
       <button class="btn btn-mavi" onclick="fisleriOlustur()">Fisleri Olustur</button>
       <button class="btn btn-yesil" onclick="window.print()">Yazdir</button>
-      <button class="btn btn-gri" onclick="window.close()">Ana Sayfa</button>
       <div id="durum"></div>
     </div>
     <div id="yazdir-alani"><div class="bos-mesaj">Tarih secip "Fisleri Olustur" butonuna tiklayin.</div></div>

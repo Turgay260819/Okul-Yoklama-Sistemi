@@ -406,6 +406,7 @@
         }
       }
     </style>
+    <script>if(new URLSearchParams(location.search).get("embedded"))document.addEventListener("DOMContentLoaded",()=>document.querySelector("h1")?.remove());</script>
   </head>
   <body>
     <div class="topbar">
@@ -430,7 +431,6 @@
           ⚙ Noktalar
         </button>
         <button class="btn btn-beyaz" onclick="yerlesimAc()">✏ Yerleşim</button>
-        <button class="btn btn-beyaz" onclick="window.close()">Ana Sayfa</button>
       </div>
     </div>
     <div id="yukleniyor" class="yukleniyor">Yükleniyor...</div>

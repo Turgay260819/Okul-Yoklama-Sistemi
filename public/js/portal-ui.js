@@ -20,24 +20,29 @@ export function baslangicDegerleriniAyarla(bugun) {
 
 // ── MENÜ ──
 const adminMenu = [
-  { id: "anasayfa",            ikon: "📊", ad: "Genel Durum" },
-  { id: "yoklama-admin",       ikon: "📋", ad: "Gunluk Yoklamalar" },
-  { id: "dyk-admin",           ikon: "📚", ad: "DYK Yoklamalari" },
-  { id: "raporlar",            ikon: "📅", ad: "Raporlar" },
-  { id: "oto-nobet-link",      ikon: "📅", ad: "Otomatik Nobet",       dis: "/oto-nobet.html" },
-  { id: "nobet",               ikon: "🔔", ad: "Nobet Yonetimi" },
-  { id: "nobet2-link",         ikon: "📅", ad: "Gun Degisme Nobeti",   dis: "/nobet2.html" },
-  { id: "disiplin",            ikon: "📝", ad: "Disiplin" },
-  { id: "gorev",               ikon: "👥", ad: "Gorev Dagilimi" },
-  { id: "ayarlar",             ikon: "⚙️", ad: "Ayarlar" },
-  { id: "fis-link",            ikon: "🖨",  ad: "Yoklama Fisleri",     dis: "/yoklama-fisi.html" },
-  { id: "dyk-fis-link",        ikon: "🖨",  ad: "DYK Fisleri",         dis: "/dyk-fisi.html" },
-  { id: "program-talebi-link", ikon: "📐", ad: "Program Talebi",       dis: "/program-talebi.html" },
-  { id: "anket-link",          ikon: "📋", ad: "Anket & Formlar",      dis: "/anket.html" },
-  { id: "ogrenci-profil-link", ikon: "👤", ad: "Ogrenci Profilleri",   dis: "/ogrenci-profil.html" },
-  { id: "import-link",         ikon: "📥", ad: "Veri Import",          dis: "/import.html" },
-  { id: "geziler-link",        ikon: "🚌", ad: "Geziler",              dis: "/gezi.html" },
-  { id: "kazanimlar",          ikon: "📖", ad: "Kazanim Yonetimi" },
+  { separator: "Yoklama" },
+  { id: "anasayfa",       ikon: "📊", ad: "Genel Durum" },
+  { id: "yoklama-admin",  ikon: "📋", ad: "Gunluk Yoklamalar" },
+  { id: "dyk-admin",      ikon: "📚", ad: "DYK Yoklamalari" },
+  { id: "yoklama-fisi",   ikon: "🖨",  ad: "Yoklama Fisleri" },
+  { id: "dyk-fisi",       ikon: "🖨",  ad: "DYK Fisleri" },
+  { separator: "Nobet" },
+  { id: "nobet",          ikon: "🔔", ad: "Nobet Yonetimi" },
+  { id: "oto-nobet",      ikon: "📅", ad: "Otomatik Nobet" },
+  { id: "nobet2",         ikon: "📅", ad: "Gun Degisme Nobeti" },
+  { separator: "Yonetim" },
+  { id: "disiplin",       ikon: "📝", ad: "Disiplin" },
+  { id: "gorev",          ikon: "👥", ad: "Gorev Dagilimi" },
+  { id: "kazanimlar",     ikon: "📖", ad: "Kazanim Yonetimi" },
+  { id: "raporlar",       ikon: "📅", ad: "Raporlar" },
+  { separator: "Araclar" },
+  { id: "program-talebi", ikon: "📐", ad: "Program Talebi" },
+  { id: "anket",          ikon: "📋", ad: "Anket & Formlar" },
+  { id: "ogrenci-profil", ikon: "👤", ad: "Ogrenci Profilleri" },
+  { id: "geziler",        ikon: "🚌", ad: "Geziler" },
+  { separator: "Sistem" },
+  { id: "veri-import",    ikon: "📥", ad: "Veri Import" },
+  { id: "ayarlar",        ikon: "⚙️", ad: "Ayarlar" },
 ];
 
 const ogretmenKareler = [
@@ -49,10 +54,11 @@ const ogretmenKareler = [
   { sayfa: 1, id: "kazanimlarim",        ikon: "📖", ad: "Kazanımlarım",         renk: "#e8f5e9", metinRenk: "#1b5e20" },
   { sayfa: 2, id: "manuel",             ikon: "✏️", ad: "Manuel Giriş",          renk: "#f5f5f5", metinRenk: "#424242" },
   { sayfa: 2, id: "nobet",              ikon: "🔔", ad: "Nöbet Programım",      renk: "#f5f5f5", metinRenk: "#424242" },
-  { sayfa: 2, id: "oto-nobet-link",     ikon: "📅", ad: "Nöbet İsteğim",        renk: "#f5f5f5", metinRenk: "#424242", dis: "/oto-nobet.html" },
-  { sayfa: 2, id: "ogrenci-profil-link",ikon: "👤", ad: "Öğrenci Profilleri",   renk: "#f5f5f5", metinRenk: "#424242", dis: "/ogrenci-profil.html" },
-  { sayfa: 2, id: "program-talebi-link",ikon: "📐", ad: "Program Talebi",       renk: "#f5f5f5", metinRenk: "#424242", dis: "/program-talebi.html" },
-  { sayfa: 2, id: "anket-link",         ikon: "📋", ad: "Anket & Formlar",      renk: "#f5f5f5", metinRenk: "#424242", dis: "/anket.html" },
+  { sayfa: 2, id: "oto-nobet",      ikon: "📅", ad: "Nöbet İsteğim",        renk: "#f5f5f5", metinRenk: "#424242" },
+  { sayfa: 2, id: "ogrenci-profil", ikon: "👤", ad: "Öğrenci Profilleri",   renk: "#f5f5f5", metinRenk: "#424242" },
+  { sayfa: 2, id: "program-talebi", ikon: "📐", ad: "Program Talebi",       renk: "#f5f5f5", metinRenk: "#424242" },
+  { sayfa: 2, id: "anket",          ikon: "📋", ad: "Anket & Formlar",      renk: "#f5f5f5", metinRenk: "#424242" },
+  { sayfa: 2, id: "gezi-kayit",    ikon: "🚌", ad: "Gezi Kaydı",           renk: "#f5f5f5", metinRenk: "#424242" },
 ];
 
 let _ogrAktifSayfa = 0;
@@ -66,8 +72,8 @@ export function menuOlustur(rol) {
   const container = document.getElementById("sidebarMenu");
   container.innerHTML = "";
   adminMenu.forEach((item) => {
-    if (item.dis) {
-      container.innerHTML += `<button class="menu-item" onclick="window.open('${item.dis}','_blank')"><span class="menu-ikon">${item.ikon}</span>${item.ad}</button>`;
+    if (item.separator) {
+      container.innerHTML += `<div class="menu-ayrac">${item.separator}</div>`;
     } else {
       container.innerHTML += `<button class="menu-item" id="menu-${item.id}" onclick="sayfaGoster('${item.id}','${item.ad}',this)"><span class="menu-ikon">${item.ikon}</span>${item.ad}<span class="menu-rozet" id="rozet-${item.id}" style="display:none;">0</span></button>`;
     }
@@ -124,6 +130,8 @@ window.ogretmenGeri = () => {
   document.getElementById("geriBtn").style.display = "none";
 };
 
+const _iframeSayfaIdsler = ["nobet","disiplin","oto-nobet","nobet2","yoklama-fisi","dyk-fisi","program-talebi","anket","ogrenci-profil","veri-import","geziler","gezi-kayit"];
+
 window.sayfaGoster = (sayfaId, baslik, el) => {
   document.querySelectorAll(".sayfa").forEach((s) => s.classList.remove("aktif"));
   document.querySelectorAll(".menu-item").forEach((m) => m.classList.remove("aktif"));
@@ -131,8 +139,17 @@ window.sayfaGoster = (sayfaId, baslik, el) => {
   if (sayfa) sayfa.classList.add("aktif");
   if (el) el.classList.add("aktif");
   document.getElementById("topbarBaslik").textContent = baslik;
+  const yenileBtn = document.getElementById("iframeYenileBtn");
+  if (yenileBtn) yenileBtn.style.display = _iframeSayfaIdsler.includes(sayfaId) ? "inline-flex" : "none";
   window.sidebarKapat();
   window.sayfaYukle(sayfaId);
+};
+
+window.iframeYenile = () => {
+  const aktif = document.querySelector(".sayfa.aktif");
+  if (!aktif) return;
+  const iframe = aktif.querySelector("iframe");
+  if (iframe) iframe.src = iframe.src;
 };
 
 window.sidebarAc = () => {
