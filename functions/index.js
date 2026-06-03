@@ -212,6 +212,94 @@ exports.ogrenciOlustur = onCall(async (request) => {
 });
 
 // ===========================
+// ÖĞRENCİ HESAP OLUŞTUR / GÜNCELLE
+// ===========================
+exports.ogrenciHesapOlustur = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Giriş yapılmamış.");
+
+  const callerDoc = await admin.firestore().collection("users").doc(request.auth.uid).get();
+  const callerRole = callerDoc.data()?.rol;
+  if (callerRole !== "admin" && callerRole !== "mudur_yardimcisi") {
+    throw new HttpsError("permission-denied", "Yetkiniz yok.");
+  }
+
+  const { ogrenciId, email, sifre } = request.data;
+  if (!ogrenciId || !email || !sifre) throw new HttpsError("invalid-argument", "Eksik veri.");
+
+  const ogrRef = admin.firestore().collection("students").doc(ogrenciId);
+  const ogrSnap = await ogrRef.get();
+  if (!ogrSnap.exists) throw new HttpsError("not-found", "Öğrenci bulunamadı.");
+  const ogrData = ogrSnap.data();
+
+  let uid = ogrData.kimlik_uid || null;
+
+  try {
+    if (uid) {
+      await admin.auth().updateUser(uid, { email, password: sifre, displayName: ogrData.name });
+    } else {
+      try {
+        const rec = await admin.auth().createUser({ email, password: sifre, displayName: ogrData.name });
+        uid = rec.uid;
+      } catch (err) {
+        if (err.code === "auth/email-already-exists") {
+          const existing = await admin.auth().getUserByEmail(email);
+          uid = existing.uid;
+          await admin.auth().updateUser(uid, { password: sifre, displayName: ogrData.name });
+        } else {
+          throw err;
+        }
+      }
+    }
+
+    await admin.firestore().collection("users").doc(uid).set({
+      ad: ogrData.name,
+      email,
+      rol: "ogrenci",
+      ogrenci_no: ogrData.student_number || "",
+      ilk_giris: false,
+      bildirim_aktif: false,
+      created_at: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    await ogrRef.update({ kimlik_email: email, kimlik_sifre: sifre, kimlik_uid: uid });
+
+    return { success: true, uid };
+  } catch (err) {
+    throw new HttpsError("internal", err.message);
+  }
+});
+
+// ===========================
+// ÖĞRENCİ SİL (Auth + Users + Students)
+// ===========================
+exports.ogrenciSilTamamen = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Giriş yapılmamış.");
+
+  const callerDoc = await admin.firestore().collection("users").doc(request.auth.uid).get();
+  const callerRole = callerDoc.data()?.rol;
+  if (callerRole !== "admin" && callerRole !== "mudur_yardimcisi") {
+    throw new HttpsError("permission-denied", "Yetkiniz yok.");
+  }
+
+  const { ogrenciId } = request.data;
+  if (!ogrenciId) throw new HttpsError("invalid-argument", "ogrenciId gerekli.");
+
+  const ogrRef = admin.firestore().collection("students").doc(ogrenciId);
+  const ogrSnap = await ogrRef.get();
+
+  if (ogrSnap.exists) {
+    const uid = ogrSnap.data().kimlik_uid;
+    if (uid) {
+      try { await admin.auth().deleteUser(uid); } catch (e) {}
+      await admin.firestore().collection("users").doc(uid).delete();
+    }
+    await ogrRef.delete();
+  }
+
+  return { success: true };
+});
+
+// ===========================
 // GÜN SONU KONTROL
 // Her gün 16:00'da çalışır
 // ===========================
@@ -642,7 +730,7 @@ exports.manuelDersOlustur = onCall(async (request) => {
   const { tarih } = request.data;
 
   const bugunObj = new Date(tarih);
-  const gunler = ["pazar", "pazartesi", "salı", "çarşamba", "perşembe", "cuma", "cumartesi"];
+  const gunler = ["pazar", "pazartesi", "sali", "carsamba", "persembe", "cuma", "cumartesi"];
   const bugunAdi = gunler[bugunObj.getDay()];
 
   // Mevcut kayıtları sil

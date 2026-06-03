@@ -601,6 +601,7 @@
                 <button class="sekme-btn aktif" onclick="ayarSekme('ogretmenler', this)">Ogretmenler</button>
                 <button class="sekme-btn" onclick="ayarSekme('siniflar', this)">Siniflar</button>
                 <button class="sekme-btn" onclick="ayarSekme('ogrenciler', this)">Ogrenciler</button>
+                <button class="sekme-btn" onclick="ayarSekme('sifre-listesi', this)">Sifre Listesi</button>
                 <button class="sekme-btn" onclick="ayarSekme('donem', this)">Donem</button>
                 <button class="sekme-btn" onclick="ayarSekme('dyk', this)">DYK Kurslari</button>
                 <button class="sekme-btn" onclick="ayarSekme('derssaatleri', this)">Ders Saatleri</button>
@@ -690,30 +691,55 @@
               </div>
               <div class="sekme-icerik" id="asekme-ogrenciler">
                 <div class="kart">
-                  <div class="kart-baslik">Ogrenci Ekle</div>
+                  <div class="kart-baslik">Yeni Ogrenci Ekle</div>
                   <div class="form-grid">
                     <div class="form-group">
-                      <label>Ogrenci No</label><input type="text" id="ayarOgrenciNo" placeholder="1234" />
+                      <label>Ogrenci No</label>
+                      <input type="text" id="ayarOgrenciNo" placeholder="1234" />
                     </div>
                     <div class="form-group">
-                      <label>Ad Soyad</label><input type="text" id="ayarOgrenciAd" placeholder="Ad Soyad" />
+                      <label>Ad Soyad</label>
+                      <input type="text" id="ayarOgrenciAd" placeholder="Ad Soyad" oninput="ogrenciEmailOtoUret()" />
                     </div>
                     <div class="form-group">
                       <label>Sinif</label>
                       <select id="ayarOgrenciSinif"><option value="">Sinif secin</option></select>
                     </div>
+                    <div class="form-group">
+                      <label>E-posta (Kullanici Adi)</label>
+                      <div style="display:flex;gap:6px;">
+                        <input type="text" id="ayarOgrenciEmail" placeholder="ad1234@gmail.com" style="flex:1;" />
+                        <button class="btn btn-gri btn-sm" onclick="ogrenciEmailOtoUret()" title="Otomatik uret" style="white-space:nowrap;">⟳</button>
+                      </div>
+                    </div>
+                    <div class="form-group">
+                      <label>Sifre (5 haneli)</label>
+                      <div style="display:flex;gap:6px;">
+                        <input type="text" id="ayarOgrenciSifre" placeholder="12345" style="flex:1;" />
+                        <button class="btn btn-gri btn-sm" onclick="document.getElementById('ayarOgrenciSifre').value=sifreUret()" title="Otomatik uret" style="white-space:nowrap;">⟳</button>
+                      </div>
+                    </div>
                   </div>
-                  <button class="btn btn-yesil" onclick="ogrenciEkle()">+ Ogrenci Ekle</button>
+                  <button class="btn btn-yesil" onclick="ogrenciEkle()">+ Ogrenci Ekle &amp; Hesap Olustur</button>
                   <div class="mesaj" id="ogrenciEkleMesaj"></div>
                 </div>
                 <div class="kart">
-                  <div class="kart-baslik">Ogrenci Listesi</div>
-                  <div style="margin-bottom:12px">
-                    <select id="ayarOgrenciSinifFiltre" onchange="ogrencileriGetir()" class="secim-giris">
-                      <option value="">Tum Siniflar</option>
-                    </select>
+                  <div class="kart-baslik" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+                    <span>Ogrenci Listesi</span>
+                    <button class="btn btn-mavi btn-sm" onclick="tumOgrencilereHesapAc()">⚡ Hesabı Olmayanlara Toplu Hesap Olustur</button>
                   </div>
+                  <div id="topluOgrenciIlerleme" style="font-size:13px;color:#1a73e8;margin-bottom:8px;display:none;"></div>
                   <div id="ayarOgrenciListesi"><div class="yukleniyor">Yukleniyor...</div></div>
+                </div>
+              </div>
+              <div class="sekme-icerik" id="asekme-sifre-listesi">
+                <div class="kart">
+                  <div class="kart-baslik" style="display:flex;justify-content:space-between;align-items:center;">
+                    <span>Ogrenci Giris Bilgileri Listesi</span>
+                    <button class="btn btn-gri btn-sm no-print" onclick="window.print()">🖨 Yazdir</button>
+                  </div>
+                  <p style="font-size:13px;color:#888;margin-bottom:12px;">Hesabi olan tum ogrencilerin kullanici adi ve sifresi. Sinifa gore gruplu.</p>
+                  <div id="sifre-listesi-icerik"><div class="yukleniyor">Yukleniyor...</div></div>
                 </div>
               </div>
               <div class="sekme-icerik" id="asekme-donem">

@@ -38,6 +38,8 @@ window.ayarSekme = function (id, el) {
   el.classList.add("aktif");
   if (id === "dyk" && window.dykAyarlarYukle) window.dykAyarlarYukle();
   else if (id === "dersler") _dersListesiYukle();
+  else if (id === "sifre-listesi") window.sifreListesiGoster();
+  else if (id === "ogrenciler") window.ogrencileriGetir();
 };
 
 window.ayarlarYukle = async function () {
@@ -286,62 +288,233 @@ async function sinifDropdownlariniDoldur() {
   });
 }
 
+// ── Yardımcı: email ve şifre üretici ──
+window.emailUret = function (ad) {
+  const isim = (ad || "").split(" ")[0].toLowerCase()
+    .replace(/ş/g,"s").replace(/ç/g,"c").replace(/ğ/g,"g")
+    .replace(/ü/g,"u").replace(/ö/g,"o").replace(/ı/g,"i")
+    .replace(/İ/gi,"i").replace(/[^a-z]/g,"");
+  return `${isim || "ogrenci"}${Math.floor(1000 + Math.random() * 9000)}@gmail.com`;
+};
+window.sifreUret = function () {
+  return String(Math.floor(10000 + Math.random() * 90000));
+};
+window.ogrenciEmailOtoUret = function () {
+  const ad = document.getElementById("ayarOgrenciAd")?.value.trim();
+  if (ad) {
+    document.getElementById("ayarOgrenciEmail").value = window.emailUret(ad);
+    document.getElementById("ayarOgrenciSifre").value = window.sifreUret();
+  }
+};
+
+// ── Öğrenci Listesi — sınıfa göre accordion ──
 window.ogrencileriGetir = async function () {
-  const { db, getDocs, collection, query, where } = window.__portal;
-  const filtre = document.getElementById("ayarOgrenciSinifFiltre").value;
+  const { db, getDocs, collection, httpsCallable, functions } = window.__portal;
   const container = document.getElementById("ayarOgrenciListesi");
   container.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
-  let q = filtre
-    ? query(collection(db, "students"), where("class_id", "==", filtre))
-    : collection(db, "students");
-  const snap = await getDocs(q);
-  if (snap.empty) {
-    container.innerHTML = '<div class="bos-mesaj">Ogrenci bulunamadi</div>';
-    return;
-  }
-  let ogrenciler = [];
-  snap.forEach((d) => ogrenciler.push({ id: d.id, ...d.data() }));
-  ogrenciler.sort((a, b) => a.student_number.localeCompare(b.student_number));
-  let html =
-    "<table><thead><tr><th>No</th><th>Ad Soyad</th><th>Sinif</th><th></th></tr></thead><tbody>";
-  ogrenciler.forEach((o) => {
-    html += `<tr><td>${o.student_number}</td><td>${o.name}</td><td>${o.class_id}</td><td><button class="btn btn-kirmizi btn-sm" onclick="ogrenciSil('${o.id}','${o.name}')">Sil</button></td></tr>`;
+
+  const snap = await getDocs(collection(db, "students"));
+  if (snap.empty) { container.innerHTML = '<div class="bos-mesaj">Ogrenci bulunamadi</div>'; return; }
+
+  const ogrenciler = [];
+  snap.forEach(d => ogrenciler.push({ id: d.id, ...d.data() }));
+  ogrenciler.sort((a, b) => (a.class_id||"").localeCompare(b.class_id||"","tr") || (a.name||"").localeCompare(b.name||"","tr"));
+
+  const sinifGruplari = {};
+  ogrenciler.forEach(o => {
+    const s = o.class_id || "Sinıfsız";
+    if (!sinifGruplari[s]) sinifGruplari[s] = [];
+    sinifGruplari[s].push(o);
   });
-  html += "</tbody></table>";
+
+  const hesapVar = ogrenciler.filter(o => o.kimlik_email).length;
+  let html = `<div style="font-size:13px;color:#555;margin-bottom:12px;">
+    Toplam: <strong>${ogrenciler.length}</strong> öğrenci &nbsp;|&nbsp;
+    <span style="color:#34a853;">✅ Hesabı var: <strong>${hesapVar}</strong></span> &nbsp;|&nbsp;
+    <span style="color:#ea4335;">⚪ Hesabı yok: <strong>${ogrenciler.length - hesapVar}</strong></span>
+  </div>`;
+
+  Object.entries(sinifGruplari).sort((a,b) => a[0].localeCompare(b[0],"tr")).forEach(([sinif, liste]) => {
+    const sinifId = sinif.replace(/[^a-zA-Z0-9]/g,"_");
+    html += `<div class="accordion-item" style="margin-bottom:6px;">
+      <div class="accordion-baslik" onclick="this.nextElementSibling.classList.toggle('acik')">
+        <span>📚 ${sinif} <span style="font-size:12px;color:#888;">(${liste.length} öğrenci)</span></span>
+        <span>▼</span>
+      </div>
+      <div class="accordion-icerik">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead><tr style="background:#f8f9fa;">
+            <th style="padding:7px;text-align:left;border-bottom:1px solid #e0e0e0;">Ad Soyad</th>
+            <th style="padding:7px;text-align:left;border-bottom:1px solid #e0e0e0;">No</th>
+            <th style="padding:7px;text-align:left;border-bottom:1px solid #e0e0e0;">Hesap</th>
+            <th style="padding:7px;border-bottom:1px solid #e0e0e0;"></th>
+          </tr></thead><tbody>`;
+    liste.forEach(o => {
+      const hesapBilgi = o.kimlik_email
+        ? `<span class="rozet rozet-yesil" style="font-size:11px;">✓ ${o.kimlik_email}</span>`
+        : `<span class="rozet rozet-gri" style="font-size:11px;">Hesap Yok</span>`;
+      html += `<tr>
+        <td style="padding:7px;border-bottom:1px solid #f5f5f5;">${o.name}</td>
+        <td style="padding:7px;border-bottom:1px solid #f5f5f5;">${o.student_number||""}</td>
+        <td style="padding:7px;border-bottom:1px solid #f5f5f5;">${hesapBilgi}</td>
+        <td style="padding:7px;border-bottom:1px solid #f5f5f5;white-space:nowrap;">
+          <button class="btn btn-mavi btn-sm" onclick="ogrenciHesapVer('${o.id}','${(o.name||"").replace(/'/g,"\\'")}')">
+            ${o.kimlik_email ? "Yenile" : "Hesap Aç"}
+          </button>
+          <button class="btn btn-kirmizi btn-sm" onclick="ogrenciSil('${o.id}','${(o.name||"").replace(/'/g,"\\'")}')">Sil</button>
+        </td>
+      </tr>`;
+    });
+    html += `</tbody></table></div></div>`;
+  });
+
   container.innerHTML = html;
 };
 
+// ── Yeni öğrenci ekle + hesap oluştur ──
 window.ogrenciEkle = async function () {
-  const { db, addDoc, collection, serverTimestamp } = window.__portal;
+  const { db, addDoc, collection, serverTimestamp, httpsCallable, functions } = window.__portal;
   const no = document.getElementById("ayarOgrenciNo").value.trim();
   const ad = document.getElementById("ayarOgrenciAd").value.trim();
   const sinif = document.getElementById("ayarOgrenciSinif").value;
-  if (!no || !ad || !sinif) {
-    mesajGoster("ogrenciEkleMesaj", "Tum alanlari doldurun.", "hata");
-    return;
-  }
-  await addDoc(collection(db, "students"), {
-    student_number: no,
-    name: ad,
-    class_id: sinif,
-    status: "active",
-    created_at: serverTimestamp(),
-  });
-  mesajGoster("ogrenciEkleMesaj", "Ogrenci eklendi.", "basari");
-  document.getElementById("ayarOgrenciNo").value = "";
-  document.getElementById("ayarOgrenciAd").value = "";
-  window.ogrencileriGetir();
-};
+  let email = document.getElementById("ayarOgrenciEmail").value.trim();
+  let sifre = document.getElementById("ayarOgrenciSifre").value.trim();
 
-window.ogrenciSil = async function (id, isim) {
-  const { db, deleteDoc, doc } = window.__portal;
-  if (!confirm(`"${isim}" adli ogrenciyi silmek istediginize emin misiniz?`)) return;
+  if (!no || !ad || !sinif) { mesajGoster("ogrenciEkleMesaj", "No, ad ve sinif zorunludur.", "hata"); return; }
+  if (!email) email = window.emailUret(ad);
+  if (!sifre) sifre = window.sifreUret();
+  if (sifre.length < 5) { mesajGoster("ogrenciEkleMesaj", "Sifre en az 5 karakter olmali.", "hata"); return; }
+
+  mesajGoster("ogrenciEkleMesaj", "Ogrenci ekleniyor...", "bilgi");
   try {
-    await deleteDoc(doc(db, "students", id));
+    const docRef = await addDoc(collection(db, "students"), {
+      student_number: no, name: ad, class_id: sinif,
+      status: "active", created_at: serverTimestamp(),
+    });
+    const fn = httpsCallable(functions, "ogrenciHesapOlustur");
+    await fn({ ogrenciId: docRef.id, email, sifre });
+    mesajGoster("ogrenciEkleMesaj", `Eklendi! Kullanici: ${email} / Sifre: ${sifre}`, "basari");
+    document.getElementById("ayarOgrenciNo").value = "";
+    document.getElementById("ayarOgrenciAd").value = "";
+    document.getElementById("ayarOgrenciEmail").value = "";
+    document.getElementById("ayarOgrenciSifre").value = "";
     window.ogrencileriGetir();
   } catch (err) {
     mesajGoster("ogrenciEkleMesaj", "Hata: " + err.message, "hata");
   }
+};
+
+// ── Var olan öğrenciye hesap ver / yenile ──
+window.ogrenciHesapVer = async function (ogrenciId, isim) {
+  const { httpsCallable, functions } = window.__portal;
+  const email = window.emailUret(isim);
+  const sifre = window.sifreUret();
+  if (!confirm(`"${isim}" için hesap oluşturulacak:\nKullanıcı: ${email}\nŞifre: ${sifre}\n\nOnayla?`)) return;
+  try {
+    const fn = httpsCallable(functions, "ogrenciHesapOlustur");
+    await fn({ ogrenciId, email, sifre });
+    window.ogrencileriGetir();
+  } catch (err) {
+    alert("Hata: " + err.message);
+  }
+};
+
+// ── Öğrenci sil (Auth + users + students) ──
+window.ogrenciSil = async function (id, isim) {
+  const { httpsCallable, functions } = window.__portal;
+  if (!confirm(`"${isim}" adli ogrenciyi ve hesabini tamamen silmek istiyor musunuz?`)) return;
+  try {
+    const fn = httpsCallable(functions, "ogrenciSilTamamen");
+    await fn({ ogrenciId: id });
+    window.ogrencileriGetir();
+  } catch (err) {
+    alert("Hata: " + err.message);
+  }
+};
+
+// ── Toplu hesap oluştur ──
+window.tumOgrencilereHesapAc = async function () {
+  const { db, getDocs, collection, httpsCallable, functions } = window.__portal;
+  const ilerlemeEl = document.getElementById("topluOgrenciIlerleme");
+
+  const snap = await getDocs(collection(db, "students"));
+  const hesapsizlar = [];
+  snap.forEach(d => { if (!d.data().kimlik_email) hesapsizlar.push({ id: d.id, ...d.data() }); });
+
+  if (!hesapsizlar.length) { alert("Tüm öğrencilerin hesabı zaten mevcut."); return; }
+  if (!confirm(`${hesapsizlar.length} öğrenciye hesap oluşturulacak. Bu işlem biraz sürebilir. Devam?`)) return;
+
+  ilerlemeEl.style.display = "block";
+  const fn = httpsCallable(functions, "ogrenciHesapOlustur");
+  let tamamlanan = 0, hata = 0;
+
+  for (const o of hesapsizlar) {
+    ilerlemeEl.textContent = `⏳ İşleniyor: ${tamamlanan} / ${hesapsizlar.length}`;
+    const email = window.emailUret(o.name || "ogrenci");
+    const sifre = window.sifreUret();
+    try {
+      await fn({ ogrenciId: o.id, email, sifre });
+      tamamlanan++;
+    } catch (e) { hata++; }
+  }
+
+  ilerlemeEl.textContent = `✅ Tamamlandı: ${tamamlanan} hesap oluşturuldu${hata ? ` (${hata} hata)` : ""}.`;
+  window.ogrencileriGetir();
+};
+
+// ── Şifre Listesi ──
+window.sifreListesiGoster = async function () {
+  const { db, getDocs, collection } = window.__portal;
+  const container = document.getElementById("sifre-listesi-icerik");
+  container.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
+
+  const snap = await getDocs(collection(db, "students"));
+  const hesaplılar = [];
+  snap.forEach(d => { const v = d.data(); if (v.kimlik_email) hesaplılar.push({ id: d.id, ...v }); });
+
+  if (!hesaplılar.length) {
+    container.innerHTML = '<div class="bos-mesaj">Henüz hesabı olan öğrenci yok.</div>';
+    return;
+  }
+
+  hesaplılar.sort((a, b) => (a.class_id||"").localeCompare(b.class_id||"","tr") || (a.name||"").localeCompare(b.name||"","tr"));
+
+  const sinifGruplari = {};
+  hesaplılar.forEach(o => {
+    const s = o.class_id || "Sinıfsız";
+    if (!sinifGruplari[s]) sinifGruplari[s] = [];
+    sinifGruplari[s].push(o);
+  });
+
+  let html = `<p style="font-size:13px;color:#888;margin-bottom:12px;">${hesaplılar.length} öğrencinin giriş bilgileri.</p>`;
+
+  Object.entries(sinifGruplari).sort((a,b) => a[0].localeCompare(b[0],"tr")).forEach(([sinif, liste]) => {
+    const sinifId = sinif.replace(/[^a-zA-Z0-9]/g,"_");
+    html += `<div class="accordion-item" style="margin-bottom:8px;">
+      <div class="accordion-baslik print-show" onclick="this.nextElementSibling.classList.toggle('acik')">
+        <span><strong>${sinif}</strong> <span style="font-size:12px;color:#888;">(${liste.length} öğrenci)</span></span>
+        <span class="no-print">▼</span>
+      </div>
+      <div class="accordion-icerik acik">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead><tr style="background:#1557b0;color:white;">
+            <th style="padding:8px;text-align:left;">No</th>
+            <th style="padding:8px;text-align:left;">Ad Soyad</th>
+            <th style="padding:8px;text-align:left;">Kullanici Adi (E-posta)</th>
+            <th style="padding:8px;text-align:left;">Sifre</th>
+          </tr></thead><tbody>`;
+    liste.forEach((o, i) => {
+      html += `<tr style="${i%2===0?"background:#fafafa;":""}">
+        <td style="padding:7px;border-bottom:1px solid #f0f0f0;">${o.student_number||""}</td>
+        <td style="padding:7px;border-bottom:1px solid #f0f0f0;font-weight:600;">${o.name||""}</td>
+        <td style="padding:7px;border-bottom:1px solid #f0f0f0;font-family:monospace;">${o.kimlik_email||""}</td>
+        <td style="padding:7px;border-bottom:1px solid #f0f0f0;font-family:monospace;font-weight:700;">${o.kimlik_sifre||""}</td>
+      </tr>`;
+    });
+    html += `</tbody></table></div></div>`;
+  });
+
+  container.innerHTML = html;
 };
 
 async function donemBilgisiniGetir() {
