@@ -578,8 +578,34 @@
             }
           });
 
-          alan.innerHTML =
-            html || '<div class="bos-mesaj">Veri bulunamadı.</div>';
+          // ── TANILAMA BÖLÜMÜ (yazdırılmaz) ──
+          const taniSatirlar = Object.entries(yoklamalar).map(([cid, dersler]) => {
+            const eslesme = siniflar.find(s => s.class_name.trim().toUpperCase() === cid);
+            const dersStr = Object.keys(dersler).join(', ');
+            const yokStr = Object.values(dersler).map(a => a.length).join(', ');
+            return `<tr><td><code>${cid}</code></td><td>${dersStr}</td><td>${yokStr}</td><td>${eslesme ? '✅ ' + eslesme.class_name + ' (grade=' + eslesme.grade + ')' : '❌ Classes\'ta yok'}</td></tr>`;
+          }).join('');
+
+          const programKaynagi = todayLessonsSnap.empty ? '⚠️ schedule (fallback — today_lessons boş)' : '✅ today_lessons';
+          const programSiniflar = Object.keys(program).join(', ') || '(yok)';
+
+          const taniHtml = `<div class="no-print" style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:14px 18px;margin-bottom:16px;font-size:12px;">
+            <strong>🔍 Tanılama — Yazdırılmaz</strong>
+            <div style="margin-top:8px;"><b>Yoklama kayıtları (${yokSnap.size} adet):</b>
+              ${taniSatirlar ? `<table style="margin-top:6px;border-collapse:collapse;font-size:12px;">
+                <tr style="background:#ffc107;"><th style="padding:3px 8px;">class_id</th><th style="padding:3px 8px;">Dersler</th><th style="padding:3px 8px;">Yoklayan</th><th style="padding:3px 8px;">Classes eşleşmesi</th></tr>
+                ${taniSatirlar}</table>` : '<span style="color:#c5221f;"> Yoklama kaydı bulunamadı — date formatı eşleşmiyordur</span>'}
+            </div>
+            <div style="margin-top:8px;"><b>Program kaynağı:</b> ${programKaynagi}<br><b>Program sınıfları:</b> ${programSiniflar}</div>
+            <div style="margin-top:8px;"><b>Classes koleksiyonu (${siniflar.length} sınıf, grade filtresi [5,6,7,8]):</b>
+              ${siniflar.map(s => {
+                const gec = [5,6,7,8].includes(Number(s.grade)) || (!s.grade && [5,6,7,8].includes(Number((s.class_name||"").charAt(0))));
+                return `<span style="margin-right:8px;">${gec ? '✅' : '❌'} ${s.class_name}(${s.grade ?? '?'})</span>`;
+              }).join('')}
+            </div>
+          </div>`;
+
+          alan.innerHTML = taniHtml + (html || '<div class="bos-mesaj">Veri bulunamadı.</div>');
           durum.textContent = `✓ ${toplamSayfa} sayfa oluşturuldu. Yazdırmak için butona tıklayın.`;
         } catch (err) {
           console.error(err);
