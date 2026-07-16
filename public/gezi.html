@@ -165,7 +165,6 @@
         <button class="ana-sekme-btn" onclick="anaSekmeSec('katilim', this)">📋 Katılım</button>
         <button class="ana-sekme-btn" onclick="anaSekmeSec('koltuk', this)">💺 Koltuk Düzeni</button>
         <button class="ana-sekme-btn" onclick="anaSekmeSec('katilimcilar', this)">🖨 Liste & Yazdır</button>
-        <button class="ana-sekme-btn" onclick="anaSekmeSec('ogrenciler', this)">👤 Öğrenci Hesapları</button>
       </div>
 
       <!-- ── GEZILER SEKMESİ ── -->
@@ -292,27 +291,6 @@
             </div>
           </div>
         </div>
-
-        <!-- ── ÖĞRENCI HESAPLARI SEKMESİ ── -->
-        <div id="panel-ogrenciler" class="sekme-panel">
-          <div class="kart">
-            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:14px; padding-bottom:14px; border-bottom:1px solid #f0f0f0;">
-              <h3 style="margin:0; padding:0; border:none;">Öğrenci Hesapları</h3>
-              <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-                <select id="hesapSinifFiltre" style="padding:8px 12px; border:1px solid #ddd; border-radius:8px; font-size:14px; font-family:inherit;" onchange="ogrenciListesiYukle()">
-                  <option value="">Tüm Sınıflar</option>
-                </select>
-                <button class="btn btn-gri" onclick="ogrenciListesiYukle()">↻ Yenile</button>
-              </div>
-            </div>
-            <div id="hesapOzetSatir" style="display:none; margin-bottom:14px; font-size:14px; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-              <span id="hesapOzetMetin" style="color:#555;"></span>
-              <button class="btn btn-yesil" id="topluOlusturBtn" onclick="topluHesapOlusturFiltreli()" style="display:none;">⚡ Hesabı Olmayanlara Toplu Oluştur</button>
-            </div>
-            <div id="topluIlerleme" style="font-size:13px; color:#1a73e8; margin-bottom:10px; display:none;"></div>
-            <div id="hesapTabloContainer"><div class="bos-mesaj">Yükleniyor...</div></div>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -321,9 +299,6 @@
       import {
         getAuth, onAuthStateChanged,
       } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-      import {
-        getFunctions, httpsCallable,
-      } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
       import {
         getFirestore, doc, getDoc, addDoc, deleteDoc, getDocs,
         collection, query, where, serverTimestamp,
@@ -341,14 +316,9 @@
       const app = initializeApp(firebaseConfig);
       const auth = getAuth(app);
       const db = getFirestore(app);
-      const functions = getFunctions(app, "europe-west1");
-
       let tumSiniflar = [];
       let aktifGeziler = [];
       let aktifKoltukData = { geziId: null, aracNo: null, koltukSayisi: 0 };
-      let tumOgrenciler = [];
-      let mevcutHesaplar = new Set();
-
       // ── AUTH ──
       onAuthStateChanged(auth, async (user) => {
         if (!user) { window.location.href = "/portal.html"; return; }
@@ -387,7 +357,6 @@
         document.querySelectorAll(".ana-sekme-btn").forEach(b => b.classList.remove("aktif"));
         document.getElementById("panel-" + sekme).classList.add("aktif");
         btn.classList.add("aktif");
-        if (sekme === "ogrenciler") ogrenciListesiYukle();
         if (sekme === "katilimcilar") listSekmesiBaslat();
       };
 
@@ -838,125 +807,6 @@
         alert("Koltuk düzeni kaydedildi.");
       };
 
-      // ── ÖĞRENCI HESAPLARI ──
-      window.ogrenciListesiYukle = async () => {
-        const container = document.getElementById("hesapTabloContainer");
-        const sinifFiltre = document.getElementById("hesapSinifFiltre").value;
-        container.innerHTML = '<div class="yukleniyor-mesaj">Yükleniyor...</div>';
-
-        // students koleksiyonunu çek
-        const ogrSnap = await getDocs(collection(db, "students"));
-        tumOgrenciler = [];
-        ogrSnap.forEach(d => tumOgrenciler.push({ id: d.id, ...d.data() }));
-        tumOgrenciler.sort((a, b) => (a.class_id || "").localeCompare(b.class_id || "") || (a.name || "").localeCompare(b.name || ""));
-
-        // Mevcut hesapları çek
-        const usersSnap = await getDocs(query(
-          collection(db, "users"),
-          where("rol", "==", "ogrenci")
-        ));
-        mevcutHesaplar = new Set();
-        usersSnap.forEach(d => {
-          const no = d.data().ogrenci_no;
-          if (no) mevcutHesaplar.add(String(no));
-        });
-
-        const liste = sinifFiltre
-          ? tumOgrenciler.filter(o => o.class_id === sinifFiltre)
-          : tumOgrenciler;
-
-        const hesapYok = liste.filter(o => !mevcutHesaplar.has(String(o.student_number)));
-        const hesapVar = liste.filter(o => mevcutHesaplar.has(String(o.student_number)));
-
-        // Özet satırı
-        const ozetEl = document.getElementById("hesapOzetSatir");
-        document.getElementById("hesapOzetMetin").textContent =
-          `Toplam: ${liste.length} öğrenci  |  ✅ Hesabı var: ${hesapVar.length}  |  ⚪ Hesabı yok: ${hesapYok.length}`;
-        ozetEl.style.display = "flex";
-        document.getElementById("topluOlusturBtn").style.display = hesapYok.length > 0 ? "inline-block" : "none";
-
-        if (liste.length === 0) {
-          container.innerHTML = '<div class="bos-mesaj">Bu sınıfta öğrenci bulunamadı</div>';
-          return;
-        }
-
-        let html = `<table>
-          <thead><tr>
-            <th>Ad Soyad</th><th>Sınıf</th><th>Öğrenci No</th><th>Durum</th><th>İşlem</th>
-          </tr></thead><tbody>`;
-        liste.forEach(o => {
-          const no = String(o.student_number || "");
-          const ad = o.name || "";
-          const sinif = o.class_id || "-";
-          const varMi = mevcutHesaplar.has(no);
-          const durum = varMi
-            ? '<span class="rozet rozet-yesil">✅ Hesap Var</span>'
-            : '<span class="rozet rozet-gri">⚪ Hesap Yok</span>';
-          const islem = varMi
-            ? '<span style="color:#aaa; font-size:12px;">—</span>'
-            : `<button class="btn btn-yesil" style="padding:4px 10px; font-size:12px;"
-                data-no="${no}" data-ad="${ad.replace(/"/g, '&quot;')}"
-                onclick="tekHesapOlustur('${no}', this.dataset.ad, this)">Hesap Oluştur</button>`;
-          html += `<tr data-no="${no}">
-            <td>${ad}</td><td>${sinif}</td><td>${no}</td><td class="durum-hucre">${durum}</td><td>${islem}</td>
-          </tr>`;
-        });
-        html += "</tbody></table>";
-        container.innerHTML = html;
-      };
-
-      window.tekHesapOlustur = async (no, ad, btn) => {
-        btn.disabled = true;
-        btn.textContent = "...";
-        try {
-          const ogrenciOlustur = httpsCallable(functions, "ogrenciOlustur");
-          await ogrenciOlustur({ ad, ogrenci_no: no });
-          mevcutHesaplar.add(String(no));
-          const satir = document.querySelector(`tr[data-no="${no}"]`);
-          if (satir) {
-            satir.querySelector(".durum-hucre").innerHTML = '<span class="rozet rozet-yesil">✅ Hesap Var</span>';
-            btn.parentElement.innerHTML = '<span style="color:#aaa; font-size:12px;">—</span>';
-          }
-          // Özet güncelle
-          const hesapYokSayisi = document.querySelectorAll('.rozet-gri').length;
-          const toplamSayisi = tumOgrenciler.length;
-          document.getElementById("hesapOzetMetin").textContent =
-            `Toplam: ${toplamSayisi} öğrenci  |  ✅ Hesabı var: ${mevcutHesaplar.size}  |  ⚪ Hesabı yok: ${hesapYokSayisi}`;
-          if (hesapYokSayisi === 0) document.getElementById("topluOlusturBtn").style.display = "none";
-        } catch (err) {
-          btn.disabled = false;
-          btn.textContent = "Hesap Oluştur";
-          btn.style.background = "#ea4335";
-          btn.title = err.message;
-          alert("Hata: " + err.message);
-        }
-      };
-
-      window.topluHesapOlusturFiltreli = async () => {
-        const satirlar = document.querySelectorAll("#hesapTabloContainer tbody tr");
-        const bekleyenler = [];
-        satirlar.forEach(satir => {
-          const btn = satir.querySelector("button[data-no]");
-          if (btn && !btn.disabled) {
-            bekleyenler.push({ no: btn.dataset.no, ad: btn.dataset.ad, btn });
-          }
-        });
-        if (bekleyenler.length === 0) return;
-        if (!confirm(`${bekleyenler.length} öğrenci için hesap oluşturulacak. Devam?`)) return;
-
-        const ilerlemeEl = document.getElementById("topluIlerleme");
-        ilerlemeEl.style.display = "block";
-        document.getElementById("topluOlusturBtn").disabled = true;
-
-        let tamamlanan = 0;
-        for (const { no, ad, btn } of bekleyenler) {
-          ilerlemeEl.textContent = `⏳ İşleniyor: ${tamamlanan} / ${bekleyenler.length}`;
-          await tekHesapOlustur(no, ad, btn);
-          tamamlanan++;
-        }
-        ilerlemeEl.textContent = `✅ Tamamlandı: ${tamamlanan} hesap oluşturuldu.`;
-        document.getElementById("topluOlusturBtn").disabled = false;
-      };
     </script>
   </body>
 </html>

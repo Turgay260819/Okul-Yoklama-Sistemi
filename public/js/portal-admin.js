@@ -309,7 +309,7 @@ window.manuelDersOlustur = async () => {
   try {
     const fn = httpsCallable(functions, "manuelDersOlustur");
     const r = await fn({ tarih: bugun });
-    mesajGoster("dersOlusturMesaj", r.data.message, "basari");
+    mesajGoster("dersOlusturMesaj", r.data.message, r.data.success ? "basari" : "hata");
     anasayfaYukle();
   } catch (err) {
     mesajGoster("dersOlusturMesaj", "Hata: " + err.message, "hata");

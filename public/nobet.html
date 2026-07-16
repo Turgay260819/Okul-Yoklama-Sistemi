@@ -316,6 +316,8 @@
       await nobetYukle();
 
       if (aktifRol === 'ogretmen') {
+        document.querySelector('.nobet-tablo').style.display = 'none';
+        document.querySelector('.kontrol-bar').style.display = 'none';
         const ogSnap = await getDocs(query(collection(db, 'teachers'), where('uid', '==', user.uid)));
         const teacherId = ogSnap.empty ? null : ogSnap.docs[0].id;
         await gunDegismeNobetimYukle(teacherId);

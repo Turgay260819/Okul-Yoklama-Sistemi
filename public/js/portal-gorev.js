@@ -263,23 +263,27 @@ let _guncelSiraTuru = "genel";
 async function _siralariYukle() {
   const container = document.getElementById("siraListesiIcerik");
   container.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
-  const [siraSnap, raporSnap] = await Promise.all([
-    getDocs(collection(db, "ogretmen_sirasi")),
-    getDocs(collection(db, "ogretmen_rapor")),
-  ]);
-  const siralar = [];
-  siraSnap.forEach((d) => siralar.push({ id: d.id, ...d.data() }));
-  const raporlar = [];
-  raporSnap.forEach((d) => raporlar.push({ id: d.id, ...d.data() }));
+  try {
+    const [siraSnap, raporSnap] = await Promise.all([
+      getDocs(collection(db, "ogretmen_sirasi")),
+      getDocs(collection(db, "ogretmen_rapor")),
+    ]);
+    const siralar = [];
+    siraSnap.forEach((d) => siralar.push({ id: d.id, ...d.data() }));
+    const raporlar = [];
+    raporSnap.forEach((d) => raporlar.push({ id: d.id, ...d.data() }));
 
-  // Sekmeleri: mevcut sıra türleri + genel (her zaman göster)
-  const turler = [...new Set(["genel", ...siralar.map((s) => s.sira_turu)])].sort();
-  const tabBar = document.getElementById("siraTabBar");
-  tabBar.innerHTML = turler.map((t, i) =>
-    `<button class="sekme-btn ${i === 0 ? "aktif" : ""}" onclick="siraTabGoster('${esc(t)}',this)">${t === "genel" ? "Genel Sira" : esc(t.replace("brans_", ""))}</button>`,
-  ).join("");
-  _guncelSiraTuru = turler[0];
-  _siraTabGosterIcerik(turler[0], siralar, raporlar);
+    // Sekmeleri: mevcut sıra türleri + genel (her zaman göster)
+    const turler = [...new Set(["genel", ...siralar.map((s) => s.sira_turu)])].sort();
+    const tabBar = document.getElementById("siraTabBar");
+    tabBar.innerHTML = turler.map((t, i) =>
+      `<button class="sekme-btn ${i === 0 ? "aktif" : ""}" onclick="siraTabGoster('${esc(t)}',this)">${t === "genel" ? "Genel Sira" : esc(t.replace("brans_", ""))}</button>`,
+    ).join("");
+    _guncelSiraTuru = turler[0];
+    _siraTabGosterIcerik(turler[0], siralar, raporlar);
+  } catch (err) {
+    container.innerHTML = `<div class="bos-mesaj" style="color:#ea4335;">Hata: ${esc(err.message)}</div>`;
+  }
 }
 
 window.siraTabGoster = (tur, el) => {
@@ -488,7 +492,7 @@ window.kilitSil = async (id) => {
 async function _gorevRaporlariYukle() {
   const container = document.getElementById("gorevRaporlariIcerik");
   container.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
-
+  try {
   const [gorevSnap, siraSnap, raporSnap] = await Promise.all([
     getDocs(collection(db, "gorevler")),
     getDocs(collection(db, "ogretmen_sirasi")),
@@ -590,6 +594,9 @@ async function _gorevRaporlariYukle() {
   html += `</div>`;
 
   container.innerHTML = html;
+  } catch (err) {
+    container.innerHTML = `<div class="bos-mesaj" style="color:#ea4335;">Hata: ${esc(err.message)}</div>`;
+  }
 }
 
 window.raporSil = async (raporId) => {
