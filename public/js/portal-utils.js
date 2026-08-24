@@ -12,6 +12,29 @@ export function bransNormalize(brans) {
 }
 window.bransNormalize = bransNormalize;
 
+// Gün adlarını Türkçe aksan/harf farkından bağımsız, tek bir biçime indirger
+// (örn. "Salı", "sali", "SALI" hepsi "sali" olur). schedule.day / dyk_courses.gun
+// gibi alanlar farklı biçimlerde girilmiş olabileceğinden karşılaştırmalarda
+// her zaman bu fonksiyon üzerinden kıyaslama yapılmalı.
+export function normalizeGun(gun) {
+  return String(gun || "")
+    .trim()
+    .toLocaleLowerCase("tr")
+    .replace(/ı/g, "i")
+    .replace(/ş/g, "s")
+    .replace(/ç/g, "c")
+    .replace(/ğ/g, "g")
+    .replace(/ü/g, "u")
+    .replace(/ö/g, "o");
+}
+window.normalizeGun = normalizeGun;
+
+const _GUNLER_SIRALI = ["pazar", "pazartesi", "salı", "çarşamba", "perşembe", "cuma", "cumartesi"];
+export function gunAdiGetir(tarihStr) {
+  return normalizeGun(_GUNLER_SIRALI[new Date(tarihStr + "T12:00:00").getDay()]);
+}
+window.gunAdiGetir = gunAdiGetir;
+
 // Escapes user-provided strings before injecting into innerHTML
 export function esc(str) {
   return String(str ?? "")

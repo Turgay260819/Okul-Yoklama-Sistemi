@@ -1,6 +1,6 @@
 import {
   db, bugun,
-  getDocs, addDoc, updateDoc,
+  getDocs, addDoc, updateDoc, deleteDoc,
   collection, query, where, doc, serverTimestamp,
 } from "./portal-config.js";
 import { state } from "./portal-state.js";
@@ -50,6 +50,15 @@ window.modalYoklamaKaydet = async () => {
     yoklar.push(c.id.replace("chk-", "")),
   );
   try {
+    const eskiSnap = await getDocs(
+      query(
+        collection(db, "attendance"),
+        where("date", "==", bugun),
+        where("class_id", "==", state.aktifDers.classId),
+        where("lesson_number", "==", state.aktifDers.lessonNo),
+      ),
+    );
+    await Promise.all(eskiSnap.docs.map((d) => deleteDoc(d.ref)));
     await addDoc(collection(db, "attendance"), {
       date: bugun,
       class_id: state.aktifDers.classId,

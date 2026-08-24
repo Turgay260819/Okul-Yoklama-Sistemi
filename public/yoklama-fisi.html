@@ -221,6 +221,19 @@
         text-align: center;
       }
 
+      .yh-girilmedi {
+        background: repeating-linear-gradient(45deg, #eee, #eee 3px, #ddd 3px, #ddd 6px);
+      }
+
+      .yh-girilmedi .yh-ic {
+        font-weight: 700;
+        color: #b00;
+        writing-mode: vertical-rl;
+        text-orientation: mixed;
+        max-height: none;
+        letter-spacing: 0.5px;
+      }
+
       /* İmza satırı */
       .ih {
         height: 3mm;
@@ -538,13 +551,16 @@
                 const dersKisa = (ders.lesson_name || "").substring(0, 4).toUpperCase();
                 const ogr = ogretmenler[ders.teacher_id];
                 const ogrKisa = kisalt(ogr?.ad || "");
+                const girildi = Object.prototype.hasOwnProperty.call(sinifYok, dersNo);
                 const yoklar = sinifYok[dersNo] || [];
                 const yokSirali = [...yoklar].sort((a, b) => { const na = parseInt(a), nb = parseInt(b); return isNaN(na)||isNaN(nb) ? String(a).localeCompare(String(b)) : na - nb; });
                 const yokFs = yokSirali.length <= 7 ? "8pt" : yokSirali.length <= 9 ? "7pt" : yokSirali.length <= 11 ? "6pt" : yokSirali.length <= 13 ? "5pt" : "4.5pt";
                 const yokMetin = yokSirali.join("<br>");
                 drsRow += `<td class="dh">${dersKisa}</td>`;
                 satRow += `<td class="dh">${dersNo}</td>`;
-                yokRow += `<td class="yh"><div class="yh-ic" style="font-size:${yokFs};">${yokMetin}</div></td>`;
+                yokRow += girildi
+                  ? `<td class="yh"><div class="yh-ic" style="font-size:${yokFs};">${yokMetin}</div></td>`
+                  : `<td class="yh yh-girilmedi"><div class="yh-ic">GİRİLMEDİ</div></td>`;
                 ogrRow += `<td class="dh" style="font-size:6.5pt;">${ogrKisa}</td>`;
                 imzRow += `<td class="ih"></td>`;
               }

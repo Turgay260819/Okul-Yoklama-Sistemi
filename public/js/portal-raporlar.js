@@ -70,14 +70,16 @@ window.gunlukRaporGetir = async function () {
   );
 
   // O günün haftanın günü adını hesapla (schedule'daki day alanıyla eşleşsin)
-  const _GUNLER_TR = ["pazar", "pazartesi", "sali", "carsamba", "persembe", "cuma", "cumartesi"];
-  const gunAdi = _GUNLER_TR[new Date(tarih + "T12:00:00").getDay()];
+  const gunAdi = gunAdiGetir(tarih);
 
   // O gün için programdaki ders sayısını sınıf bazında çek
-  const schedSnap = await getDocs(query(collection(db, "schedule"), where("day", "==", gunAdi)));
+  // (schedule.day yazımı Excel'e göre değişebildiğinden tüm program çekilip
+  // normalizeGun ile karşılaştırılıyor — bkz. portal-utils.js)
+  const schedSnap = await getDocs(collection(db, "schedule"));
   const sinifProgramDersSayisi = {};
   schedSnap.forEach((d) => {
     const v = d.data();
+    if (normalizeGun(v.day) !== gunAdi) return;
     if (!sinifProgramDersSayisi[v.class_id]) sinifProgramDersSayisi[v.class_id] = new Set();
     sinifProgramDersSayisi[v.class_id].add(v.lesson_number);
   });
@@ -389,6 +391,18 @@ window.istatistikGetir = async function () {
   const siniflar = {};
   sinifSnap.forEach((d) => (siniflar[d.data().class_name] = d.data()));
 
+  // Programdaki gerçek ders sayısını gün adı bazında çıkar (schedule haftalık tekrar eder)
+  // schedule.day yazımı kaynağa göre değişebildiğinden normalizeGun ile eşitleniyor
+  const schedSnap = await getDocs(collection(db, "schedule"));
+  const gunSinifProgramDersSayisi = {};
+  schedSnap.forEach((d) => {
+    const v = d.data();
+    const gun = normalizeGun(v.day);
+    if (!gunSinifProgramDersSayisi[gun]) gunSinifProgramDersSayisi[gun] = {};
+    if (!gunSinifProgramDersSayisi[gun][v.class_id]) gunSinifProgramDersSayisi[gun][v.class_id] = new Set();
+    gunSinifProgramDersSayisi[gun][v.class_id].add(v.lesson_number);
+  });
+
   const gunSinifDersler = {};
   const gunSinifYok = {};
   const gunlukToplam = {};
@@ -413,7 +427,9 @@ window.istatistikGetir = async function () {
 
   Object.values(gunSinifYok).forEach((ogr) => {
     const dersKey = ogr.date + "|" + ogr.class_id;
-    const toplamDers = gunSinifDersler[dersKey] || 1;
+    const gunAdi = gunAdiGetir(ogr.date);
+    // Programdaki toplam ders sayısını kullan; program yoksa girilen kayıt sayısına düş
+    const toplamDers = gunSinifProgramDersSayisi[gunAdi]?.[ogr.class_id]?.size || gunSinifDersler[dersKey] || 1;
     const tamGun = ogr.yok >= toplamDers;
     const kademe = siniflar[ogr.class_id]?.grade;
     if (!sd[ogr.class_id]) sd[ogr.class_id] = { tam: 0, yar: 0 };

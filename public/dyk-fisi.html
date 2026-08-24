@@ -68,6 +68,12 @@
       .incelendi strong { font-size: 8pt; display: block; }
       .imza-cizgi { border-top: 0.5px dotted #888; margin-top: 3mm; height: 5mm; }
 
+      .girilmedi-serit {
+        background: #fce8e6; color: #b00020; font-weight: 700;
+        font-size: 8pt; text-align: center; padding: 1mm; margin-bottom: 2mm;
+        border: 1px solid #b00020;
+      }
+
       @page { size: A4; margin: 5mm; }
 
       @media print {
@@ -102,6 +108,7 @@
       import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
       import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
       import { getFirestore, getDocs, collection, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+      import { normalizeGun, gunAdiGetir } from "./js/portal-utils.js";
 
       const app = initializeApp({
         apiKey: "AIzaSyAHTCiicd4b94rG1-jN0STRbwcrLmkYudo",
@@ -165,13 +172,14 @@
           devamsizlik[v.course_id] = v.absent_students || [];
         });
 
-        // Filtreleme
-        let gosterilecek = Object.values(kurslar);
+        // Filtreleme — seçilen tarihte dersi olmayan (gun alanı eşleşmeyen) kurslar hariç tutulur
+        const gunAdi = gunAdiGetir(tarih);
+        let gosterilecek = Object.values(kurslar).filter(k => !k.gun || normalizeGun(k.gun) === gunAdi);
         if (kursFiltre) gosterilecek = gosterilecek.filter(k => k.id === kursFiltre);
         gosterilecek.sort((a, b) => a.class_id.localeCompare(b.class_id));
 
         if (!gosterilecek.length) {
-          alan.innerHTML = '<div class="bos-mesaj">Gosterilecek kurs bulunamadi.</div>';
+          alan.innerHTML = '<div class="bos-mesaj">Bu tarihte dersi olan DYK kursu bulunamadi.</div>';
           durum.textContent = "";
           return;
         }
@@ -182,6 +190,7 @@
         for (const kurs of gosterilecek) {
           const ogr = ogretmenler[kurs.teacher_id];
           const ogrAd = ogr?.ad || "-";
+          const girildi = Object.prototype.hasOwnProperty.call(devamsizlik, kurs.id);
           const yoklar = devamsizlik[kurs.id] || [];
           const yokSet = new Set(yoklar);
 
@@ -192,11 +201,13 @@
 
           let fis = `<div class="fis">`;
           fis += `<div class="fis-baslik"><span>${kurs.class_id} — ${kurs.course_name}</span><span>Ogretmen: ${ogrAd} &nbsp;|&nbsp; Tarih: ${tarihStr.split(" ")[0]}</span></div>`;
+          if (!girildi) fis += `<div class="girilmedi-serit">⚠ YOKLAMA GİRİLMEMİŞ</div>`;
           fis += `<table class="fis-tablo"><thead><tr><th class="no">No</th><th class="isim">Ad Soyad</th><th>Geldi mi?</th><th class="imza">İmza</th></tr></thead><tbody>`;
 
           ogrenciler.forEach((o) => {
             const yok = yokSet.has(o.student_number);
-            fis += `<tr><td class="no">${o.student_number}</td><td class="isim">${o.name}</td><td style="text-align:center;font-size:10pt;">${yok ? "✗" : ""}</td><td class="imza"></td></tr>`;
+            const isaret = !girildi ? "" : (yok ? '<strong style="font-size:11pt;">-</strong>' : "+");
+            fis += `<tr><td class="no">${o.student_number}</td><td class="isim">${o.name}</td><td style="text-align:center;font-size:10pt;">${isaret}</td><td class="imza"></td></tr>`;
           });
 
           fis += `</tbody></table>`;

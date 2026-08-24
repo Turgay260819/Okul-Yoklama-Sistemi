@@ -462,6 +462,7 @@
         writeBatch,
         serverTimestamp,
       } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+      import { normalizeGun } from "./js/portal-utils.js";
 
       const firebaseConfig = {
         apiKey: "AIzaSyAHTCiicd4b94rG1-jN0STRbwcrLmkYudo",
@@ -548,9 +549,7 @@
           } else if (tip === "program") {
             programVerisi = veriRows
               .map((r) => ({
-                day: String(r[0] || "")
-                  .trim()
-                  .toLowerCase(),
+                day: normalizeGun(r[0]),
                 lesson_number: parseInt(r[1]) || 0,
                 class_id: String(r[2] || "")
                   .trim()

@@ -1,10 +1,26 @@
 const { setGlobalOptions } = require("firebase-functions/v2");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const admin = require("firebase-admin");
 setGlobalOptions({ region: "europe-west1" });
 
 admin.initializeApp();
+
+// schedule.day / dyk_courses.gun gibi alanlar Excel'den geldiği için Türkçe
+// aksanlı ("salı") ya da aksansız ("sali") yazılmış olabilir — karşılaştırma
+// yapan her yerde bu normalize fonksiyonu üzerinden kıyaslanmalı.
+function normalizeGun(gun) {
+  return String(gun || "")
+    .trim()
+    .toLocaleLowerCase("tr")
+    .replace(/ı/g, "i")
+    .replace(/ş/g, "s")
+    .replace(/ç/g, "c")
+    .replace(/ğ/g, "g")
+    .replace(/ü/g, "u")
+    .replace(/ö/g, "o");
+}
 
 const TELEGRAM_TOKEN = "8467331852:AAGgHjmRfmiX6wcx_JATti9BoyUa7XOI-Gs";
 const TELEGRAM_CHAT_ID = "7931893676";
@@ -306,10 +322,58 @@ exports.ogrenciSilTamamen = onCall(async (request) => {
 });
 
 // ===========================
-// GÜN SONU KONTROL
-// Her gün 16:00'da çalışır
+// GÜN SONU DEVAMSIZLIK HESABI
+// Bir sınıfın o günkü tüm ders yoklamaları girilmişse
+// daily_summary'ye tam gün/yarım gün kaydı yazar.
+// gunSonuKontrol (16:00) ve attendanceYazildiginda (her yoklama
+// kaydında) tarafından ortak kullanılır — böylece 16:00'dan sonra
+// geç girilen yoklamalar da güne dahil olur.
 // ===========================
-exports.gunSonuKontrol = onSchedule("0 16 * * 1-5", async (event) => {
+async function hesaplaVeYazDailySummary(db, tarih, sinif) {
+  const [todaySnap, yoklamaSnap] = await Promise.all([
+    db.collection("today_lessons").where("date", "==", tarih).where("class_id", "==", sinif).get(),
+    db.collection("attendance").where("date", "==", tarih).where("class_id", "==", sinif).get(),
+  ]);
+
+  const toplamDers = todaySnap.size;
+  if (toplamDers === 0) return { tamamlandi: false };
+
+  // Aynı ders için birden fazla kayıt olabileceğinden (düzeltme/tekrar giriş),
+  // tamamlanma kontrolünü benzersiz ders numarası sayısına göre yap.
+  const girilenDersNolari = new Set();
+  yoklamaSnap.forEach(doc => girilenDersNolari.add(doc.data().lesson_number));
+  if (girilenDersNolari.size < toplamDers) return { tamamlandi: false };
+
+  const ogrenciYokSayisi = {};
+  yoklamaSnap.forEach(doc => {
+    (doc.data().absent_students || []).forEach(ogrNo => {
+      ogrenciYokSayisi[ogrNo] = (ogrenciYokSayisi[ogrNo] || 0) + 1;
+    });
+  });
+
+  const batch = db.batch();
+  for (const [ogrNo, yokSayisi] of Object.entries(ogrenciYokSayisi)) {
+    const durum = yokSayisi >= toplamDers ? "full_day_absent" : "half_day_absent";
+    const ref = db.collection("daily_summary").doc(`${tarih}_${sinif}_${ogrNo}`);
+    batch.set(ref, {
+      date: tarih,
+      class_id: sinif,
+      student_number: ogrNo,
+      status: durum,
+      absent_lesson_count: yokSayisi,
+      total_lessons: toplamDers,
+      created_at: admin.firestore.FieldValue.serverTimestamp()
+    });
+  }
+  await batch.commit();
+  return { tamamlandi: true };
+}
+
+// ===========================
+// GÜN SONU KONTROL
+// Her gün 16:00'da (Türkiye saati) çalışır
+// ===========================
+exports.gunSonuKontrol = onSchedule({ schedule: "0 16 * * 1-5", timeZone: "Europe/Istanbul" }, async (event) => {
   const db = admin.firestore();
 
   const bugun = new Date().toISOString().split("T")[0];
@@ -320,69 +384,15 @@ exports.gunSonuKontrol = onSchedule("0 16 * * 1-5", async (event) => {
     .where("status", "==", "pending")
     .get();
 
-  // Devamsızlık hesapla
-  const yoklamaSnap = await db.collection("attendance")
-    .where("date", "==", bugun)
-    .get();
-
-  // Sınıf bazında yoklama sayısını hesapla
-  const sinifYoklamaSayisi = {};
-  const sinifToplamDers = {};
-
-  // today_lessons'dan toplam ders sayısını al
+  // O gün dersi olan sınıfları bul
   const todaySnap = await db.collection("today_lessons")
     .where("date", "==", bugun)
     .get();
+  const siniflar = new Set();
+  todaySnap.forEach(doc => siniflar.add(doc.data().class_id));
 
-  todaySnap.forEach(doc => {
-    const d = doc.data();
-    if (!sinifToplamDers[d.class_id]) sinifToplamDers[d.class_id] = 0;
-    sinifToplamDers[d.class_id]++;
-  });
-
-  // Girilen yoklamaları say
-  yoklamaSnap.forEach(doc => {
-    const d = doc.data();
-    if (!sinifYoklamaSayisi[d.class_id]) sinifYoklamaSayisi[d.class_id] = 0;
-    sinifYoklamaSayisi[d.class_id]++;
-  });
-
-  // Tüm yoklamalar girilmiş sınıflar için devamsızlık hesapla
-  for (const sinif of Object.keys(sinifToplamDers)) {
-    const toplamDers = sinifToplamDers[sinif];
-    const girilenDers = sinifYoklamaSayisi[sinif] || 0;
-
-    // Eksik yoklama varsa hesaplama yapma
-    if (girilenDers < toplamDers) continue;
-
-    // Öğrenci bazında devamsızlık hesapla
-    const ogrenciYokSayisi = {};
-
-    yoklamaSnap.forEach(doc => {
-      const d = doc.data();
-      if (d.class_id !== sinif) return;
-      (d.absent_students || []).forEach(ogrNo => {
-        if (!ogrenciYokSayisi[ogrNo]) ogrenciYokSayisi[ogrNo] = 0;
-        ogrenciYokSayisi[ogrNo]++;
-      });
-    });
-
-    // Devamsızlık kaydı oluştur
-    const batch = db.batch();
-    for (const [ogrNo, yokSayisi] of Object.entries(ogrenciYokSayisi)) {
-      const durum = yokSayisi >= toplamDers ? "full_day_absent" : "half_day_absent";
-      const ref = db.collection("daily_summary").doc(`${bugun}_${sinif}_${ogrNo}`);
-      batch.set(ref, {
-        date: bugun,
-        class_id: sinif,
-        student_number: ogrNo,
-        status: durum,
-        absent_lesson_count: yokSayisi,
-        total_lessons: toplamDers,
-        created_at: admin.firestore.FieldValue.serverTimestamp()
-      });
-    }
-    await batch.commit();
+  for (const sinif of siniflar) {
+    await hesaplaVeYazDailySummary(db, bugun, sinif);
   }
 
   // Telegram bildirimi için bildirim kuyruğuna ekle
@@ -402,6 +412,17 @@ exports.gunSonuKontrol = onSchedule("0 16 * * 1-5", async (event) => {
 });
 
 // ===========================
+// YOKLAMA KAYDI YAZILDIĞINDA
+// Bir dersin yoklaması (geç de olsa) girildiğinde, sınıfın o günkü
+// tüm dersleri tamamlandıysa daily_summary'yi hemen günceller.
+// ===========================
+exports.attendanceYazildiginda = onDocumentCreated("attendance/{attendanceId}", async (event) => {
+  const veri = event.data?.data();
+  if (!veri?.date || !veri?.class_id) return;
+  await hesaplaVeYazDailySummary(admin.firestore(), veri.date, veri.class_id);
+});
+
+// ===========================
 // BUGÜNÜN DERSLERİNİ OLUŞTUR
 // Her sabah 06:00'da çalışır
 // ===========================
@@ -409,7 +430,7 @@ exports.bugunDersleriniOlustur = onSchedule({ schedule: "0 3 * * *", timeZone: "
   const db = admin.firestore();
   const bugun = new Date();
   const gunler = ["pazar", "pazartesi", "salı", "çarşamba", "perşembe", "cuma", "cumartesi"];
-  const bugunAdi = gunler[bugun.getDay()];
+  const bugunAdi = normalizeGun(gunler[bugun.getDay()]);
   const tarih = bugun.toISOString().split("T")[0];
 
   if (bugunAdi === "cumartesi" || bugunAdi === "pazar") {
@@ -425,17 +446,17 @@ exports.bugunDersleriniOlustur = onSchedule({ schedule: "0 3 * * *", timeZone: "
     return;
   }
 
-  // schedule koleksiyonu: day (küçük harf), lesson_number, class_id, teacher_id (Firestore ID), lesson_name
-  const programSnap = await db.collection("schedule")
-    .where("day", "==", bugunAdi)
-    .get();
-  if (programSnap.empty) {
+  // schedule.day yazımı (Türkçe aksanlı/aksansız) Excel kaynağına göre değişebildiğinden
+  // tüm program çekilip normalizeGun ile karşılaştırılıyor (exact-match .where() yerine).
+  const tumProgramSnap = await db.collection("schedule").get();
+  const programDocs = tumProgramSnap.docs.filter(d => normalizeGun(d.data().day) === bugunAdi);
+  if (programDocs.length === 0) {
     console.log("Bugün için ders programı yok.");
     return;
   }
 
   const batch = db.batch();
-  programSnap.forEach(doc => {
+  programDocs.forEach(doc => {
     const ders = doc.data();
     const yeniRef = db.collection("today_lessons").doc();
     batch.set(yeniRef, {
@@ -450,7 +471,7 @@ exports.bugunDersleriniOlustur = onSchedule({ schedule: "0 3 * * *", timeZone: "
   });
 
   await batch.commit();
-  console.log(`${tarih} için ${programSnap.size} ders oluşturuldu.`);
+  console.log(`${tarih} için ${programDocs.length} ders oluşturuldu.`);
 });
 
 // ===========================
@@ -736,8 +757,8 @@ exports.manuelDersOlustur = onCall(async (request) => {
   const { tarih } = request.data;
 
   const bugunObj = new Date(tarih);
-  const gunler = ["pazar", "pazartesi", "sali", "carsamba", "persembe", "cuma", "cumartesi"];
-  const bugunAdi = gunler[bugunObj.getDay()];
+  const gunler = ["pazar", "pazartesi", "salı", "çarşamba", "perşembe", "cuma", "cumartesi"];
+  const bugunAdi = normalizeGun(gunler[bugunObj.getDay()]);
 
   // Mevcut kayıtları sil
   const mevcutSnap = await db.collection("today_lessons")
@@ -748,17 +769,17 @@ exports.manuelDersOlustur = onCall(async (request) => {
   mevcutSnap.forEach(doc => deleteBatch.delete(doc.ref));
   await deleteBatch.commit();
 
-  // schedule koleksiyonu: day (küçük harf), lesson_number, class_id, teacher_id (Firestore ID), lesson_name
-  const programSnap = await db.collection("schedule")
-    .where("day", "==", bugunAdi)
-    .get();
+  // schedule.day yazımı Excel kaynağına göre değişebildiğinden tüm program
+  // çekilip normalizeGun ile karşılaştırılıyor (exact-match .where() yerine).
+  const tumProgramSnap = await db.collection("schedule").get();
+  const programDocs = tumProgramSnap.docs.filter(d => normalizeGun(d.data().day) === bugunAdi);
 
-  if (programSnap.empty) {
+  if (programDocs.length === 0) {
     return { success: false, message: "Bu gün için ders programı yok." };
   }
 
   const batch = db.batch();
-  programSnap.forEach(doc => {
+  programDocs.forEach(doc => {
     const ders = doc.data();
     const yeniRef = db.collection("today_lessons").doc();
     batch.set(yeniRef, {
@@ -773,7 +794,7 @@ exports.manuelDersOlustur = onCall(async (request) => {
   });
 
   await batch.commit();
-  return { success: true, message: `${programSnap.size} ders oluşturuldu.` };
+  return { success: true, message: `${programDocs.length} ders oluşturuldu.` };
 });
 
 // ===========================
