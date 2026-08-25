@@ -1,4 +1,4 @@
-const CACHE = 'okul-pwa-v1';
+const CACHE = 'okul-pwa-v2';
 const STATIK = [
   '/portal.html',
   '/portal.css',
