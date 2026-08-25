@@ -47,6 +47,15 @@
         { "fieldPath": "date", "order": "ASCENDING" },
         { "fieldPath": "course", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "disiplin_kayitlar",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "donem", "order": "ASCENDING" },
+        { "fieldPath": "ogrenci_no", "order": "ASCENDING" },
+        { "fieldPath": "tarih", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
