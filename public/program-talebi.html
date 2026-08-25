@@ -429,6 +429,7 @@
       let tumTanimlar = [];
       let tumSiniflar = [];
       let tumDersListesi = [];
+      let tumOgretmenler = [];
       let subeToplam = {};
       let tumMatrisler = {};
       let benimMatris = {};
@@ -459,6 +460,11 @@
             aktifOgretmenId = ogSnap.docs[0].id;
             aktifOgretmenAdi = ogSnap.docs[0].data().ad || "";
           }
+        } else if (aktifRol === "admin" || aktifRol === "mudur_yardimcisi") {
+          const tumOgSnap = await getDocs(collection(db, "teachers"));
+          tumOgretmenler = [];
+          tumOgSnap.forEach((d) => tumOgretmenler.push({ id: d.id, ...d.data() }));
+          tumOgretmenler.sort((a, b) => (a.ad || "").localeCompare(b.ad || "", "tr"));
         }
 
         const sinifSnap = await getDocs(collection(db, "classes"));
@@ -506,22 +512,6 @@
         snap.forEach((d) => tumDersListesi.push({ id: d.id, ...d.data() }));
         tumDersListesi.sort((a, b) => (a.ders_adi || "").localeCompare(b.ders_adi || "", "tr"));
       }
-
-      window.yeniDersListesiEkle = async () => {
-        const ad = prompt("Yeni ders adı:");
-        if (!ad?.trim()) return;
-        const adTrimmed = ad.trim();
-        if (tumDersListesi.some((d) => d.ders_adi === adTrimmed)) {
-          alert("Bu ders zaten listede var.");
-          return;
-        }
-        const docRef = await addDoc(collection(db, "ders_listesi"), { ders_adi: adTrimmed });
-        tumDersListesi.push({ id: docRef.id, ders_adi: adTrimmed });
-        tumDersListesi.sort((a, b) => (a.ders_adi || "").localeCompare(b.ders_adi || "", "tr"));
-        ogretmenDerslerGoster();
-        const sel = document.getElementById("yeniDers");
-        if (sel) sel.value = adTrimmed;
-      };
 
       async function tumMatrisleriYukle() {
         const snap = await getDocs(collection(db, "program_talep_matris"));
@@ -642,110 +632,22 @@
         const benimDerslerim = tumTanimlar.filter((t) => t.ogretmen_id === aktifOgretmenId);
         const toplamSaat = benimDerslerim.reduce((s, t) => s + (t.haftalik_saat || 0), 0);
 
-        if (ayarlar.donem_acik) {
-          let html = `<div class="kart" style="border:2px solid #f9ab00;">
-            <div class="kart-baslik">📚 Ders Tanımlarım
-              <span class="rozet rozet-sari">🔒 Talep Dönemi Açık — Düzenleme Kilitli</span>
-            </div>
-            <p style="font-size:13px;color:#888;margin-bottom:14px;">Talep dönemi açıkken ders tanımları değiştirilemez. "Boş Talepler" sekmesinden isteklerinizi girebilirsiniz.</p>
-            <div style="font-size:13px;color:#666;margin-bottom:12px;">Toplam: <strong style="color:#1a73e8;">${toplamSaat} saat</strong></div>`;
-          if (benimDerslerim.length) {
-            html += `<table><thead><tr><th>Şube</th><th>Ders</th><th>Saat</th><th>Bölünme</th></tr></thead><tbody>
-              ${benimDerslerim.map((t) => `<tr><td>${t.sube}</td><td>${t.ders_adi}</td><td>${t.haftalik_saat}</td><td><span class="rozet rozet-mavi">${t.bolunme || "-"}</span></td></tr>`).join("")}
-              </tbody></table>`;
-          } else {
-            html += `<div class="bos-mesaj">Henüz ders tanımı girilmemiş.</div>`;
-          }
-          html += `</div>`;
-          c.innerHTML = html;
-          return;
-        }
-
-        const sinifOptions = tumSiniflar.map((s) => `<option value="${s.class_name}">${s.class_name}</option>`).join("");
         let html = `<div class="kart">
           <div class="kart-baslik">📚 Ders Tanımlarım
             <span class="rozet rozet-mavi">${toplamSaat} saat / ${benimDerslerim.length} şube</span>
           </div>
-          <p style="font-size:13px;color:#888;margin-bottom:14px;">Talep dönemi açılmadan önce hangi sınıfa hangi dersten kaç saat girdiğinizi ekleyin. Bu bilgi ısı haritasının doğru hesaplanmasını sağlar.</p>`;
+          <p style="font-size:13px;color:#888;margin-bottom:14px;">Şube, ders, saat ve bölünme bilgileriniz admin tarafından girilir. Aşağıda size atanan dersleri görebilirsiniz.</p>`;
 
         if (benimDerslerim.length) {
-          html += `<table style="margin-bottom:16px;"><thead><tr><th>Şube</th><th>Ders</th><th>Saat</th><th>Bölünme</th><th></th></tr></thead><tbody>
-            ${benimDerslerim.map((t) => `<tr>
-              <td><strong>${t.sube}</strong></td>
-              <td>${t.ders_adi}</td>
-              <td>${t.haftalik_saat}</td>
-              <td><span class="rozet rozet-mavi">${t.bolunme || "-"}</span></td>
-              <td><button class="btn btn-kirmizi btn-sm" onclick="dersSil('${t.id}')">Sil</button></td>
-            </tr>`).join("")}
+          html += `<table><thead><tr><th>Şube</th><th>Ders</th><th>Saat</th><th>Bölünme</th></tr></thead><tbody>
+            ${benimDerslerim.map((t) => `<tr><td>${t.sube}</td><td>${t.ders_adi}</td><td>${t.haftalik_saat}</td><td><span class="rozet rozet-mavi">${t.bolunme || "-"}</span></td></tr>`).join("")}
             </tbody></table>`;
         } else {
-          html += `<div style="color:#888;font-size:13px;margin-bottom:16px;padding:12px;background:#f8f9fa;border-radius:8px;">Henüz ders eklenmemiş. Aşağıdan ekleyin.</div>`;
+          html += `<div class="bos-mesaj">Henüz size ders tanımı atanmamış.</div>`;
         }
-
-        html += `<div style="border-top:1px solid #f0f0f0;padding-top:16px;">
-            <div style="font-size:13px;font-weight:700;color:#333;margin-bottom:12px;">Yeni Ders Ekle</div>
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;align-items:end;">
-              <div class="form-group" style="margin-bottom:0;">
-                <label>Şube</label>
-                <select id="yeniSube"><option value="">Seçin</option>${sinifOptions}</select>
-              </div>
-              <div class="form-group" style="margin-bottom:0;">
-                <label>Ders Adı</label>
-                <div style="display:flex;gap:4px;align-items:center;">
-                  <select id="yeniDers" style="flex:1;">
-                    <option value="">Seçin...</option>
-                    ${tumDersListesi.map((d) => `<option value="${d.ders_adi}">${d.ders_adi}</option>`).join("")}
-                  </select>
-                  <button class="btn btn-gri btn-sm" onclick="yeniDersListesiEkle()" title="Yeni ders ekle">+</button>
-                </div>
-              </div>
-              <div class="form-group" style="margin-bottom:0;">
-                <label>Haftalık Saat</label>
-                <input type="number" id="yeniSaat" min="1" max="10" placeholder="4">
-              </div>
-              <div class="form-group" style="margin-bottom:0;">
-                <label>Bölünme</label>
-                <input type="text" id="yeniBolunme" placeholder="2+2 veya boş">
-              </div>
-              <div><button class="btn btn-yesil" onclick="dersEkle()">+ Ekle</button></div>
-            </div>
-            <div class="mesaj" id="dersMesaj" style="margin-top:10px;"></div>
-          </div>
-        </div>`;
+        html += `</div>`;
         c.innerHTML = html;
       }
-
-      window.dersEkle = async () => {
-        const sube = document.getElementById("yeniSube")?.value?.trim();
-        const dersAdi = document.getElementById("yeniDers")?.value?.trim();
-        const haftalikSaat = parseInt(document.getElementById("yeniSaat")?.value || "0");
-        const bolunme = document.getElementById("yeniBolunme")?.value?.trim() || "";
-        if (!sube || !dersAdi || !haftalikSaat) {
-          mesajGoster("dersMesaj", "Şube, ders adı ve saat zorunludur.", "hata");
-          return;
-        }
-        const mevcut = tumTanimlar.find((t) => t.ogretmen_id === aktifOgretmenId && t.sube === sube && t.ders_adi === dersAdi);
-        if (mevcut) {
-          mesajGoster("dersMesaj", "Bu şube ve ders zaten ekli.", "hata");
-          return;
-        }
-        mesajGoster("dersMesaj", "Ekleniyor...", "bilgi");
-        const docRef = await addDoc(collection(db, "program_talep_tanimlar"), {
-          ogretmen_id: aktifOgretmenId,
-          ogretmen_adi: aktifOgretmenAdi || "",
-          sube, ders_adi: dersAdi, haftalik_saat: haftalikSaat, bolunme,
-        });
-        tumTanimlar.push({ id: docRef.id, ogretmen_id: aktifOgretmenId, ogretmen_adi: aktifOgretmenAdi || "", sube, ders_adi: dersAdi, haftalik_saat: haftalikSaat, bolunme });
-        mesajGoster("dersMesaj", "Ders eklendi.", "basari");
-        ogretmenDerslerGoster();
-      };
-
-      window.dersSil = async (id) => {
-        if (!confirm("Bu ders tanımını silmek istiyor musunuz?")) return;
-        await deleteDoc(doc(db, "program_talep_tanimlar", id));
-        tumTanimlar = tumTanimlar.filter((t) => t.id !== id);
-        ogretmenDerslerGoster();
-      };
 
       function ogretmenTalepGoster() {
         const c = document.getElementById("osekme-talep");
@@ -985,13 +887,15 @@
         });
 
         const sinifOptions = tumSiniflar.map((s) => `<option value="${s.class_name}">${s.class_name}</option>`).join("");
+        const ogretmenOptions = tumOgretmenler.map((o) => `<option value="${o.id}">${o.ad || "(isimsiz)"}</option>`).join("");
+        const dersOptions = tumDersListesi.map((d) => `<option value="${d.ders_adi}">${d.ders_adi}</option>`).join("");
 
         let html = `<div class="kart">
           <div class="kart-baslik">
             Öğretmen Ders Tanımları
             <span class="rozet rozet-mavi">${tumTanimlar.length} kayıt — ${subeler.length} şube — ${ogretmenGruplari.size} öğretmen</span>
           </div>
-          <p style="font-size:13px;color:#888;margin-bottom:14px;">Öğretmenler kendi ders tanımlarını "Derslerim" sekmesinden giriyor. Yanlış giriş varsa silebilirsiniz.</p>`;
+          <p style="font-size:13px;color:#888;margin-bottom:14px;">Ders tanımları aşağıdaki formdan admin tarafından girilir. Öğretmenler "Derslerim" sekmesinden sadece kendilerine atananları görür.</p>`;
 
         if (!ogretmenGruplari.size) {
           html += `<div style="color:#888;padding:20px;text-align:center;">Henüz hiçbir öğretmen ders tanımı girmemiş.</div>`;
@@ -1014,17 +918,13 @@
         }
         html += `</div>`;
 
-        // Manuel ekleme formu (admin için)
+        // Ders tanımı ekleme formu (admin için — tek giriş yolu)
         html += `<div class="kart">
-          <div class="kart-baslik">Manuel Tanım Ekle <span style="font-size:12px;color:#888;font-weight:400;">— öğretmen eksik girdiyse</span></div>
+          <div class="kart-baslik">Ders Tanımı Ekle</div>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;align-items:end;">
             <div class="form-group" style="margin-bottom:0;">
-              <label>Öğretmen ID</label>
-              <input type="text" id="adminTanimOgrId" placeholder="Firestore doc ID">
-            </div>
-            <div class="form-group" style="margin-bottom:0;">
-              <label>Öğretmen Adı</label>
-              <input type="text" id="adminTanimOgrAd" placeholder="Ad Soyad">
+              <label>Öğretmen</label>
+              <select id="adminTanimOgretmen"><option value="">Seçin</option>${ogretmenOptions}</select>
             </div>
             <div class="form-group" style="margin-bottom:0;">
               <label>Şube</label>
@@ -1032,7 +932,7 @@
             </div>
             <div class="form-group" style="margin-bottom:0;">
               <label>Ders Adı</label>
-              <input type="text" id="adminTanimDers" placeholder="Matematik">
+              <select id="adminTanimDers"><option value="">Seçin</option>${dersOptions}</select>
             </div>
             <div class="form-group" style="margin-bottom:0;">
               <label>Saat</label>
@@ -1058,13 +958,14 @@
       };
 
       window.adminTanimEkle = async () => {
-        const ogrId = document.getElementById("adminTanimOgrId")?.value?.trim();
-        const ogrAd = document.getElementById("adminTanimOgrAd")?.value?.trim();
+        const ogrSel = document.getElementById("adminTanimOgretmen");
+        const ogrId = ogrSel?.value;
+        const ogrAd = ogrSel?.selectedOptions?.[0]?.textContent?.trim() || "";
         const sube = document.getElementById("adminTanimSube")?.value?.trim();
         const dersAdi = document.getElementById("adminTanimDers")?.value?.trim();
         const saat = parseInt(document.getElementById("adminTanimSaat")?.value || "0");
         const bolunme = document.getElementById("adminTanimBolunme")?.value?.trim() || "";
-        if (!ogrId || !ogrAd || !sube || !dersAdi || !saat) {
+        if (!ogrId || !sube || !dersAdi || !saat) {
           mesajGoster("adminTanimMesaj", "Tüm alanları doldurun.", "hata");
           return;
         }
@@ -1135,7 +1036,7 @@
 
         // Öğretmen bazında uyum skorları
         html +=
-          '<div class="kart"><div class="kart-baslik">Öğretmen Uyum Skorları</div><table><thead><tr><th>Öğretmen</th><th>Uyum Skoru</th><th>Durum</th></tr></thead><tbody>';
+          '<div class="kart"><div class="kart-baslik">Öğretmen Uyum Skorları</div><table><thead><tr><th>Öğretmen</th><th>Uyum Skoru</th><th>Durum</th><th></th></tr></thead><tbody>';
         const ogretmenler = [
           ...new Set(
             tumTanimlar
@@ -1163,11 +1064,56 @@
             renk +
             '">%' +
             yuzde +
-            "</span></td></tr>";
+            '</span></td><td><button class="btn btn-gri btn-sm" onclick="adminMatrisGor(\'' +
+            o.id +
+            "', '" +
+            (o.ad || "").replace(/'/g, "\\'") +
+            "')\">Görüntüle</button></td></tr>";
         });
         html += "</tbody></table></div>";
         c.innerHTML = html;
       }
+
+      function adminMatrisSatirUret(matris) {
+        let maxY = 1;
+        for (let gi = 0; gi < 5; gi++) {
+          for (let di = 0; di < 8; di++) {
+            const y = isiYogunluk(gi, di);
+            if (y > maxY) maxY = y;
+          }
+        }
+        let html = "<thead><tr><th>Gün \\ Ders</th>";
+        DERSLER.forEach((d) => { html += "<th>" + d + ". Ders</th>"; });
+        html += "</tr></thead><tbody>";
+        GUNLER.forEach((g, gi) => {
+          html += "<tr><td>" + g + "</td>";
+          DERSLER.forEach((d, di) => {
+            const key = matrisKey(gi, di);
+            const x = matris[key];
+            const isiClass = x ? "hucre-x" : "hucre-bos";
+            html += '<td class="' + isiClass + '">' + (x ? '<div class="hucre-x-ic">✕</div>' : "") + "</td>";
+          });
+          html += "</tr>";
+        });
+        html += "</tbody>";
+        return html;
+      }
+
+      window.adminMatrisGor = (id, ad) => {
+        const matris = tumMatrisler[id] || {};
+        document.getElementById("adminMatrisOverlay")?.remove();
+        const overlay = document.createElement("div");
+        overlay.id = "adminMatrisOverlay";
+        overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;";
+        overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+        overlay.innerHTML = `<div class="kart" style="max-width:700px;width:100%;max-height:90vh;overflow:auto;">
+          <div class="kart-baslik">${ad} — Boş Talep Matrisi
+            <button class="btn btn-gri btn-sm" onclick="document.getElementById('adminMatrisOverlay').remove()">Kapat</button>
+          </div>
+          <div class="matris-wrap"><table class="matris">${adminMatrisSatirUret(matris)}</table></div>
+        </div>`;
+        document.body.appendChild(overlay);
+      };
 
       function adminAcmazGoster() {
         const c = document.getElementById("asekme-acmaz");
