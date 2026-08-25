@@ -330,9 +330,10 @@ exports.ogrenciSilTamamen = onCall(async (request) => {
 // geç girilen yoklamalar da güne dahil olur.
 // ===========================
 async function hesaplaVeYazDailySummary(db, tarih, sinif) {
-  const [todaySnap, yoklamaSnap] = await Promise.all([
+  const [todaySnap, yoklamaSnap, mevcutOzetSnap] = await Promise.all([
     db.collection("today_lessons").where("date", "==", tarih).where("class_id", "==", sinif).get(),
     db.collection("attendance").where("date", "==", tarih).where("class_id", "==", sinif).get(),
+    db.collection("daily_summary").where("date", "==", tarih).where("class_id", "==", sinif).get(),
   ]);
 
   const toplamDers = todaySnap.size;
@@ -365,6 +366,11 @@ async function hesaplaVeYazDailySummary(db, tarih, sinif) {
       created_at: admin.firestore.FieldValue.serverTimestamp()
     });
   }
+  // Bir düzeltme sonucu artık devamsız sayılmayan öğrencinin eski özet
+  // kaydı kalıcılaşmasın diye, güncel listede olmayanları temizle.
+  mevcutOzetSnap.forEach(doc => {
+    if (!(doc.data().student_number in ogrenciYokSayisi)) batch.delete(doc.ref);
+  });
   await batch.commit();
   return { tamamlandi: true };
 }

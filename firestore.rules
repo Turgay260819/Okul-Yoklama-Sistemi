@@ -64,7 +64,7 @@ service cloud.firestore {
       allow read: if isLoggedIn();
       allow create: if isLoggedIn();
       allow update: if isYonetim();
-      allow delete: if isLoggedIn();
+      allow delete: if isYonetim() || isOgretmen();
     }
 
     match /daily_summary/{summaryId} {
