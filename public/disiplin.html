@@ -475,6 +475,10 @@
             <label>Davranis Adi</label>
             <input type="text" id="yeniDavranisAd" placeholder="Ornek: Kopya cekme">
           </div>
+          <div class="form-group">
+            <label>Esik (kac tekrarda bildirim gonderilsin)</label>
+            <input type="number" id="yeniDavranisEsik" min="1" value="1" style="max-width:120px;">
+          </div>
           <button class="btn btn-yesil" onclick="davranisEkle()">+ Davranis Ekle</button>
           <div class="mesaj" id="davranisMesaj"></div>
         </div>
@@ -1121,9 +1125,15 @@
     async function davranisAyarlariniGoster() {
       const container = document.getElementById('davranisAyarListesi');
       if (!tumDavranislar.length) { container.innerHTML = '<div class="bos-mesaj">Davranis turu bulunamadi</div>'; return; }
-      let html = `<table><thead><tr><th>Davranis</th><th>Durum</th><th></th></tr></thead><tbody>`;
+      let html = `<table><thead><tr><th>Davranis</th><th>Esik</th><th>Durum</th><th></th></tr></thead><tbody>`;
       tumDavranislar.forEach(d => {
         html += `<tr><td>${d.ad}</td>
+          <td>
+            <input type="number" min="1" value="${d.esik || ''}" id="esik-${d.id}" style="width:56px; padding:4px 6px;"
+              placeholder="-">
+            <button class="btn btn-gri" style="padding:4px 8px; font-size:12px;"
+              onclick="davranisEsikGuncelle('${d.id}')">Kaydet</button>
+          </td>
           <td><span class="rozet ${d.aktif ? 'rozet-yesil' : 'rozet-kirmizi'}">${d.aktif ? 'Aktif' : 'Pasif'}</span></td>
           <td><button class="btn btn-gri" style="padding:4px 10px; font-size:12px;"
             onclick="davranisToggleAktif('${d.id}', ${d.aktif})">${d.aktif ? 'Pasif Yap' : 'Aktif Yap'}</button></td>
@@ -1141,15 +1151,27 @@
       davranislarGoster();
     };
 
+    window.davranisEsikGuncelle = async (id) => {
+      const esik = parseInt(document.getElementById('esik-' + id).value);
+      if (!esik || esik < 1) { mesajGoster('davranisMesaj', 'Gecerli bir esik degeri girin.', 'hata'); return; }
+      await updateDoc(doc(db, 'disiplin_turleri', id), { esik });
+      const idx = tumDavranislar.findIndex(d => d.id === id);
+      if (idx !== -1) tumDavranislar[idx].esik = esik;
+      mesajGoster('davranisMesaj', 'Esik guncellendi.', 'basari');
+    };
+
     window.davranisEkle = async () => {
       const ad = document.getElementById('yeniDavranisAd').value.trim();
+      const esik = parseInt(document.getElementById('yeniDavranisEsik').value);
       if (!ad) { mesajGoster('davranisMesaj', 'Davranis adi girin.', 'hata'); return; }
+      if (!esik || esik < 1) { mesajGoster('davranisMesaj', 'Gecerli bir esik degeri girin.', 'hata'); return; }
       const ref = await addDoc(collection(db, 'disiplin_turleri'), {
-        ad, sira: tumDavranislar.length + 1, aktif: true,
+        ad, esik, sira: tumDavranislar.length + 1, aktif: true,
         olusturulma: serverTimestamp()
       });
-      tumDavranislar.push({ id: ref.id, ad, sira: tumDavranislar.length + 1, aktif: true });
+      tumDavranislar.push({ id: ref.id, ad, esik, sira: tumDavranislar.length + 1, aktif: true });
       document.getElementById('yeniDavranisAd').value = '';
+      document.getElementById('yeniDavranisEsik').value = '1';
       davranislarGoster();
       davranisAyarlariniGoster();
       mesajGoster('davranisMesaj', 'Davranis turu eklendi.', 'basari');

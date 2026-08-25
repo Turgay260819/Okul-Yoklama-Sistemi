@@ -3,9 +3,17 @@ const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const admin = require("firebase-admin");
+const { getFirestore, FieldValue } = require("firebase-admin/firestore");
+const { getAuth } = require("firebase-admin/auth");
 setGlobalOptions({ region: "europe-west1" });
 
 admin.initializeApp();
+// firebase-admin@14 kök paketten eski namespace (compat) API'sini kaldırdı;
+// admin.firestore()/admin.auth()/admin.firestore.FieldValue çağıran mevcut
+// kod tabanını değiştirmemek için modüler API'yi aynı isimlere bağlıyoruz.
+admin.firestore = getFirestore;
+admin.firestore.FieldValue = FieldValue;
+admin.auth = getAuth;
 
 // schedule.day / dyk_courses.gun gibi alanlar Excel'den geldiği için Türkçe
 // aksanlı ("salı") ya da aksansız ("sali") yazılmış olabilir — karşılaştırma
@@ -690,7 +698,8 @@ exports.disiplinIlkKurulum = onCall(async (request) => {
     { ad: "Okul esyasina zarar verme", esik: 1, sira: 4, aktif: true },
     { ad: "Ogretmene saygisizlik", esik: 1, sira: 5, aktif: true },
     { ad: "Ders akisini bozma", esik: 2, sira: 6, aktif: true },
-    { ad: "Okul kulturune uyumsuzluk", esik: 2, sira: 7, aktif: true }
+    { ad: "Okul kulturune uyumsuzluk", esik: 2, sira: 7, aktif: true },
+    { ad: "Cep Telefonu Bulundurma", esik: 1, sira: 8, aktif: true }
   ];
 
   const batch = db.batch();
