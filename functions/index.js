@@ -753,6 +753,40 @@ exports.disiplinEsikKontrol = onCall(async (request) => {
     message: `${bildirilenSayisi} bildirim gonderildi.`
   };
 });
+
+// ===========================
+// DİSİPLİN KAYDI YAZILDIĞINDA — EŞİK KONTROLÜ
+// Bir öğrencinin aynı dönemde aynı davranıştan aldığı kayıt sayısı,
+// o davranışın eşiğine tam ulaştığı anda Telegram'a bildirim gönderir.
+// (disiplinEsikKontrol hiçbir yerden çağrılmıyordu, bu yüzden eşik
+// bildirimi hiç otomatik çalışmıyordu — bu tetikleyici onun yerini alır.)
+// ===========================
+exports.disiplinKaydiYazildiginda = onDocumentCreated("disiplin_kayitlar/{kayitId}", async (event) => {
+  const veri = event.data?.data();
+  if (!veri?.ogrenci_no || !veri?.davranis || !veri?.donem) return;
+
+  const db = admin.firestore();
+  const turSnap = await db.collection("disiplin_turleri")
+    .where("ad", "==", veri.davranis).where("aktif", "==", true).limit(1).get();
+  if (turSnap.empty) return;
+  const esik = turSnap.docs[0].data().esik;
+  if (!esik) return;
+
+  const kayitSnap = await db.collection("disiplin_kayitlar")
+    .where("ogrenci_no", "==", veri.ogrenci_no)
+    .where("davranis", "==", veri.davranis)
+    .where("donem", "==", veri.donem).get();
+  if (kayitSnap.size !== esik) return;
+
+  const mesaj = `⚠️ *DİSİPLİN BİLDİRİMİ*\n\n` +
+    `Ogrenci: ${veri.ogrenci_ad}\n` +
+    `Sinif: ${veri.sinif}\n` +
+    `Davranis: ${veri.davranis}\n` +
+    `Tekrar Sayisi: ${kayitSnap.size} (Esik: ${esik})\n` +
+    `Donem: ${veri.donem}. Donem`;
+  await telegramMesajGonder(mesaj);
+});
+
 exports.manuelDersOlustur = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Giriş yapılmamış.");
