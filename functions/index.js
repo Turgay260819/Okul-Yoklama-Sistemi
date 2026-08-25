@@ -153,34 +153,57 @@ exports.ogretmenGuncelle = onCall(async (request) => {
   const { ogretmenId, ad, email, sifre } = request.data;
   if (!ogretmenId) throw new HttpsError("invalid-argument", "ogretmenId zorunlu.");
 
-  const teacherSnap = await admin.firestore().collection("teachers").doc(ogretmenId).get();
+  const teacherRef = admin.firestore().collection("teachers").doc(ogretmenId);
+  const teacherSnap = await teacherRef.get();
   if (!teacherSnap.exists) throw new HttpsError("not-found", "Öğretmen bulunamadı.");
-  const uid = teacherSnap.data().uid;
-  if (!uid) throw new HttpsError("internal", "Öğretmenin Auth uid bilgisi yok.");
+  let uid = teacherSnap.data().uid;
+  const yeniHesap = !uid;
 
   try {
-    const authUpdate = {};
-    if (ad)    authUpdate.displayName = ad;
-    if (email) authUpdate.email = email;
-    if (sifre) authUpdate.password = sifre;
-    if (Object.keys(authUpdate).length) {
-      await admin.auth().updateUser(uid, authUpdate);
+    if (uid) {
+      const authUpdate = {};
+      if (ad)    authUpdate.displayName = ad;
+      if (email) authUpdate.email = email;
+      if (sifre) authUpdate.password = sifre;
+      if (Object.keys(authUpdate).length) {
+        await admin.auth().updateUser(uid, authUpdate);
+      }
+    } else {
+      // Öğretmenin henüz Auth hesabı yok (örn. hiç kimlik atanmamış) — yeni oluştur.
+      if (!email || !sifre) throw new HttpsError("invalid-argument", "Kimlik oluşturmak için email ve sifre gerekli.");
+      const displayName = ad || teacherSnap.data().ad;
+      try {
+        const rec = await admin.auth().createUser({ email, password: sifre, displayName });
+        uid = rec.uid;
+      } catch (err) {
+        if (err.code === "auth/email-already-exists") {
+          const existing = await admin.auth().getUserByEmail(email);
+          uid = existing.uid;
+          await admin.auth().updateUser(uid, { password: sifre, displayName });
+        } else {
+          throw err;
+        }
+      }
     }
 
     const firestoreUpdate = {};
     if (ad)    firestoreUpdate.ad    = ad;
     if (email) firestoreUpdate.email = email;
     if (sifre) firestoreUpdate.kimlik_sifre = sifre;
+    if (yeniHesap) firestoreUpdate.uid = uid;
     if (Object.keys(firestoreUpdate).length) {
-      await admin.firestore().collection("teachers").doc(ogretmenId).update(firestoreUpdate);
-      const usersUpdate = {};
-      if (ad)    usersUpdate.ad    = ad;
-      if (email) usersUpdate.email = email;
-      if (Object.keys(usersUpdate).length)
-        await admin.firestore().collection("users").doc(uid).update(usersUpdate);
+      await teacherRef.update(firestoreUpdate);
     }
 
-    return { success: true };
+    const usersUpdate = {};
+    if (ad)    usersUpdate.ad    = ad;
+    if (email) usersUpdate.email = email;
+    if (yeniHesap) usersUpdate.rol = "ogretmen";
+    if (Object.keys(usersUpdate).length) {
+      await admin.firestore().collection("users").doc(uid).set(usersUpdate, { merge: true });
+    }
+
+    return { success: true, uid };
   } catch (err) {
     throw new HttpsError("internal", err.message);
   }

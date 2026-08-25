@@ -207,6 +207,39 @@ window.ogretmenOtoKimlikVer = async function (id, ad) {
   }
 };
 
+window.ogretmenlerTopluKimlikVer = async function () {
+  const { db, getDocs, collection, functions, httpsCallable } = window.__portal;
+  const snap = await getDocs(collection(db, "teachers"));
+  const eksikler = [];
+  snap.forEach((d) => {
+    const v = d.data();
+    if (!v.kimlik_sifre) eksikler.push({ id: d.id, ad: v.ad || "" });
+  });
+
+  if (!eksikler.length) { alert("Zaten tum ogretmenlerin kimligi atanmis."); return; }
+  if (!confirm(`${eksikler.length} ogretmene otomatik kullanici adi ve sifre atanacak. Onayliyor musunuz?`)) return;
+
+  const fn = httpsCallable(functions, "ogretmenGuncelle");
+  let basarili = 0, hatali = 0;
+  for (const o of eksikler) {
+    const email = window.emailUret(o.ad);
+    const sifre = window.sifreUret();
+    try {
+      await fn({ ogretmenId: o.id, email, sifre });
+      basarili++;
+    } catch (err) {
+      hatali++;
+      console.error("Kimlik atama hatasi:", o.ad, err.message);
+    }
+  }
+
+  alert(`${basarili} ogretmene kimlik atandi.${hatali ? ` ${hatali} ogretmende hata olustu (konsolu kontrol edin).` : ""}`);
+  await ogretmenleriListele();
+  if (document.getElementById("asekme-ogretmen-sifre")?.classList.contains("aktif")) {
+    await window.ogretmenSifreListesiGoster();
+  }
+};
+
 window.ogretmenEmailOtoUret = function () {
   const ad = document.getElementById("ayarOgretmenAd")?.value.trim();
   if (ad) {

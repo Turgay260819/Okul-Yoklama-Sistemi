@@ -669,7 +669,10 @@
                 <div class="kart">
                   <div class="kart-baslik-satir">
                     <div class="kart-baslik">Ogretmen Listesi</div>
-                    <button class="btn btn-gri btn-sm" onclick="branslarNormalizeEt()">🔧 Branşları Normalize Et</button>
+                    <div style="display:flex;gap:6px;">
+                      <button class="btn btn-mavi btn-sm" onclick="ogretmenlerTopluKimlikVer()">🔑 Kimliksiz Öğretmenlere Toplu Kimlik Ver</button>
+                      <button class="btn btn-gri btn-sm" onclick="branslarNormalizeEt()">🔧 Branşları Normalize Et</button>
+                    </div>
                   </div>
                   <div class="mesaj" id="bransNormalizeMesaj"></div>
                   <div id="ayarOgretmenListesi"><div class="yukleniyor">Yukleniyor...</div></div>
