@@ -173,6 +173,11 @@
         color: #c5221f;
         border: 2px solid #ea4335;
       }
+      .nobetci-sabit_gun {
+        background: #fef7e0;
+        color: #b06000;
+        border: 2px solid #f9ab00;
+      }
       .nobetci-bos {
         background: #f8f9fa;
         color: #ccc;
@@ -226,6 +231,11 @@
       .slot-hucre.dolu.sgn {
         background: #fce8e6;
         border-color: #ea4335;
+        border-width: 2px;
+      }
+      .slot-hucre.dolu.sabit_gun {
+        background: #fef7e0;
+        border-color: #f9ab00;
         border-width: 2px;
       }
       .slot-no {
@@ -497,6 +507,14 @@
             class="sb-radio"
           />
           <label for="sb-sgn" class="sb-label">S-GN (Gün+Nokta Sabit)</label>
+          <input
+            type="radio"
+            name="sb"
+            id="sb-sgun"
+            value="sabit_gun"
+            class="sb-radio"
+          />
+          <label for="sb-sgun" class="sb-label">Sabit Gün, Değişken Nokta</label>
         </div>
         <div id="yerlesimGrid"></div>
         <div class="modal-butonlar">
@@ -614,25 +632,53 @@
         return gi * N() + ni;
       }
 
-      // Serbest slot listesi - SGN slotlari haric, gun+nokta birlikte ilerler
+      // Serbest slot listesi - SGN slotlari ve Sabit-Gun'a ayrilan gunler haric,
+      // gun+nokta birlikte ilerler
       function serbestSlotListesi(slotlar) {
         const sgn = new Set();
+        const sabitGunler = new Set();
         (slotlar || []).forEach((s) => {
           if (s.sabitlik === "sgn") sgn.add(s.baslangic_slot);
+          else if (s.sabitlik === "sabit_gun")
+            sabitGunler.add(slotToPos(s.baslangic_slot).gi);
         });
         const liste = [];
         for (let adim = 0; adim < TOPLAM(); adim++) {
           const gi = adim % 5;
           const ni = adim % N();
+          if (sabitGunler.has(gi)) continue;
           const slot = posToSlot(gi, ni);
           if (!sgn.has(slot) && !liste.includes(slot)) liste.push(slot);
         }
         return liste;
       }
 
+      // Bir güne sabitlenmiş (sabit_gun) öğretmenlerin o gün içinde dönebileceği
+      // nokta havuzu: o güne ait, sgn tarafından işgal edilmemiş tüm noktalar.
+      function sabitGunNoktaHavuzu(gi, slotlar) {
+        const sgnNoktalari = new Set();
+        (slotlar || []).forEach((t) => {
+          if (t.sabitlik === "sgn" && slotToPos(t.baslangic_slot).gi === gi)
+            sgnNoktalari.add(slotToPos(t.baslangic_slot).ni);
+        });
+        const havuz = [];
+        for (let ni = 0; ni < N(); ni++) if (!sgnNoktalari.has(ni)) havuz.push(ni);
+        return havuz;
+      }
+
       // Pozisyon hesapla
       function pozHesapla(s, sayac, slotlar) {
         if (s.sabitlik === "sgn") return slotToPos(s.baslangic_slot);
+        if (s.sabitlik === "sabit_gun") {
+          const gi = slotToPos(s.baslangic_slot).gi;
+          const havuz = sabitGunNoktaHavuzu(gi, slotlar);
+          if (!havuz.length) return slotToPos(s.baslangic_slot);
+          const basNi = slotToPos(s.baslangic_slot).ni;
+          const basIdx = havuz.indexOf(basNi);
+          const idx = basIdx < 0 ? 0 : basIdx;
+          const yeniIdx = (((idx + sayac) % havuz.length) + havuz.length) % havuz.length;
+          return { gi, ni: havuz[yeniIdx] };
+        }
         // Serbest: serbest slot listesinde ilerle
         const serbest = serbestSlotListesi(slotlar);
         if (!serbest.length) return slotToPos(s.baslangic_slot);
@@ -736,7 +782,7 @@
             const s = pozMap[gi + "-" + ni];
             if (s) {
               const sb = s.sabitlik || "serbest";
-              const rz = sb === "sgn" ? "S-GN" : "";
+              const rz = sb === "sgn" ? "S-GN" : sb === "sabit_gun" ? "SABİT GÜN" : "";
               html +=
                 '<td><div class="nobetci nobetci-' +
                 sb +
@@ -894,8 +940,10 @@
                 ')">';
               html += '<div class="slot-no">' + slotNo + "</div>";
               html += '<div class="slot-isim">' + s.ogretmen_ad + "</div>";
-              if (sb !== "serbest")
+              if (sb === "sgn")
                 html += '<div style="font-size:9px;color:#888;">S-GN</div>';
+              else if (sb === "sabit_gun")
+                html += '<div style="font-size:9px;color:#888;">SABİT GÜN</div>';
               html += "</div>";
             } else {
               html +=
@@ -1005,6 +1053,14 @@
         if (!liste.length) {
           alert("En az 1 nokta olmalı.");
           return;
+        }
+        if (liste.length % 5 === 0) {
+          const devam = confirm(
+            "Nokta sayısı (" + liste.length + ") 5'e bölünüyor. Bu durumda bazı " +
+            "noktalar hep aynı güne kilitlenip rotasyon çeşitliliği azalabilir. " +
+            "Yine de kaydetmek istiyor musunuz?",
+          );
+          if (!devam) return;
         }
         await setDoc(doc(db, "nobet2_ayarlar", "noktalar"), {
           liste: liste,

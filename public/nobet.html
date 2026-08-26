@@ -473,19 +473,45 @@
 
         function serbestSlotListesi2(slots) {
           const sgn = new Set();
-          slots.forEach(s => { if (s.sabitlik === 'sgn') sgn.add(s.baslangic_slot); });
+          const sabitGunler = new Set();
+          slots.forEach(s => {
+            if (s.sabitlik === 'sgn') sgn.add(s.baslangic_slot);
+            else if (s.sabitlik === 'sabit_gun') sabitGunler.add(slotToPos2(s.baslangic_slot).gi);
+          });
           const liste = [];
           for (let adim = 0; adim < 5 * N2; adim++) {
             const gi = adim % 5;
             const ni = adim % N2;
+            if (sabitGunler.has(gi)) continue;
             const slot = gi * N2 + ni;
             if (!sgn.has(slot) && !liste.includes(slot)) liste.push(slot);
           }
           return liste;
         }
 
+        function sabitGunNoktaHavuzu2(gi, slots) {
+          const sgnNoktalari = new Set();
+          slots.forEach(t => {
+            if (t.sabitlik === 'sgn' && slotToPos2(t.baslangic_slot).gi === gi)
+              sgnNoktalari.add(slotToPos2(t.baslangic_slot).ni);
+          });
+          const havuz = [];
+          for (let ni = 0; ni < N2; ni++) if (!sgnNoktalari.has(ni)) havuz.push(ni);
+          return havuz;
+        }
+
         function pozHesapla2(s, sayac, slots) {
           if (s.sabitlik === 'sgn') return slotToPos2(s.baslangic_slot);
+          if (s.sabitlik === 'sabit_gun') {
+            const gi = slotToPos2(s.baslangic_slot).gi;
+            const havuz = sabitGunNoktaHavuzu2(gi, slots);
+            if (!havuz.length) return slotToPos2(s.baslangic_slot);
+            const basNi = slotToPos2(s.baslangic_slot).ni;
+            const basIdx = havuz.indexOf(basNi);
+            const idx = basIdx < 0 ? 0 : basIdx;
+            const yeniIdx = (((idx + sayac) % havuz.length) + havuz.length) % havuz.length;
+            return { gi, ni: havuz[yeniIdx] };
+          }
           const serbest = serbestSlotListesi2(slots);
           if (!serbest.length) return slotToPos2(s.baslangic_slot);
           const basIdx = serbest.indexOf(s.baslangic_slot);
@@ -495,7 +521,7 @@
         }
 
         const GUNLER2 = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma'];
-        const BITIS = new Date('2026-06-26T12:00:00');
+        const GOSTERILECEK_HAFTA_SAYISI = 26;
         const rotasyonAktif = nb.rotasyon_aktif !== false;
         const baseSayac = nb.rotasyon_sayaci || 0;
         const fmt = (d) => d.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -513,7 +539,7 @@
         let hafta = new Date(nb.hafta_baslangic + 'T12:00:00');
         let weekOffset = 0;
 
-        while (hafta <= BITIS) {
+        while (weekOffset < GOSTERILECEK_HAFTA_SAYISI) {
           const sayac = baseSayac + (rotasyonAktif ? weekOffset : 0);
           const pos = pozHesapla2(teacherSlot, sayac, slotlar);
           const haftaBitis = new Date(hafta); haftaBitis.setDate(hafta.getDate() + 4);

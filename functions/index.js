@@ -615,6 +615,112 @@ exports.nobetTelegramGonder = onCall(async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Giris yapilmamis.");
 
   const db = admin.firestore();
+
+  if (request.data?.tip === "nobet2") {
+    const [nbDoc, nokDoc] = await Promise.all([
+      db.collection("nobet2_ayarlar").doc("mevcut").get(),
+      db.collection("nobet2_ayarlar").doc("noktalar").get(),
+    ]);
+    if (!nbDoc.exists) throw new HttpsError("not-found", "Gun degisme nobeti verisi bulunamadi.");
+
+    const nb = nbDoc.data();
+    const NOKTALAR = nokDoc.exists ? (nokDoc.data().liste || []) : [];
+    const slotlar = nb.slotlar || [];
+    const N = NOKTALAR.length;
+    if (!N) throw new HttpsError("not-found", "Nobet noktalari tanimlanmamis.");
+
+    const GUNLER = ["Pazartesi", "Sali", "Carsamba", "Persembe", "Cuma"];
+    const slotToPos = (slot) => ({ gi: Math.floor(slot / N), ni: slot % N });
+
+    // nobet2.html / nobet.html'deki uc dalli rotasyon mantiginin sunucu
+    // tarafindaki birebir kopyasi (sabit_gun dahil) — tutarli olmasi icin
+    // ucu de senkron tutulmali.
+    function serbestSlotListesi(slots) {
+      const sgn = new Set();
+      const sabitGunler = new Set();
+      slots.forEach((s) => {
+        if (s.sabitlik === "sgn") sgn.add(s.baslangic_slot);
+        else if (s.sabitlik === "sabit_gun") sabitGunler.add(slotToPos(s.baslangic_slot).gi);
+      });
+      const liste = [];
+      for (let adim = 0; adim < 5 * N; adim++) {
+        const gi = adim % 5;
+        const ni = adim % N;
+        if (sabitGunler.has(gi)) continue;
+        const slot = gi * N + ni;
+        if (!sgn.has(slot) && !liste.includes(slot)) liste.push(slot);
+      }
+      return liste;
+    }
+
+    function sabitGunNoktaHavuzu(gi, slots) {
+      const sgnNoktalari = new Set();
+      slots.forEach((t) => {
+        if (t.sabitlik === "sgn" && slotToPos(t.baslangic_slot).gi === gi)
+          sgnNoktalari.add(slotToPos(t.baslangic_slot).ni);
+      });
+      const havuz = [];
+      for (let ni = 0; ni < N; ni++) if (!sgnNoktalari.has(ni)) havuz.push(ni);
+      return havuz;
+    }
+
+    function pozHesapla(s, sayac, slots) {
+      if (s.sabitlik === "sgn") return slotToPos(s.baslangic_slot);
+      if (s.sabitlik === "sabit_gun") {
+        const gi = slotToPos(s.baslangic_slot).gi;
+        const havuz = sabitGunNoktaHavuzu(gi, slots);
+        if (!havuz.length) return slotToPos(s.baslangic_slot);
+        const basNi = slotToPos(s.baslangic_slot).ni;
+        const basIdx = havuz.indexOf(basNi);
+        const idx = basIdx < 0 ? 0 : basIdx;
+        const yeniIdx = (((idx + sayac) % havuz.length) + havuz.length) % havuz.length;
+        return { gi, ni: havuz[yeniIdx] };
+      }
+      const serbest = serbestSlotListesi(slots);
+      if (!serbest.length) return slotToPos(s.baslangic_slot);
+      const basIdx = serbest.indexOf(s.baslangic_slot);
+      const idx = basIdx < 0 ? 0 : basIdx;
+      const yeniIdx = (((idx + sayac) % serbest.length) + serbest.length) % serbest.length;
+      return slotToPos(serbest[yeniIdx]);
+    }
+
+    const sayac = nb.rotasyon_sayaci || 0;
+    const baslangic2 = new Date(nb.hafta_baslangic + "T12:00:00");
+    const formatTarih2 = (d) => {
+      const gun = String(d.getDate()).padStart(2, "0");
+      const ay = String(d.getMonth() + 1).padStart(2, "0");
+      return `${gun}.${ay}.${d.getFullYear()}`;
+    };
+
+    const gunNobetciler = GUNLER.map(() => []);
+    slotlar.forEach((s) => {
+      const pos = pozHesapla(s, sayac, slotlar);
+      gunNobetciler[pos.gi].push({ ni: pos.ni, ad: s.ogretmen_ad });
+    });
+
+    let mesaj2 = `📋 *GÜN DEĞİŞME NÖBET ÇİZELGESİ*\n`;
+    mesaj2 += `------------------------------------------\n\n`;
+    GUNLER.forEach((gun, gi) => {
+      const gunTarihi = new Date(baslangic2);
+      gunTarihi.setDate(baslangic2.getDate() + gi);
+      mesaj2 += `🗓 *${formatTarih2(gunTarihi)} ${gun}*\n`;
+      mesaj2 += "`\n";
+      const oGununNobetcileri = gunNobetciler[gi].sort((a, b) => a.ni - b.ni);
+      if (oGununNobetcileri.length) {
+        oGununNobetcileri.forEach((n) => {
+          const noktaPad = (NOKTALAR[n.ni] || "-").padEnd(12, " ");
+          mesaj2 += `${noktaPad}: ${n.ad}\n`;
+        });
+      } else {
+        mesaj2 += "Nobetci yok\n";
+      }
+      mesaj2 += "`\n\n";
+    });
+
+    await telegramMesajGonder(mesaj2);
+    return { success: true };
+  }
+
   const nobetDoc = await db.collection("nobet_ayarlar").doc("mevcut").get();
   if (!nobetDoc.exists) throw new HttpsError("not-found", "Nobet verisi bulunamadi.");
 
