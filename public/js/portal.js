@@ -7,7 +7,7 @@ import { state } from "./portal-state.js";
 import { tarihBilgisiniGoster, baslangicDegerleriniAyarla } from "./portal-ui.js";
 import { authBaslat } from "./portal-auth.js";
 import { anasayfaYukle } from "./portal-admin.js";
-import { dersleriniYukle, ogretmenGorevleriniYukle } from "./portal-teacher.js";
+import { dersleriniYukle, ogretmenGorevleriniYukle, nobetBugunKontrolEt } from "./portal-teacher.js";
 import { gorevSayfasiBaslat } from "./portal-gorev.js";
 import { kazanimSayfasiYukle, kazanimlarimYukle } from "./portal-kazanim.js";
 import { bildirimleriYukle } from "./portal-bildirim.js";
@@ -47,14 +47,13 @@ window.sayfaYukle = (id) => {
   else if (id === "dyk-admin")    window.dykAdminYukle?.();
   else if (id === "raporlar")     window.raporSayfasiBaslat?.();
   else if (id === "ayarlar")      window.ayarlarYukle?.();
-  else if (id === "nobet")        window.nobetYukle?.();
   else if (id === "disiplin")     window.disiplinYukle?.();
   else if (id === "gorev")        gorevSayfasiBaslat();
   else if (id === "gorevlerim")   ogretmenGorevleriniYukle();
   else if (id === "kazanimlar")   kazanimSayfasiYukle();
   else if (id === "kazanimlarim") kazanimlarimYukle();
-  else if (id === "oto-nobet")      _iframeYukle("oto-nobet",      "/oto-nobet.html");
   else if (id === "nobet2")         _iframeYukle("nobet2",         "/nobet2.html");
+  else if (id === "kura")           _iframeYukle("kura",           "/kura.html");
   else if (id === "yoklama-fisi")   _iframeYukle("yoklama-fisi",   "/yoklama-fisi.html");
   else if (id === "dyk-fisi")       _iframeYukle("dyk-fisi",       "/dyk-fisi.html");
   else if (id === "program-talebi") _iframeYukle("program-talebi", "/program-talebi.html");
@@ -138,6 +137,7 @@ authBaslat(async (user, rol) => {
       if (rozet) { rozet.textContent = gorevSnap.size; rozet.style.display = "inline"; }
     }
     bildirimleriYukle();
+    nobetBugunKontrolEt().catch((e) => console.warn("Nobet kontrolu basarisiz:", e));
   }
 
   // Go to teacher grid home
@@ -153,7 +153,6 @@ function _iframeYukle(sayfaId, src) {
   div.innerHTML = `<iframe src="${src}?embedded=1" style="width:100%;height:85vh;border:none;border-radius:12px;"></iframe>`;
 }
 
-window.nobetYukle    = () => _iframeYukle("nobet",    "/nobet.html");
 window.disiplinYukle = () => _iframeYukle("disiplin", "/disiplin.html");
 
 // Service Worker

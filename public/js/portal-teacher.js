@@ -1,6 +1,6 @@
 import {
-  db, bugun, YOKLAMA_PENCERE_DK,
-  getDocs, addDoc, updateDoc, deleteDoc, getDoc,
+  db, bugun, YOKLAMA_PENCERE_DK, functions, httpsCallable,
+  getDocs, addDoc, updateDoc, deleteDoc, getDoc, setDoc,
   collection, query, where, doc, serverTimestamp,
 } from "./portal-config.js";
 import { state } from "./portal-state.js";
@@ -794,3 +794,37 @@ export async function ogretmenGorevleriniYukle() {
   container.innerHTML = html;
 }
 window.ogretmenGorevleriniYukle = ogretmenGorevleriniYukle;
+
+// ── BUGÜN NÖBETÇİ MİSİN KONTROLÜ (Gün Değişme Nöbeti) ──
+// Hesaplama tamamen sunucuda (nobetBugunKontrol) yapılır — rotasyon mantığı
+// sadece nobet2.html'de ve functions/index.js'de yaşar, burada kopyalanmaz.
+export async function nobetBugunKontrolEt() {
+  if (!state.ogretmenDoc) return;
+  try {
+    const fn = httpsCallable(functions, "nobetBugunKontrol");
+    const sonuc = await fn({});
+    if (sonuc.data?.nobetciMi) {
+      document.getElementById("nobetBugunNoktalar").textContent = sonuc.data.nokta || "";
+      document.getElementById("nobetBugunBirDahaGosterme").checked = false;
+      document.getElementById("nobetBugunModal").classList.add("aktif");
+    }
+  } catch (e) {
+    console.warn("Nobet kontrolu basarisiz:", e);
+  }
+}
+
+window.nobetBugunModalKapat = async () => {
+  document.getElementById("nobetBugunModal").classList.remove("aktif");
+  const birDahaGosterme = document.getElementById("nobetBugunBirDahaGosterme").checked;
+  if (birDahaGosterme && state.ogretmenDoc) {
+    try {
+      await setDoc(
+        doc(db, "nobet_gorulme", state.ogretmenDoc.id),
+        { son_tarih: bugun, guncelleme: serverTimestamp() },
+        { merge: true },
+      );
+    } catch (e) {
+      console.warn("Nobet gorulme kaydi yazilamadi:", e);
+    }
+  }
+};

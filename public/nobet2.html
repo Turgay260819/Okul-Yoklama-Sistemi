@@ -415,6 +415,21 @@
           padding: 12px;
         }
       }
+      .gun-degisme-nobet {
+        background: white; border: 2px solid #1557b0;
+        border-radius: 10px; padding: 18px 20px; margin-bottom: 20px;
+      }
+      .gun-degisme-nobet h3 { font-size: 15px; color: #1557b0; margin-bottom: 6px; }
+      .gun-degisme-nobet table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; }
+      .gun-degisme-nobet th {
+        background: #1557b0; color: white;
+        padding: 9px 12px; text-align: left; font-weight: 600;
+      }
+      .gun-degisme-nobet td { padding: 9px 12px; border-bottom: 1px solid #f0f0f0; color: #333; vertical-align: middle; }
+      .gun-degisme-nobet tr:last-child td { border-bottom: none; }
+      .gun-degisme-nobet tr:hover td { background: #f0f4ff; }
+      .gdn-buHafta td { background: #fff8e1 !important; }
+      .gdn-gecti td { opacity: 0.45; }
     </style>
     <script>if(new URLSearchParams(location.search).get("embedded"))document.addEventListener("DOMContentLoaded",()=>document.querySelector("h1")?.remove());</script>
   </head>
@@ -441,6 +456,9 @@
           ⚙ Noktalar
         </button>
         <button class="btn btn-beyaz" onclick="yerlesimAc()">✏ Yerleşim</button>
+        <button class="btn btn-turuncu" onclick="tumunuSabitGuneCevir()">
+          Tümünü Sabit Güne Çevir
+        </button>
       </div>
     </div>
     <div id="yukleniyor" class="yukleniyor">Yükleniyor...</div>
@@ -449,9 +467,20 @@
         <div class="hafta-bar">
           <div class="hafta-tarih" id="haftaTarih">—</div>
           <span id="sayacBilgi" style="font-size: 12px; color: #888"></span>
+          <span id="okulBaslangicBilgi" style="font-size: 12px; color: #888"></span>
+          <span id="okulBitisBilgi" style="font-size: 12px; color: #888"></span>
         </div>
         <div class="kart">
           <div class="nobet-tablo-wrap" id="nobetTablosu"></div>
+        </div>
+      </div>
+    </div>
+    <div id="ogretmenIcerik" style="display: none">
+      <div class="icerik">
+        <div class="gun-degisme-nobet">
+          <h3>📅 Gün Değişme Nöbeti Programım</h3>
+          <p style="font-size: 13px; color: #666; margin-bottom: 4px;">Önümüzdeki haftalar için nöbet programınız</p>
+          <div id="gdnIcerik"><div class="yukleniyor">Yükleniyor...</div></div>
         </div>
       </div>
     </div>
@@ -496,7 +525,6 @@
             id="sb-s"
             value="serbest"
             class="sb-radio"
-            checked
           />
           <label for="sb-s" class="sb-label">Serbest</label>
           <input
@@ -513,6 +541,7 @@
             id="sb-sgun"
             value="sabit_gun"
             class="sb-radio"
+            checked
           />
           <label for="sb-sgun" class="sb-label">Sabit Gün, Değişken Nokta</label>
         </div>
@@ -581,6 +610,8 @@
         setDoc,
         getDocs,
         collection,
+        query,
+        where,
         serverTimestamp,
       } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
@@ -618,6 +649,29 @@
       let nobetVerisi = null;
       let editSlotlar = [];
       let seciliOgr = null;
+      let OKUL_BASLANGIC = "";
+      let OKUL_BITIS = "";
+      let TATILLER = [];
+
+      function gunTatilMi(tarihStr) {
+        const t = TATILLER.find(
+          (x) => x.baslangic && x.bitis && tarihStr >= x.baslangic && tarihStr <= x.bitis,
+        );
+        return t ? t.ad : null;
+      }
+      function haftaTamamenTatilMi(haftaBasStr) {
+        for (let gi = 0; gi < 5; gi++) {
+          const d = new Date(haftaBasStr + "T12:00:00");
+          d.setDate(d.getDate() + gi);
+          if (!gunTatilMi(d.toISOString().split("T")[0])) return false;
+        }
+        return true;
+      }
+      function haftaTarihEkle(tarihStr, gun) {
+        const d = new Date(tarihStr + "T12:00:00");
+        d.setDate(d.getDate() + gun);
+        return d.toISOString().split("T")[0];
+      }
 
       function N() {
         return NOKTALAR.length;
@@ -630,27 +684,6 @@
       }
       function posToSlot(gi, ni) {
         return gi * N() + ni;
-      }
-
-      // Serbest slot listesi - SGN slotlari ve Sabit-Gun'a ayrilan gunler haric,
-      // gun+nokta birlikte ilerler
-      function serbestSlotListesi(slotlar) {
-        const sgn = new Set();
-        const sabitGunler = new Set();
-        (slotlar || []).forEach((s) => {
-          if (s.sabitlik === "sgn") sgn.add(s.baslangic_slot);
-          else if (s.sabitlik === "sabit_gun")
-            sabitGunler.add(slotToPos(s.baslangic_slot).gi);
-        });
-        const liste = [];
-        for (let adim = 0; adim < TOPLAM(); adim++) {
-          const gi = adim % 5;
-          const ni = adim % N();
-          if (sabitGunler.has(gi)) continue;
-          const slot = posToSlot(gi, ni);
-          if (!sgn.has(slot) && !liste.includes(slot)) liste.push(slot);
-        }
-        return liste;
       }
 
       // Bir güne sabitlenmiş (sabit_gun) öğretmenlerin o gün içinde dönebileceği
@@ -666,27 +699,67 @@
         return havuz;
       }
 
+      // "sabit_gun" öğretmenlerinin bu haftaki (sayac'a göre) gerçek pozisyonu.
+      function sabitGunPozisyonu(s, sayac, slotlar) {
+        const gi = slotToPos(s.baslangic_slot).gi;
+        const havuz = sabitGunNoktaHavuzu(gi, slotlar);
+        if (!havuz.length) return slotToPos(s.baslangic_slot);
+        const basNi = slotToPos(s.baslangic_slot).ni;
+        const basIdx = havuz.indexOf(basNi);
+        const idx = basIdx < 0 ? 0 : basIdx;
+        const yeniIdx = (((idx + sayac) % havuz.length) + havuz.length) % havuz.length;
+        return { gi, ni: havuz[yeniIdx] };
+      }
+
+      // Serbest rotasyon havuzu: sgn slotları her zaman, sabit_gun slotları ise
+      // sadece o haftaki gerçekte dolu (gün,nokta) pozisyonu kadar çıkarılır —
+      // bir günün tamamı değil, sadece o an dolu olan nokta havuzdan düşürülür.
+      function serbestSlotListesi(slotlar, sayac) {
+        const sgn = new Set();
+        const doluSabitGun = new Set();
+        (slotlar || []).forEach((s) => {
+          if (s.sabitlik === "sgn") sgn.add(s.baslangic_slot);
+          else if (s.sabitlik === "sabit_gun") {
+            const pos = sabitGunPozisyonu(s, sayac, slotlar);
+            doluSabitGun.add(posToSlot(pos.gi, pos.ni));
+          }
+        });
+        const liste = [];
+        for (let adim = 0; adim < TOPLAM(); adim++) {
+          const gi = adim % 5;
+          const ni = adim % N();
+          const slot = posToSlot(gi, ni);
+          if (!sgn.has(slot) && !doluSabitGun.has(slot) && !liste.includes(slot)) liste.push(slot);
+        }
+        return liste;
+      }
+
       // Pozisyon hesapla
       function pozHesapla(s, sayac, slotlar) {
         if (s.sabitlik === "sgn") return slotToPos(s.baslangic_slot);
-        if (s.sabitlik === "sabit_gun") {
-          const gi = slotToPos(s.baslangic_slot).gi;
-          const havuz = sabitGunNoktaHavuzu(gi, slotlar);
-          if (!havuz.length) return slotToPos(s.baslangic_slot);
-          const basNi = slotToPos(s.baslangic_slot).ni;
-          const basIdx = havuz.indexOf(basNi);
-          const idx = basIdx < 0 ? 0 : basIdx;
-          const yeniIdx = (((idx + sayac) % havuz.length) + havuz.length) % havuz.length;
-          return { gi, ni: havuz[yeniIdx] };
-        }
+        if (s.sabitlik === "sabit_gun") return sabitGunPozisyonu(s, sayac, slotlar);
         // Serbest: serbest slot listesinde ilerle
-        const serbest = serbestSlotListesi(slotlar);
+        const serbest = serbestSlotListesi(slotlar, sayac);
         if (!serbest.length) return slotToPos(s.baslangic_slot);
-        const basIdx = serbest.indexOf(s.baslangic_slot);
-        const idx = basIdx < 0 ? 0 : basIdx;
+        let idx = serbest.indexOf(s.baslangic_slot);
+        if (idx < 0) {
+          // Orijinal slot bu hafta bir sabit_gun öğretmeni tarafından dolu —
+          // tüm yetim öğretmenlerin 0'a çakışmaması için, orijinal slot
+          // numarasından sonraki ilk boş slota (döngüsel) yerleşir.
+          idx = serbest.findIndex((slotNo) => slotNo >= s.baslangic_slot);
+          if (idx < 0) idx = 0;
+        }
         const yeniIdx =
           (((idx + sayac) % serbest.length) + serbest.length) % serbest.length;
         return slotToPos(serbest[yeniIdx]);
+      }
+
+      // Verilen tarihin ait olduğu haftanın Pazartesi'sini döner.
+      function pazartesiyeYuvarla(bugun) {
+        const fark = bugun.getDay() === 0 ? -6 : 1 - bugun.getDay();
+        const pzt = new Date(bugun);
+        pzt.setDate(bugun.getDate() + fark);
+        return pzt;
       }
 
       async function init() {
@@ -707,14 +780,45 @@
           (a.ad || "").localeCompare(b.ad || "", "tr"),
         );
 
+        const [ayarDoc, tatilSnap] = await Promise.all([
+          getDoc(doc(db, "settings", "genel")),
+          getDocs(collection(db, "tatil_donemleri")),
+        ]);
+        const okulBaslangic = ayarDoc.exists()
+          ? ayarDoc.data().okul_baslangic_tarihi || ""
+          : "";
+        const okulBitis = ayarDoc.exists()
+          ? ayarDoc.data().okul_bitis_tarihi || ""
+          : "";
+        OKUL_BASLANGIC = okulBaslangic;
+        OKUL_BITIS = okulBitis;
+        TATILLER = [];
+        tatilSnap.forEach((d) => TATILLER.push(d.data()));
+        if (okulBaslangic) {
+          document.getElementById("okulBaslangicBilgi").textContent =
+            "Okul Başlangıcı: " +
+            new Date(okulBaslangic + "T12:00:00").toLocaleDateString(
+              "tr-TR",
+              { day: "2-digit", month: "2-digit", year: "numeric" },
+            );
+        }
+        if (okulBitis) {
+          document.getElementById("okulBitisBilgi").textContent =
+            "Okul Bitişi: " +
+            new Date(okulBitis + "T12:00:00").toLocaleDateString("tr-TR", {
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+            });
+        }
+
         const nbDoc = await getDoc(doc(db, "nobet2_ayarlar", "mevcut"));
         if (nbDoc.exists()) {
           nobetVerisi = nbDoc.data();
         } else {
-          const bugun = new Date();
-          const fark = bugun.getDay() === 0 ? -6 : 1 - bugun.getDay();
-          const pzt = new Date(bugun);
-          pzt.setDate(bugun.getDate() + fark);
+          const pzt = okulBaslangic
+            ? pazartesiyeYuvarla(new Date(okulBaslangic + "T12:00:00"))
+            : pazartesiyeYuvarla(new Date());
           nobetVerisi = {
             hafta_baslangic: pzt.toISOString().split("T")[0],
             rotasyon_aktif: true,
@@ -726,6 +830,117 @@
         tabloGoster();
         document.getElementById("yukleniyor").style.display = "none";
         document.getElementById("anaIcerik").style.display = "block";
+      }
+
+      // Öğretmenin salt-okunur "Gün Değişme Nöbeti" görünümü — admin init()'in
+      // aksine hiçbir doküman oluşturmaz/yazmaz (öğretmenin nobet2_ayarlar'a
+      // yazma izni yok), sadece okur. Mevcut pozHesapla/slotToPos/N()
+      // fonksiyonlarını doğrudan kullanır (ayrı bir kopya tutulmuyor).
+      async function ogretmenGorunumuYukle(teacherId) {
+        const icerik = document.getElementById("gdnIcerik");
+        document.getElementById("yukleniyor").style.display = "none";
+        document.getElementById("ogretmenIcerik").style.display = "block";
+        try {
+          const [nbDoc, nokDoc, ayarDoc, tatilSnap] = await Promise.all([
+            getDoc(doc(db, "nobet2_ayarlar", "mevcut")),
+            getDoc(doc(db, "nobet2_ayarlar", "noktalar")),
+            getDoc(doc(db, "settings", "genel")),
+            getDocs(collection(db, "tatil_donemleri")),
+          ]);
+          OKUL_BASLANGIC = ayarDoc.exists() ? ayarDoc.data().okul_baslangic_tarihi || "" : "";
+          OKUL_BITIS = ayarDoc.exists() ? ayarDoc.data().okul_bitis_tarihi || "" : "";
+          TATILLER = [];
+          tatilSnap.forEach((d) => TATILLER.push(d.data()));
+
+          if (!nbDoc.exists()) {
+            icerik.innerHTML = '<div style="color:#888;padding:12px;">Gün değişme nöbeti henüz tanımlanmamış.</div>';
+            return;
+          }
+
+          const nb = nbDoc.data();
+          NOKTALAR = nokDoc.exists() ? (nokDoc.data().liste || []) : [];
+          const slotlar = nb.slotlar || [];
+
+          if (!NOKTALAR.length) {
+            icerik.innerHTML = '<div style="color:#888;padding:12px;">Nöbet noktaları tanımlanmamış.</div>';
+            return;
+          }
+
+          const teacherSlot = teacherId ? slotlar.find((s) => s.ogretmen_id === teacherId) : null;
+          if (!teacherSlot) {
+            icerik.innerHTML = '<div style="color:#888;padding:12px;">Gün değişme nöbet programında kaydınız bulunmuyor.</div>';
+            return;
+          }
+
+          const GUNLER2 = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma"];
+          const GOSTERILECEK_HAFTA_SAYISI = 26;
+          const rotasyonAktif = nb.rotasyon_aktif !== false;
+          const baseSayac = nb.rotasyon_sayaci || 0;
+          const fmt = (d) => d.toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric" });
+          const fmt2 = (d) => d.toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit" });
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+
+          let html = `<table>
+            <thead><tr>
+              <th>Hafta</th>
+              <th>Nöbet Günü</th>
+              <th>Tarih</th>
+              <th>Nöbet Noktası</th>
+            </tr></thead><tbody>`;
+
+          let haftaStr = nb.hafta_baslangic;
+          let sayac = baseSayac;
+          let rowsShown = 0;
+          let iter = 0;
+
+          while (rowsShown < GOSTERILECEK_HAFTA_SAYISI && iter < 520) {
+            iter++;
+            if (OKUL_BITIS && haftaStr > OKUL_BITIS) break;
+
+            const hafta = new Date(haftaStr + "T12:00:00");
+            const haftaBitis = new Date(hafta);
+            haftaBitis.setDate(hafta.getDate() + 4);
+            const haftaBasKarsi = new Date(hafta);
+            haftaBasKarsi.setHours(0, 0, 0, 0);
+            const haftaBitKarsi = new Date(haftaBitis);
+            haftaBitKarsi.setHours(0, 0, 0, 0);
+            const buHafta = haftaBasKarsi <= today && today <= haftaBitKarsi;
+            const gecti = haftaBitKarsi < today;
+            const sinif = buHafta ? "gdn-buHafta" : gecti ? "gdn-gecti" : "";
+
+            const tamTatil = haftaTamamenTatilMi(haftaStr);
+            const pos = pozHesapla(teacherSlot, sayac, slotlar);
+            const gunTarihiStr = haftaTarihEkle(haftaStr, pos.gi);
+            const gunTatilAdi = !tamTatil ? gunTatilMi(gunTarihiStr) : null;
+
+            if (tamTatil || gunTatilAdi) {
+              html += `<tr class="${sinif}">
+                <td>${fmt2(hafta)} – ${fmt2(haftaBitis)}</td>
+                <td colspan="3" style="color:#888;">Tatil</td>
+              </tr>`;
+            } else {
+              const gunTarihi = new Date(gunTarihiStr + "T12:00:00");
+              html += `<tr class="${sinif}">
+                <td>${fmt2(hafta)} – ${fmt2(haftaBitis)}</td>
+                <td><strong>${GUNLER2[pos.gi] || ""}</strong></td>
+                <td>${fmt(gunTarihi)}</td>
+                <td style="color:#1557b0; font-weight:700;">${NOKTALAR[pos.ni] || ""}</td>
+              </tr>`;
+            }
+
+            rowsShown++;
+            const sonrakiHaftaStr = haftaTarihEkle(haftaStr, 7);
+            const sonrakiTamTatil = haftaTamamenTatilMi(sonrakiHaftaStr);
+            if (rotasyonAktif && !sonrakiTamTatil) sayac++;
+            haftaStr = sonrakiHaftaStr;
+          }
+
+          html += "</tbody></table>";
+          icerik.innerHTML = html;
+        } catch (err) {
+          icerik.innerHTML = '<div style="color:#c5221f;padding:12px;">Hata: ' + err.message + "</div>";
+        }
       }
 
       function tabloGoster() {
@@ -760,6 +975,14 @@
           pozMap[p.gi + "-" + p.ni] = s;
         });
 
+        const gunDurumu = GUNLER.map((g, gi) => {
+          const gunStr = haftaTarihEkle(nobetVerisi.hafta_baslangic, gi);
+          if (OKUL_BASLANGIC && gunStr < OKUL_BASLANGIC) return "Dönem Dışı";
+          if (OKUL_BITIS && gunStr > OKUL_BITIS) return "Dönem Dışı";
+          const tatilAdi = gunTatilMi(gunStr);
+          return tatilAdi ? "Tatil" : null;
+        });
+
         let html =
           '<table class="nobet-tablo"><thead><tr><th>Nöbet Noktası</th>';
         GUNLER.forEach((g, gi) => {
@@ -779,6 +1002,10 @@
         NOKTALAR.forEach((nokta, ni) => {
           html += "<tr><td>" + nokta + "</td>";
           GUNLER.forEach((g, gi) => {
+            if (gunDurumu[gi]) {
+              html += '<td><div class="nobetci nobetci-bos">' + gunDurumu[gi] + "</div></td>";
+              return;
+            }
             const s = pozMap[gi + "-" + ni];
             if (s) {
               const sb = s.sabitlik || "serbest";
@@ -853,7 +1080,7 @@
         mesaj("Gönderiliyor...", "bilgi");
         try {
           const fn = httpsCallable(functions, "nobetTelegramGonder");
-          await fn({ tip: "nobet2" });
+          await fn({});
           mesaj("Telegram'a gönderildi!", "basari");
         } catch (e) {
           mesaj("Hata: " + e.message, "hata");
@@ -863,6 +1090,7 @@
       window.yerlesimAc = () => {
         editSlotlar = JSON.parse(JSON.stringify(nobetVerisi.slotlar || []));
         seciliOgr = null;
+        document.getElementById("sb-sgun").checked = true;
         ogrChiplariGoster();
         yerlesimGridGoster();
         document.getElementById("yerlesimModal").classList.add("aktif");
@@ -982,6 +1210,7 @@
           baslangic_slot: slot,
         });
         seciliOgr = null;
+        document.getElementById("sb-sgun").checked = true;
         ogrChiplariGoster(document.getElementById("ogrArama").value);
         yerlesimGridGoster();
       };
@@ -1003,6 +1232,27 @@
         modalKapat("yerlesimModal");
         tabloGoster();
         mesaj("Yerleşim kaydedildi.", "basari");
+      };
+
+      window.tumunuSabitGuneCevir = async function () {
+        const slotlar = nobetVerisi.slotlar || [];
+        if (!slotlar.length) {
+          mesaj("Çizelgede yerleşik öğretmen yok.", "bilgi");
+          return;
+        }
+        if (
+          !confirm(
+            "Çizelgedeki tüm öğretmenlerin sabitlik türü 'Sabit Gün, Değişken Nokta' yapılacak. Onaylıyor musunuz?",
+          )
+        )
+          return;
+        nobetVerisi.slotlar = slotlar.map((s) => ({ ...s, sabitlik: "sabit_gun" }));
+        await setDoc(doc(db, "nobet2_ayarlar", "mevcut"), {
+          ...nobetVerisi,
+          son_guncelleme: serverTimestamp(),
+        });
+        tabloGoster();
+        mesaj("Tüm öğretmenler Sabit Güne çevrildi.", "basari");
       };
 
       window.noktaYonetimiAc = function () {
@@ -1097,12 +1347,19 @@
           return;
         }
         var rol = ud.data().rol;
-        if (rol !== "admin" && rol !== "mudur_yardimcisi") {
+        if (rol === "admin" || rol === "mudur_yardimcisi") {
+          await init();
+        } else if (rol === "ogretmen") {
+          document.querySelector(".topbar-sag").style.display = "none";
+          const ogSnap = await getDocs(
+            query(collection(db, "teachers"), where("uid", "==", user.uid)),
+          );
+          const teacherId = ogSnap.empty ? null : ogSnap.docs[0].id;
+          await ogretmenGorunumuYukle(teacherId);
+        } else {
           document.getElementById("yukleniyor").textContent =
             "Erişim yetkiniz yok.";
-          return;
         }
-        await init();
       });
     </script>
   </body>

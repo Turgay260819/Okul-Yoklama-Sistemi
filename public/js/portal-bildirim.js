@@ -56,7 +56,7 @@ function _bildirimPanelIcerikGoster() {
     panel.innerHTML = `<div class="bildirim-bos">🔔 Okunmamis bildirim yok.</div>`;
     return;
   }
-  const tipIkonu = { anket: "📋", gorev: "📌", duyuru: "📢" };
+  const tipIkonu = { anket: "📋", gorev: "📌", duyuru: "📢", kura: "🎲" };
   let html = `<div class="bildirim-panel-baslik"><span>BİLDİRİMLER (${state.bildirimler.length})</span></div>`;
   state.bildirimler.forEach((b) => {
     const ikon = tipIkonu[b.tip] || "🔔";
@@ -81,6 +81,8 @@ window.bildirimOku = async (bildirimId, tip, referansId) => {
     window.location.href = "/anket.html" + (referansId ? "?id=" + referansId : "");
   } else if (tip === "gorev") {
     window.sayfaGoster("gorevlerim", "Görevlerim", document.getElementById("menu-gorevlerim"));
+  } else if (tip === "kura") {
+    window.sayfaGoster("kura", "Kura Sonuçları", document.getElementById("menu-kura"));
   }
 };
 

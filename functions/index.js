@@ -30,6 +30,28 @@ function normalizeGun(gun) {
     .replace(/ö/g, "o");
 }
 
+// Admin'in tanımladığı yaz tatili/ara tatil/bayram tatili gibi tarih
+// aralıklarında ders/yoklama oluşturulmaması için kontrol edilir.
+async function tatilKontrol(db, tarih) {
+  const snap = await db.collection("tatil_donemleri").get();
+  for (const doc of snap.docs) {
+    const d = doc.data();
+    if (d.baslangic && d.bitis && tarih >= d.baslangic && tarih <= d.bitis) return d.ad;
+  }
+  return null;
+}
+
+// settings/genel.okul_baslangic_tarihi / okul_bitis_tarihi disindaki gunlerde
+// ne ders/yoklama olusturma ne de nobet islemleri calismamali. Alanlardan biri
+// bos ise (admin henuz girmemisse) o yondeki sinir uygulanmaz.
+async function okulDonemDisindaMi(db, tarih) {
+  const ayarDoc = await db.collection("settings").doc("genel").get();
+  const ayar = ayarDoc.exists ? ayarDoc.data() : {};
+  if (ayar.okul_baslangic_tarihi && tarih < ayar.okul_baslangic_tarihi) return "baslamadi";
+  if (ayar.okul_bitis_tarihi && tarih > ayar.okul_bitis_tarihi) return "bitti";
+  return null;
+}
+
 const TELEGRAM_TOKEN = "8467331852:AAGgHjmRfmiX6wcx_JATti9BoyUa7XOI-Gs";
 const TELEGRAM_CHAT_ID = "7931893676";
 
@@ -475,6 +497,18 @@ exports.bugunDersleriniOlustur = onSchedule({ schedule: "0 3 * * *", timeZone: "
     return;
   }
 
+  const donemDurumu = await okulDonemDisindaMi(db, tarih);
+  if (donemDurumu) {
+    console.log(`${tarih} okul donemi disinda (${donemDurumu}), ders oluşturulmadı.`);
+    return;
+  }
+
+  const tatilAdi = await tatilKontrol(db, tarih);
+  if (tatilAdi) {
+    console.log(`${tarih} tatil dönemine (${tatilAdi}) denk geliyor, ders oluşturulmadı.`);
+    return;
+  }
+
   const mevcutSnap = await db.collection("today_lessons")
     .where("date", "==", tarih)
     .get();
@@ -611,100 +645,133 @@ exports.testBildirimiGonder = onCall(async (request) => {
     throw new HttpsError("internal", err.message);
   }
 });
+// nobet2.html'deki uc dalli rotasyon mantiginin (sabit_gun dahil) sunucu
+// tarafindaki paylasilan kopyasi — hem nobetTelegramGonder hem
+// nobetBugunKontrol bunu kullanir, ayri kopyalar acilmaz.
+function nobet2SlotToPos(slot, N) {
+  return { gi: Math.floor(slot / N), ni: slot % N };
+}
+
+function nobet2SabitGunNoktaHavuzu(gi, slots, N) {
+  const sgnNoktalari = new Set();
+  slots.forEach((t) => {
+    if (t.sabitlik === "sgn" && nobet2SlotToPos(t.baslangic_slot, N).gi === gi)
+      sgnNoktalari.add(nobet2SlotToPos(t.baslangic_slot, N).ni);
+  });
+  const havuz = [];
+  for (let ni = 0; ni < N; ni++) if (!sgnNoktalari.has(ni)) havuz.push(ni);
+  return havuz;
+}
+
+// "sabit_gun" ogretmenlerinin bu haftaki (sayac'a gore) gercek pozisyonu.
+function nobet2SabitGunPozisyonu(s, sayac, slots, N) {
+  const gi = nobet2SlotToPos(s.baslangic_slot, N).gi;
+  const havuz = nobet2SabitGunNoktaHavuzu(gi, slots, N);
+  if (!havuz.length) return nobet2SlotToPos(s.baslangic_slot, N);
+  const basNi = nobet2SlotToPos(s.baslangic_slot, N).ni;
+  const basIdx = havuz.indexOf(basNi);
+  const idx = basIdx < 0 ? 0 : basIdx;
+  const yeniIdx = (((idx + sayac) % havuz.length) + havuz.length) % havuz.length;
+  return { gi, ni: havuz[yeniIdx] };
+}
+
+// Serbest rotasyon havuzu: sgn slotlari her zaman, sabit_gun slotlari ise
+// sadece o haftaki gercekte dolu (gun,nokta) pozisyonu kadar cikarilir —
+// bir gunun tamami degil, sadece o an dolu olan nokta havuzdan dusurulur.
+function nobet2SerbestSlotListesi(slots, sayac, N) {
+  const sgn = new Set();
+  const doluSabitGun = new Set();
+  slots.forEach((s) => {
+    if (s.sabitlik === "sgn") sgn.add(s.baslangic_slot);
+    else if (s.sabitlik === "sabit_gun") {
+      const pos = nobet2SabitGunPozisyonu(s, sayac, slots, N);
+      doluSabitGun.add(pos.gi * N + pos.ni);
+    }
+  });
+  const liste = [];
+  for (let adim = 0; adim < 5 * N; adim++) {
+    const gi = adim % 5;
+    const ni = adim % N;
+    const slot = gi * N + ni;
+    if (!sgn.has(slot) && !doluSabitGun.has(slot) && !liste.includes(slot)) liste.push(slot);
+  }
+  return liste;
+}
+
+function nobet2PozHesapla(s, sayac, slots, N) {
+  if (s.sabitlik === "sgn") return nobet2SlotToPos(s.baslangic_slot, N);
+  if (s.sabitlik === "sabit_gun") return nobet2SabitGunPozisyonu(s, sayac, slots, N);
+  const serbest = nobet2SerbestSlotListesi(slots, sayac, N);
+  if (!serbest.length) return nobet2SlotToPos(s.baslangic_slot, N);
+  let idx = serbest.indexOf(s.baslangic_slot);
+  if (idx < 0) {
+    // Orijinal slot bu hafta bir sabit_gun ogretmeni tarafindan dolu —
+    // tum yetim ogretmenlerin 0'a cakismamasi icin, orijinal slot
+    // numarasindan sonraki ilk bos slota (dongusel) yerlesir.
+    idx = serbest.findIndex((slotNo) => slotNo >= s.baslangic_slot);
+    if (idx < 0) idx = 0;
+  }
+  const yeniIdx = (((idx + sayac) % serbest.length) + serbest.length) % serbest.length;
+  return nobet2SlotToPos(serbest[yeniIdx], N);
+}
+
 exports.nobetTelegramGonder = onCall(async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Giris yapilmamis.");
 
   const db = admin.firestore();
 
-  if (request.data?.tip === "nobet2") {
-    const [nbDoc, nokDoc] = await Promise.all([
-      db.collection("nobet2_ayarlar").doc("mevcut").get(),
-      db.collection("nobet2_ayarlar").doc("noktalar").get(),
-    ]);
-    if (!nbDoc.exists) throw new HttpsError("not-found", "Gun degisme nobeti verisi bulunamadi.");
+  const [nbDoc, nokDoc, ayarDoc, tatilSnap] = await Promise.all([
+    db.collection("nobet2_ayarlar").doc("mevcut").get(),
+    db.collection("nobet2_ayarlar").doc("noktalar").get(),
+    db.collection("settings").doc("genel").get(),
+    db.collection("tatil_donemleri").get(),
+  ]);
+  if (!nbDoc.exists) throw new HttpsError("not-found", "Gun degisme nobeti verisi bulunamadi.");
 
-    const nb = nbDoc.data();
-    const NOKTALAR = nokDoc.exists ? (nokDoc.data().liste || []) : [];
-    const slotlar = nb.slotlar || [];
-    const N = NOKTALAR.length;
-    if (!N) throw new HttpsError("not-found", "Nobet noktalari tanimlanmamis.");
+  const nb = nbDoc.data();
+  const ayar = ayarDoc.exists ? ayarDoc.data() : {};
+  const tatiller = tatilSnap.docs.map((d) => d.data());
+  const NOKTALAR = nokDoc.exists ? (nokDoc.data().liste || []) : [];
+  const slotlar = nb.slotlar || [];
+  const N = NOKTALAR.length;
+  if (!N) throw new HttpsError("not-found", "Nobet noktalari tanimlanmamis.");
 
-    const GUNLER = ["Pazartesi", "Sali", "Carsamba", "Persembe", "Cuma"];
-    const slotToPos = (slot) => ({ gi: Math.floor(slot / N), ni: slot % N });
+  const haftaBasStr = nb.hafta_baslangic;
+  const haftaBitStr = nobet2TarihEkle(haftaBasStr, 4);
+  if (ayar.okul_baslangic_tarihi && haftaBitStr < ayar.okul_baslangic_tarihi)
+    return { success: false, message: "Okul henuz baslamadi." };
+  if (ayar.okul_bitis_tarihi && haftaBasStr > ayar.okul_bitis_tarihi)
+    return { success: false, message: "Okul donemi sona erdi." };
 
-    // nobet2.html / nobet.html'deki uc dalli rotasyon mantiginin sunucu
-    // tarafindaki birebir kopyasi (sabit_gun dahil) — tutarli olmasi icin
-    // ucu de senkron tutulmali.
-    function serbestSlotListesi(slots) {
-      const sgn = new Set();
-      const sabitGunler = new Set();
-      slots.forEach((s) => {
-        if (s.sabitlik === "sgn") sgn.add(s.baslangic_slot);
-        else if (s.sabitlik === "sabit_gun") sabitGunler.add(slotToPos(s.baslangic_slot).gi);
-      });
-      const liste = [];
-      for (let adim = 0; adim < 5 * N; adim++) {
-        const gi = adim % 5;
-        const ni = adim % N;
-        if (sabitGunler.has(gi)) continue;
-        const slot = gi * N + ni;
-        if (!sgn.has(slot) && !liste.includes(slot)) liste.push(slot);
-      }
-      return liste;
-    }
+  const GUNLER = ["Pazartesi", "Sali", "Carsamba", "Persembe", "Cuma"];
+  const sayac = nb.rotasyon_sayaci || 0;
+  const baslangic2 = new Date(nb.hafta_baslangic + "T12:00:00");
+  const formatTarih2 = (d) => {
+    const gun = String(d.getDate()).padStart(2, "0");
+    const ay = String(d.getMonth() + 1).padStart(2, "0");
+    return `${gun}.${ay}.${d.getFullYear()}`;
+  };
 
-    function sabitGunNoktaHavuzu(gi, slots) {
-      const sgnNoktalari = new Set();
-      slots.forEach((t) => {
-        if (t.sabitlik === "sgn" && slotToPos(t.baslangic_slot).gi === gi)
-          sgnNoktalari.add(slotToPos(t.baslangic_slot).ni);
-      });
-      const havuz = [];
-      for (let ni = 0; ni < N; ni++) if (!sgnNoktalari.has(ni)) havuz.push(ni);
-      return havuz;
-    }
+  const gunNobetciler = GUNLER.map(() => []);
+  slotlar.forEach((s) => {
+    const pos = nobet2PozHesapla(s, sayac, slotlar, N);
+    gunNobetciler[pos.gi].push({ ni: pos.ni, ad: s.ogretmen_ad });
+  });
 
-    function pozHesapla(s, sayac, slots) {
-      if (s.sabitlik === "sgn") return slotToPos(s.baslangic_slot);
-      if (s.sabitlik === "sabit_gun") {
-        const gi = slotToPos(s.baslangic_slot).gi;
-        const havuz = sabitGunNoktaHavuzu(gi, slots);
-        if (!havuz.length) return slotToPos(s.baslangic_slot);
-        const basNi = slotToPos(s.baslangic_slot).ni;
-        const basIdx = havuz.indexOf(basNi);
-        const idx = basIdx < 0 ? 0 : basIdx;
-        const yeniIdx = (((idx + sayac) % havuz.length) + havuz.length) % havuz.length;
-        return { gi, ni: havuz[yeniIdx] };
-      }
-      const serbest = serbestSlotListesi(slots);
-      if (!serbest.length) return slotToPos(s.baslangic_slot);
-      const basIdx = serbest.indexOf(s.baslangic_slot);
-      const idx = basIdx < 0 ? 0 : basIdx;
-      const yeniIdx = (((idx + sayac) % serbest.length) + serbest.length) % serbest.length;
-      return slotToPos(serbest[yeniIdx]);
-    }
-
-    const sayac = nb.rotasyon_sayaci || 0;
-    const baslangic2 = new Date(nb.hafta_baslangic + "T12:00:00");
-    const formatTarih2 = (d) => {
-      const gun = String(d.getDate()).padStart(2, "0");
-      const ay = String(d.getMonth() + 1).padStart(2, "0");
-      return `${gun}.${ay}.${d.getFullYear()}`;
-    };
-
-    const gunNobetciler = GUNLER.map(() => []);
-    slotlar.forEach((s) => {
-      const pos = pozHesapla(s, sayac, slotlar);
-      gunNobetciler[pos.gi].push({ ni: pos.ni, ad: s.ogretmen_ad });
-    });
-
-    let mesaj2 = `📋 *GÜN DEĞİŞME NÖBET ÇİZELGESİ*\n`;
-    mesaj2 += `------------------------------------------\n\n`;
-    GUNLER.forEach((gun, gi) => {
-      const gunTarihi = new Date(baslangic2);
-      gunTarihi.setDate(baslangic2.getDate() + gi);
-      mesaj2 += `🗓 *${formatTarih2(gunTarihi)} ${gun}*\n`;
-      mesaj2 += "`\n";
+  let mesaj2 = `📋 *GÜN DEĞİŞME NÖBET ÇİZELGESİ*\n`;
+  mesaj2 += `------------------------------------------\n\n`;
+  GUNLER.forEach((gun, gi) => {
+    const gunTarihi = new Date(baslangic2);
+    gunTarihi.setDate(baslangic2.getDate() + gi);
+    mesaj2 += `🗓 *${formatTarih2(gunTarihi)} ${gun}*\n`;
+    mesaj2 += "`\n";
+    const gunTarihiStr = gunTarihi.toISOString().split("T")[0];
+    const gunTatili = tatiller.find(
+      (t) => t.baslangic && t.bitis && gunTarihiStr >= t.baslangic && gunTarihiStr <= t.bitis
+    );
+    if (gunTatili) {
+      mesaj2 += `Tatil: ${gunTatili.ad}\n`;
+    } else {
       const oGununNobetcileri = gunNobetciler[gi].sort((a, b) => a.ni - b.ni);
       if (oGununNobetcileri.length) {
         oGununNobetcileri.forEach((n) => {
@@ -714,108 +781,169 @@ exports.nobetTelegramGonder = onCall(async (request) => {
       } else {
         mesaj2 += "Nobetci yok\n";
       }
-      mesaj2 += "`\n\n";
-    });
-
-    await telegramMesajGonder(mesaj2);
-    return { success: true };
-  }
-
-  const nobetDoc = await db.collection("nobet_ayarlar").doc("mevcut").get();
-  if (!nobetDoc.exists) throw new HttpsError("not-found", "Nobet verisi bulunamadi.");
-
-  const veri = nobetDoc.data();
-  const noktalar = [
-    "On Bahce 1", "On Bahce 2", "Arka Bahce", "Zemin Kat",
-    "1. Kat Sag", "1. Kat Sol", "2. Kat Sag", "2. Kat Sol",
-    "3. Kat Sag", "3. Kat Sol"
-  ];
-
-  const baslangic = new Date(veri.hafta_baslangic + 'T12:00:00');
-
-  const formatTarih = (d) => {
-    const gun = String(d.getDate()).padStart(2, '0');
-    const ay = String(d.getMonth() + 1).padStart(2, '0');
-    const yil = d.getFullYear();
-    return `${gun}.${ay}.${yil}`;
-  };
-
-  let mesaj = `📋 *HAFTALIK NÖBET ÇİZELGESİ*\n`;
-  mesaj += `------------------------------------------\n\n`;
-
-  veri.gunler.forEach((g, gunIdx) => {
-    const gunTarihi = new Date(baslangic);
-    gunTarihi.setDate(baslangic.getDate() + gunIdx);
-    mesaj += `🗓 *${formatTarih(gunTarihi)} ${g.gun}*\n`;
-    mesaj += '`\n';
-    noktalar.forEach((nokta, i) => {
-      const noktaPad = nokta.padEnd(12, ' ');
-      mesaj += `${noktaPad}: ${g.nobetciler[i] || '-'}\n`;
-    });
-    mesaj += '`\n\n';
+    }
+    mesaj2 += "`\n\n";
   });
 
-  await telegramMesajGonder(mesaj);
+  await telegramMesajGonder(mesaj2);
   return { success: true };
 });
-exports.haftalikNobetGonder = onSchedule("0 13 * * 5", async (event) => {
+
+// ===========================
+// BUGÜN NÖBETÇİ MİSİN KONTROLÜ (Gün Değişme Nöbeti)
+// Öğretmen girişinde çağrılır; rastgelelik gerektirmez ama rotasyon
+// mantığının istemcide (henüz yüklenmemiş nobet2.html iframe'inde) yeniden
+// hesaplanmasını gerektirmeyecek şekilde tamamen sunucu tarafında çalışır.
+// ===========================
+exports.nobetBugunKontrol = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Giris yapilmamis.");
+
   const db = admin.firestore();
-  const nobetDoc = await db.collection("nobet_ayarlar").doc("mevcut").get();
-  if (!nobetDoc.exists) return;
 
-  const veri = nobetDoc.data();
-  const noktalar = [
-    "On Bahce 1", "On Bahce 2", "Arka Bahce", "Zemin Kat",
-    "1. Kat Sag", "1. Kat Sol", "2. Kat Sag", "2. Kat Sol",
-    "3. Kat Sag", "3. Kat Sol"
-  ];
+  const teacherSnap = await db.collection("teachers").where("uid", "==", request.auth.uid).limit(1).get();
+  if (teacherSnap.empty) return { nobetciMi: false };
+  const teacherId = teacherSnap.docs[0].id;
 
-  const baslangic = new Date(veri.hafta_baslangic + 'T12:00:00');
-  const formatTarih = (d) => {
-    const gun = String(d.getDate()).padStart(2, '0');
-    const ay = String(d.getMonth() + 1).padStart(2, '0');
-    return `${gun}.${ay}.${d.getFullYear()}`;
-  };
+  const bugun = new Date().toLocaleString("sv-SE", { timeZone: "Europe/Istanbul" }).slice(0, 10);
+  const jsDay = new Date(bugun + "T12:00:00").getDay();
+  if (jsDay === 0 || jsDay === 6) return { nobetciMi: false };
+  const bugunGi = jsDay - 1;
 
-  // Bir sonraki haftanın verilerini hesapla
-  const sonrakiBaslangic = new Date(baslangic);
-  sonrakiBaslangic.setDate(baslangic.getDate() + 7);
+  const donemDurumu = await okulDonemDisindaMi(db, bugun);
+  if (donemDurumu) return { nobetciMi: false };
+  const bugunTatilAdi = await tatilKontrol(db, bugun);
+  if (bugunTatilAdi) return { nobetciMi: false };
 
-  let sonrakiGunler;
-  if (veri.rotasyon_aktif) {
-    sonrakiGunler = veri.gunler.map(gun => {
-      const nobetciler = [...gun.nobetciler];
-      const hareketli = nobetciler.filter(n => !n.includes('(S)'));
-      if (hareketli.length > 1) hareketli.unshift(hareketli.pop());
-      let idx = 0;
-      const yeni = nobetciler.map(n => n.includes('(S)') ? n : hareketli[idx++]);
-      return { ...gun, nobetciler: yeni };
-    });
-  } else {
-    sonrakiGunler = veri.gunler;
+  const gorulmeDoc = await db.collection("nobet_gorulme").doc(teacherId).get();
+  if (gorulmeDoc.exists && gorulmeDoc.data().son_tarih === bugun) return { nobetciMi: false };
+
+  const [nbDoc, nokDoc] = await Promise.all([
+    db.collection("nobet2_ayarlar").doc("mevcut").get(),
+    db.collection("nobet2_ayarlar").doc("noktalar").get(),
+  ]);
+  if (!nbDoc.exists) return { nobetciMi: false };
+
+  const nb = nbDoc.data();
+  const NOKTALAR = nokDoc.exists ? (nokDoc.data().liste || []) : [];
+  const N = NOKTALAR.length;
+  if (!N) return { nobetciMi: false };
+
+  const slotlar = nb.slotlar || [];
+  const teacherSlot = slotlar.find((s) => s.ogretmen_id === teacherId);
+  if (!teacherSlot) return { nobetciMi: false };
+
+  // Bugun, admin'in Ileri/Geri ile takip ettigi mevcut hafta icinde mi?
+  const haftaBas = new Date(nb.hafta_baslangic + "T12:00:00");
+  const haftaBit = new Date(haftaBas);
+  haftaBit.setDate(haftaBas.getDate() + 4);
+  const bugunTarih = new Date(bugun + "T12:00:00");
+  if (bugunTarih < haftaBas || bugunTarih > haftaBit) return { nobetciMi: false };
+
+  const sayac = nb.rotasyon_sayaci || 0;
+  const pos = nobet2PozHesapla(teacherSlot, sayac, slotlar, N);
+  if (pos.gi !== bugunGi) return { nobetciMi: false };
+
+  return { nobetciMi: true, nokta: NOKTALAR[pos.ni] || "" };
+});
+
+// Verilen YYYY-MM-DD tarihinin ait oldugu haftanin Pazartesi'sini dondurur
+// (public/nobet2.html pazartesiyeYuvarla ile ayni mantik, sunucu kopyasi).
+function nobet2PazartesiyeYuvarla(tarihStr) {
+  const d = new Date(tarihStr + "T12:00:00");
+  const fark = d.getDay() === 0 ? -6 : 1 - d.getDay();
+  d.setDate(d.getDate() + fark);
+  return d.toISOString().split("T")[0];
+}
+
+function nobet2TarihEkle(tarihStr, gun) {
+  const d = new Date(tarihStr + "T12:00:00");
+  d.setDate(d.getDate() + gun);
+  return d.toISOString().split("T")[0];
+}
+
+// Haftanin 5 is gununun (Pzt-Cuma) TAMAMI tatil araligina denk geliyorsa
+// true doner. Kismi tatil (haftanin bir kismi) rotasyon sayacini durdurmaz —
+// sadece o gunler icin nobetci gosterilmez (bkz. nobetBugunKontrol/nobetTelegramGonder).
+function nobet2HaftaTamamenTatilMi(haftaBasStr, tatiller) {
+  for (let gi = 0; gi < 5; gi++) {
+    const gunStr = nobet2TarihEkle(haftaBasStr, gi);
+    const kapali = tatiller.some((t) => t.baslangic && t.bitis && gunStr >= t.baslangic && gunStr <= t.bitis);
+    if (!kapali) return false;
+  }
+  return true;
+}
+
+// ===========================
+// GUN DEGISME NOBETI - HAFTALIK OTOMATIK ILERLETME
+// Her Pazartesi erken saatte calisir; hafta_baslangic'i gercek takvime
+// yetistirir, tam-hafta tatillerinde rotasyon_sayaci'ni ILERLETMEDEN sadece
+// takvimi gunceller, okul baslangicindan once/bitisinden sonra hicbir sey
+// yapmaz. Manuel Ileri/Geri/Durdur butonlari bu dokumani yazmaya devam eder;
+// bu fonksiyon sadece "otomatik ilerleme" kaynagidir, mevcut state modelini
+// degistirmez.
+// ===========================
+exports.nobet2HaftaGuncelle = onSchedule({ schedule: "0 2 * * 1", timeZone: "Europe/Istanbul" }, async () => {
+  const db = admin.firestore();
+  const ayarDoc = await db.collection("settings").doc("genel").get();
+  const ayar = ayarDoc.exists ? ayarDoc.data() : {};
+  const okulBas = ayar.okul_baslangic_tarihi || null;
+  const okulBit = ayar.okul_bitis_tarihi || null;
+
+  const bugun = new Date().toLocaleString("sv-SE", { timeZone: "Europe/Istanbul" }).slice(0, 10);
+  const bugunPzt = nobet2PazartesiyeYuvarla(bugun);
+
+  if (okulBas && bugunPzt < okulBas) {
+    console.log("Okul henuz baslamadi, nobet haftasi guncellenmedi.");
+    return;
+  }
+  if (okulBit && bugunPzt > okulBit) {
+    console.log("Okul donemi sona erdi, nobet haftasi guncellenmedi.");
+    return;
   }
 
-  const sonrakiBitis = new Date(sonrakiBaslangic);
-  sonrakiBitis.setDate(sonrakiBaslangic.getDate() + 4);
+  const nbRef = db.collection("nobet2_ayarlar").doc("mevcut");
+  const [nbDoc, tatilSnap] = await Promise.all([nbRef.get(), db.collection("tatil_donemleri").get()]);
+  const tatiller = tatilSnap.docs.map((d) => d.data());
 
-  let mesaj = `📋 *HAFTALIK NÖBET ÇİZELGESİ*\n`;
-  mesaj += `${formatTarih(sonrakiBaslangic)} - ${formatTarih(sonrakiBitis)}\n`;
-  mesaj += `------------------------------------------\n\n`;
+  let nb, ilkKurulum = false;
+  if (!nbDoc.exists) {
+    ilkKurulum = true;
+    const baslangicHafta = okulBas ? nobet2PazartesiyeYuvarla(okulBas) : bugunPzt;
+    nb = { hafta_baslangic: baslangicHafta, rotasyon_aktif: true, rotasyon_sayaci: 0, slotlar: [] };
+  } else {
+    nb = nbDoc.data();
+  }
 
-  sonrakiGunler.forEach((g, gunIdx) => {
-    const gunTarihi = new Date(sonrakiBaslangic);
-    gunTarihi.setDate(sonrakiBaslangic.getDate() + gunIdx);
-    mesaj += `🗓 *${formatTarih(gunTarihi)} ${g.gun}*\n`;
-    mesaj += '`\n';
-    noktalar.forEach((nokta, i) => {
-      const noktaPad = nokta.padEnd(12, ' ');
-      mesaj += `${noktaPad}: ${g.nobetciler[i] || '-'}\n`;
-    });
-    mesaj += '`\n\n';
-  });
+  let hafta = nb.hafta_baslangic;
+  let sayac = nb.rotasyon_sayaci || 0;
+  const aktif = nb.rotasyon_aktif !== false;
+  let ilerledi = false;
+  let guard = 0;
 
-  await telegramMesajGonder(mesaj);
+  while (hafta < bugunPzt && guard < 520) {
+    guard++;
+    const sonrakiHafta = nobet2TarihEkle(hafta, 7);
+    if (okulBit && sonrakiHafta > okulBit) break;
+    const tamTatil = nobet2HaftaTamamenTatilMi(sonrakiHafta, tatiller);
+    hafta = sonrakiHafta;
+    if (aktif && !tamTatil) sayac++;
+    ilerledi = true;
+  }
+
+  if (ilkKurulum || ilerledi) {
+    await nbRef.set(
+      {
+        ...nb,
+        hafta_baslangic: hafta,
+        rotasyon_sayaci: sayac,
+        son_otomatik_guncelleme: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+    console.log(`Nobet haftasi guncellendi: ${hafta}, sayac=${sayac}`);
+  }
 });
+
 exports.disiplinIlkKurulum = onCall(async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Giris yapilmamis.");
   const db = admin.firestore();
@@ -937,6 +1065,21 @@ exports.manuelDersOlustur = onCall(async (request) => {
   const bugunObj = new Date(tarih);
   const gunler = ["pazar", "pazartesi", "salı", "çarşamba", "perşembe", "cuma", "cumartesi"];
   const bugunAdi = normalizeGun(gunler[bugunObj.getDay()]);
+
+  const donemDurumu = await okulDonemDisindaMi(db, tarih);
+  if (donemDurumu) {
+    return {
+      success: false,
+      message: donemDurumu === "baslamadi"
+        ? "Bu tarih okul baslangicindan once, ders/yoklama oluşturulmadı."
+        : "Bu tarih okul bitisinden sonra, ders/yoklama oluşturulmadı.",
+    };
+  }
+
+  const tatilAdi = await tatilKontrol(db, tarih);
+  if (tatilAdi) {
+    return { success: false, message: `Bu tarih tatil dönemine denk geliyor: ${tatilAdi}. Ders/yoklama oluşturulmadı.` };
+  }
 
   // Mevcut kayıtları sil
   const mevcutSnap = await db.collection("today_lessons")
@@ -1087,6 +1230,141 @@ exports.anketBildir = onCall(async (request) => {
   }
 
   return { success: true, yazilan };
+});
+
+// ===========================
+// KURA ÇEK
+// Öğretmenler arası adil çekiliş — rastgele seçim admin tarafından
+// manipüle edilemesin diye sunucu tarafında (transaction içinde) yapılır.
+// ===========================
+exports.kuraCek = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Giriş yapılmamış.");
+
+  const callerDoc = await admin.firestore().collection("users").doc(request.auth.uid).get();
+  const callerRole = callerDoc.data()?.rol;
+  if (callerRole !== "admin" && callerRole !== "mudur_yardimcisi") {
+    throw new HttpsError("permission-denied", "Yetkiniz yok.");
+  }
+
+  const { torbaId, oturumId, gorev, cekenAd } = request.data;
+  if (!torbaId || !oturumId || !gorev) {
+    throw new HttpsError("invalid-argument", "Torba, oturum ve gorev zorunludur.");
+  }
+
+  const db = admin.firestore();
+  const torbaRef = db.collection("kura_torbalari").doc(torbaId);
+  const oturumRef = db.collection("kura_oturumlari").doc(oturumId);
+  const cekilisRef = db.collection("kura_cekilisleri").doc();
+
+  // Silinmis ogretmenlerin torbada kalmis olma ihtimaline karsi canli listeyle kesistir.
+  const teachersSnap = await db.collection("teachers").get();
+  const canliOgretmenIds = new Set(teachersSnap.docs.map((d) => d.id));
+
+  let secilen, torbaAd, oturumAd;
+
+  await db.runTransaction(async (tx) => {
+    const [torbaDoc, oturumDoc] = await Promise.all([tx.get(torbaRef), tx.get(oturumRef)]);
+    if (!torbaDoc.exists) throw new HttpsError("not-found", "Torba bulunamadi.");
+    if (!oturumDoc.exists) throw new HttpsError("not-found", "Oturum bulunamadi.");
+
+    const uyeler = torbaDoc.data().uyeler || [];
+    const adaylar = uyeler
+      .map((u, idx) => ({ ...u, _idx: idx }))
+      .filter((u) => u.durum === "bekliyor" && canliOgretmenIds.has(u.ogretmen_id));
+
+    if (!adaylar.length) {
+      throw new HttpsError("failed-precondition", "Torbada cekilecek ogretmen kalmadi.");
+    }
+
+    secilen = adaylar[Math.floor(Math.random() * adaylar.length)];
+    torbaAd = torbaDoc.data().ad || "";
+    oturumAd = oturumDoc.data().ad || "";
+
+    const guncelUyeler = uyeler.map((u, idx) =>
+      idx === secilen._idx ? { ...u, durum: "cekildi" } : u
+    );
+    tx.update(torbaRef, { uyeler: guncelUyeler, guncelleme: admin.firestore.FieldValue.serverTimestamp() });
+    tx.set(cekilisRef, {
+      oturum_id: oturumId,
+      oturum_ad: oturumAd,
+      torba_id: torbaId,
+      torba_ad: torbaAd,
+      ogretmen_id: secilen.ogretmen_id,
+      ogretmen_ad: secilen.ogretmen_ad,
+      gorev,
+      cekilis_tarihi: admin.firestore.FieldValue.serverTimestamp(),
+      cekilis_admin_id: request.auth.uid,
+      cekilis_admin_ad: cekenAd || "",
+    });
+  });
+
+  // Kisisel bildirim (Firestore) — hataya ragmen cekilisi geciriz kilmaz
+  try {
+    await db.collection("bildirimler").add({
+      alici_id: secilen.ogretmen_id,
+      tip: "kura",
+      baslik: "Kura Sonucu",
+      mesaj: `${oturumAd} - ${gorev}`,
+      referans_id: cekilisRef.id,
+      okundu: false,
+      tarih: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  } catch (err) {
+    console.error("Kura bildirimi yazma hatasi:", err.message);
+  }
+
+  // Telegram ozeti — hataya ragmen fonksiyonu dusurmez
+  try {
+    const mesaj =
+      `🎲 <b>KURA SONUCU</b>\n\n` +
+      `<b>Oturum:</b> ${oturumAd}\n` +
+      `<b>Torba:</b> ${torbaAd}\n` +
+      `<b>Çıkan:</b> ${secilen.ogretmen_ad}\n` +
+      `<b>Görev:</b> ${gorev}`;
+    await telegramMesajGonder(mesaj);
+  } catch (err) {
+    console.error("Kura Telegram hatasi:", err.message);
+  }
+
+  return { success: true, ogretmenAd: secilen.ogretmen_ad, cekilisId: cekilisRef.id };
+});
+
+// ===========================
+// KURA ÇEKİLİŞİNİ GERİ AL
+// Yanlış/istenmeyen bir çekilişi siler, öğretmeni torbaya geri koyar.
+// ===========================
+exports.kuraCekilisiGeriAl = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Giriş yapılmamış.");
+
+  const callerDoc = await admin.firestore().collection("users").doc(request.auth.uid).get();
+  const callerRole = callerDoc.data()?.rol;
+  if (callerRole !== "admin" && callerRole !== "mudur_yardimcisi") {
+    throw new HttpsError("permission-denied", "Yetkiniz yok.");
+  }
+
+  const { cekilisId } = request.data;
+  if (!cekilisId) throw new HttpsError("invalid-argument", "cekilisId zorunludur.");
+
+  const db = admin.firestore();
+  const cekilisRef = db.collection("kura_cekilisleri").doc(cekilisId);
+
+  await db.runTransaction(async (tx) => {
+    const cekilisDoc = await tx.get(cekilisRef);
+    if (!cekilisDoc.exists) throw new HttpsError("not-found", "Cekilis bulunamadi.");
+    const cekilis = cekilisDoc.data();
+
+    const torbaRef = db.collection("kura_torbalari").doc(cekilis.torba_id);
+    const torbaDoc = await tx.get(torbaRef);
+    if (torbaDoc.exists) {
+      const uyeler = (torbaDoc.data().uyeler || []).map((u) =>
+        u.ogretmen_id === cekilis.ogretmen_id ? { ...u, durum: "bekliyor" } : u
+      );
+      tx.update(torbaRef, { uyeler, guncelleme: admin.firestore.FieldValue.serverTimestamp() });
+    }
+    tx.delete(cekilisRef);
+  });
+
+  return { success: true };
 });
 
 // ===========================

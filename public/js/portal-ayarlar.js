@@ -38,6 +38,7 @@ window.ayarSekme = function (id, el) {
   el.classList.add("aktif");
   if (id === "dyk" && window.dykAyarlarYukle) window.dykAyarlarYukle();
   else if (id === "dersler") _dersListesiYukle();
+  else if (id === "tatiller") _tatilleriYukle();
   else if (id === "sifre-listesi") window.sifreListesiGoster();
   else if (id === "ogrenciler") window.ogrencileriGetir();
   else if (id === "ogretmen-sifre") window.ogretmenSifreListesiGoster();
@@ -50,6 +51,7 @@ window.ayarlarYukle = async function () {
   await window.ogrencileriGetir();
   await donemBilgisiniGetir();
   dersSaatleriYukle();
+  genelAyarlariYukle();
   if (window.dykAyarlarYukle) window.dykAyarlarYukle();
 };
 
@@ -653,14 +655,41 @@ window.donemGuncelle = async function () {
 
 window.sistemAyarlariniKaydet = async function () {
   const { db, setDoc, doc, serverTimestamp } = window.__portal;
+  const okulBaslangic = document.getElementById("ayarOkulBaslangic").value;
+  const okulBitis = document.getElementById("ayarOkulBitis").value;
+  if (okulBaslangic && okulBitis && okulBitis < okulBaslangic) {
+    mesajGoster("sistemAyarMesaj", "Bitis tarihi baslangictan once olamaz.", "hata");
+    return;
+  }
   await setDoc(doc(db, "settings", "genel"), {
     lesson_duration:
       parseInt(document.getElementById("ayarDersSuresi").value) || 40,
     telegram_token: document.getElementById("ayarTelegram").value,
+    okul_baslangic_tarihi: okulBaslangic,
+    okul_bitis_tarihi: okulBitis,
     updated_at: serverTimestamp(),
   });
   mesajGoster("sistemAyarMesaj", "Ayarlar kaydedildi.", "basari");
 };
+
+async function genelAyarlariYukle() {
+  const { db, getDoc, doc } = window.__portal;
+  const d = await getDoc(doc(db, "settings", "genel"));
+  if (!d.exists()) return;
+  const ayar = d.data();
+  const dersSuresiEl = document.getElementById("ayarDersSuresi");
+  const telegramEl = document.getElementById("ayarTelegram");
+  const okulBaslangicEl = document.getElementById("ayarOkulBaslangic");
+  const okulBitisEl = document.getElementById("ayarOkulBitis");
+  if (dersSuresiEl && ayar.lesson_duration != null)
+    dersSuresiEl.value = ayar.lesson_duration;
+  if (telegramEl && ayar.telegram_token != null)
+    telegramEl.value = ayar.telegram_token;
+  if (okulBaslangicEl && ayar.okul_baslangic_tarihi)
+    okulBaslangicEl.value = ayar.okul_baslangic_tarihi;
+  if (okulBitisEl && ayar.okul_bitis_tarihi)
+    okulBitisEl.value = ayar.okul_bitis_tarihi;
+}
 
 window.telegramTest = async function () {
   const { functions, httpsCallable } = window.__portal;
@@ -718,4 +747,57 @@ window.dersListesiSil = async function (id) {
   if (!confirm("Bu dersi silmek istediginize emin misiniz?")) return;
   await deleteDoc(doc(db, "ders_listesi", id));
   _dersListesiYukle();
+};
+
+// ── Tatil Dönemleri (yaz tatili / ara tatil / bayram tatili) ──
+// Bu tarih araliklarinda today_lessons otomatik olusturulmaz, dolayisiyla
+// "eksik yoklama" Telegram bildirimi de gonderilmez (bkz. functions/index.js
+// tatilKontrol, bugunDersleriniOlustur, manuelDersOlustur).
+async function _tatilleriYukle() {
+  const { db, getDocs, collection } = window.__portal;
+  const snap = await getDocs(collection(db, "tatil_donemleri"));
+  const tatiller = [];
+  snap.forEach((d) => tatiller.push({ id: d.id, ...d.data() }));
+  tatiller.sort((a, b) => (a.baslangic || "").localeCompare(b.baslangic || ""));
+
+  const c = document.getElementById("asekme-tatiller");
+  let html = `<div class="kart">
+    <div class="kart-baslik">Tatil Donemleri</div>
+    <p class="sayfa-aciklama">Bu tarih araliklarinda ders/yoklama otomatik olusturulmaz ve eksik yoklama bildirimi gonderilmez.</p>`;
+  if (tatiller.length) {
+    html += `<table><thead><tr><th>Tatil Adi</th><th>Baslangic</th><th>Bitis</th><th></th></tr></thead><tbody>`;
+    tatiller.forEach((t) => {
+      html += `<tr><td><strong>${t.ad || ""}</strong></td><td>${t.baslangic || ""}</td><td>${t.bitis || ""}</td><td style="text-align:right;"><button class="btn btn-kirmizi btn-sm" onclick="tatilSil('${t.id}')">Sil</button></td></tr>`;
+    });
+    html += `</tbody></table>`;
+  } else {
+    html += `<div class="bos-mesaj">Henuz tatil donemi eklenmemis.</div>`;
+  }
+  html += `<div class="form-grid" style="margin-top:16px;">
+      <div class="form-group"><label>Tatil Adi</label><input type="text" id="tatilAdi" placeholder="Yaz Tatili 2025-2026" /></div>
+      <div class="form-group"><label>Baslangic</label><input type="date" id="tatilBaslangic" /></div>
+      <div class="form-group"><label>Bitis</label><input type="date" id="tatilBitis" /></div>
+    </div>
+    <button class="btn btn-yesil" onclick="tatilEkle()">+ Ekle</button>
+    <div class="mesaj" id="tatilMesaj"></div>
+  </div>`;
+  c.innerHTML = html;
+}
+
+window.tatilEkle = async function () {
+  const { db, addDoc, collection, serverTimestamp } = window.__portal;
+  const ad = document.getElementById("tatilAdi")?.value?.trim();
+  const bas = document.getElementById("tatilBaslangic")?.value;
+  const bit = document.getElementById("tatilBitis")?.value;
+  if (!ad || !bas || !bit) { mesajGoster("tatilMesaj", "Tum alanlari doldurun.", "hata"); return; }
+  if (bit < bas) { mesajGoster("tatilMesaj", "Bitis tarihi baslangictan once olamaz.", "hata"); return; }
+  await addDoc(collection(db, "tatil_donemleri"), { ad, baslangic: bas, bitis: bit, olusturulma: serverTimestamp() });
+  _tatilleriYukle();
+};
+
+window.tatilSil = async function (id) {
+  const { db, deleteDoc, doc } = window.__portal;
+  if (!confirm("Bu tatil donemini silmek istediginize emin misiniz?")) return;
+  await deleteDoc(doc(db, "tatil_donemleri", id));
+  _tatilleriYukle();
 };

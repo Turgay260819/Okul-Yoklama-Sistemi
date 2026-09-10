@@ -27,9 +27,8 @@ const adminMenu = [
   { id: "yoklama-fisi",   ikon: "🖨",  ad: "Yoklama Fisleri" },
   { id: "dyk-fisi",       ikon: "🖨",  ad: "DYK Fisleri" },
   { separator: "Nobet" },
-  { id: "nobet",          ikon: "🔔", ad: "Nobet Yonetimi" },
-  { id: "oto-nobet",      ikon: "📅", ad: "Otomatik Nobet" },
   { id: "nobet2",         ikon: "📅", ad: "Gun Degisme Nobeti" },
+  { id: "kura",           ikon: "🎲", ad: "Kura Cekilisi" },
   { separator: "Yonetim" },
   { id: "disiplin",       ikon: "📝", ad: "Disiplin" },
   { id: "gorev",          ikon: "👥", ad: "Gorev Dagilimi" },
@@ -53,12 +52,12 @@ const ogretmenKareler = [
   { sayfa: 1, id: "gorevlerim",          ikon: "👥", ad: "Görevlerim",           renk: "#f3e8fd", metinRenk: "#6a1b9a" },
   { sayfa: 1, id: "kazanimlarim",        ikon: "📖", ad: "Kazanımlarım",         renk: "#e8f5e9", metinRenk: "#1b5e20" },
   { sayfa: 2, id: "manuel",             ikon: "✏️", ad: "Manuel Giriş",          renk: "#f5f5f5", metinRenk: "#424242" },
-  { sayfa: 2, id: "nobet",              ikon: "🔔", ad: "Nöbet Programım",      renk: "#f5f5f5", metinRenk: "#424242" },
-  { sayfa: 2, id: "oto-nobet",      ikon: "📅", ad: "Nöbet İsteğim",        renk: "#f5f5f5", metinRenk: "#424242" },
+  { sayfa: 2, id: "nobet2",             ikon: "📅", ad: "Nöbet Programım",      renk: "#f5f5f5", metinRenk: "#424242" },
   { sayfa: 2, id: "ogrenci-profil", ikon: "👤", ad: "Öğrenci Profilleri",   renk: "#f5f5f5", metinRenk: "#424242" },
   { sayfa: 2, id: "program-talebi", ikon: "📐", ad: "Program Talebi",       renk: "#f5f5f5", metinRenk: "#424242" },
   { sayfa: 2, id: "anket",          ikon: "📋", ad: "Anket & Formlar",      renk: "#f5f5f5", metinRenk: "#424242" },
   { sayfa: 2, id: "gezi-kayit",    ikon: "🚌", ad: "Gezi Kaydı",           renk: "#f5f5f5", metinRenk: "#424242" },
+  { sayfa: 2, id: "kura",          ikon: "🎲", ad: "Kura Sonuçları",       renk: "#f5f5f5", metinRenk: "#424242" },
 ];
 
 let _ogrAktifSayfa = 0;
@@ -130,7 +129,7 @@ window.ogretmenGeri = () => {
   document.getElementById("geriBtn").style.display = "none";
 };
 
-const _iframeSayfaIdsler = ["nobet","disiplin","oto-nobet","nobet2","yoklama-fisi","dyk-fisi","program-talebi","anket","ogrenci-profil","veri-import","geziler","gezi-kayit"];
+const _iframeSayfaIdsler = ["disiplin","nobet2","yoklama-fisi","dyk-fisi","program-talebi","anket","ogrenci-profil","veri-import","geziler","gezi-kayit","kura"];
 
 window.sayfaGoster = (sayfaId, baslik, el) => {
   document.querySelectorAll(".sayfa").forEach((s) => s.classList.remove("aktif"));

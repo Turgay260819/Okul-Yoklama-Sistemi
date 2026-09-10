@@ -236,19 +236,14 @@
               </div>
             </div>
 
-            <!-- NÖBET -->
-            <div class="sayfa" id="sayfa-nobet">
-              <div class="yukleniyor">Yukleniyor...</div>
-            </div>
-
             <!-- DİSİPLİN -->
             <div class="sayfa" id="sayfa-disiplin">
               <div class="yukleniyor">Yukleniyor...</div>
             </div>
 
             <!-- iframe SAYFALARI -->
-            <div class="sayfa" id="sayfa-oto-nobet"></div>
             <div class="sayfa" id="sayfa-nobet2"></div>
+            <div class="sayfa" id="sayfa-kura"></div>
             <div class="sayfa" id="sayfa-yoklama-fisi"></div>
             <div class="sayfa" id="sayfa-dyk-fisi"></div>
             <div class="sayfa" id="sayfa-program-talebi"></div>
@@ -609,6 +604,7 @@
                 <button class="sekme-btn" onclick="ayarSekme('dyk', this)">DYK Kurslari</button>
                 <button class="sekme-btn" onclick="ayarSekme('derssaatleri', this)">Ders Saatleri</button>
                 <button class="sekme-btn" onclick="ayarSekme('sistem', this)">Sistem</button>
+                <button class="sekme-btn" onclick="ayarSekme('tatiller', this)">Tatil Gunleri</button>
                 <button class="sekme-btn" onclick="ayarSekme('dersler', this)">Ders Listesi</button>
               </div>
               <div class="sekme-icerik aktif" id="asekme-ogretmenler">
@@ -840,6 +836,14 @@
                     <label>Telegram Bot Token</label>
                     <input type="text" id="ayarTelegram" placeholder="bot token" />
                   </div>
+                  <div class="form-group" style="max-width:300px">
+                    <label>Okul Baslangic Tarihi</label>
+                    <input type="date" id="ayarOkulBaslangic" />
+                  </div>
+                  <div class="form-group" style="max-width:300px">
+                    <label>Okul Bitis Tarihi</label>
+                    <input type="date" id="ayarOkulBitis" />
+                  </div>
                   <button class="btn btn-mavi" onclick="sistemAyarlariniKaydet()">Kaydet</button>
                   <div class="mesaj" id="sistemAyarMesaj"></div>
                 </div>
@@ -849,6 +853,7 @@
                   <div class="mesaj" id="telegramTestMesaj"></div>
                 </div>
               </div>
+              <div class="sekme-icerik" id="asekme-tatiller"></div>
               <div class="sekme-icerik" id="asekme-dersler"></div>
             </div>
 
@@ -884,6 +889,22 @@
         <div class="modal-butonlar">
           <button class="btn btn-gri" onclick="modalKapat2()">Iptal</button>
           <button class="btn" id="gorevOnayBtn" onclick="gorevOnaylaConfirm()">Onayla</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- BUGUN NOBETCISINIZ MODAL -->
+    <div class="modal-zemin" id="nobetBugunModal">
+      <div class="modal-kutu" style="text-align:center;">
+        <div style="font-size:48px;margin-bottom:8px;">🔔</div>
+        <div class="modal-baslik" style="font-size:20px;">Bugün Nöbetçisiniz!</div>
+        <p id="nobetBugunNoktalar" style="color:var(--text2);margin:12px 0 20px;font-weight:600;"></p>
+        <label style="display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;color:var(--text2);margin-bottom:16px;cursor:pointer;">
+          <input type="checkbox" id="nobetBugunBirDahaGosterme" />
+          Bugün için bir daha gösterme
+        </label>
+        <div class="modal-butonlar">
+          <button class="btn btn-mavi" onclick="nobetBugunModalKapat()">Tamam</button>
         </div>
       </div>
     </div>

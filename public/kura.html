@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kura Cekilisi</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { font-family: "Segoe UI", sans-serif; background: #f0f4f8; }
+      .topbar {
+        background: #1557b0; color: white; padding: 13px 24px;
+        display: flex; justify-content: space-between; align-items: center;
+        flex-wrap: wrap; gap: 10px;
+      }
+      .topbar h1 { font-size: 17px; font-weight: 700; }
+      .btn {
+        padding: 8px 16px; border: none; border-radius: 8px; font-size: 13px;
+        font-weight: 600; cursor: pointer; font-family: inherit; transition: all .15s;
+      }
+      .btn-mavi { background: #1a73e8; color: white; }
+      .btn-yesil { background: #34a853; color: white; }
+      .btn-kirmizi { background: #ea4335; color: white; }
+      .btn-gri { background: #666; color: white; }
+      .btn-sm { padding: 5px 10px; font-size: 12px; }
+      .btn:disabled { opacity: .5; cursor: not-allowed; }
+      .icerik { padding: 20px; max-width: 1100px; margin: 0 auto; }
+      .kart {
+        background: white; border-radius: 12px; padding: 20px;
+        box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 16px;
+      }
+      .kart-baslik { font-size: 15px; font-weight: 700; color: #1557b0; margin-bottom: 12px; }
+      .aciklama { font-size: 12px; color: #888; margin-bottom: 12px; }
+      .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 12px; }
+      .form-group label { display: block; font-size: 12px; color: #555; margin-bottom: 4px; font-weight: 600; }
+      .form-group input, .form-group select, .form-group textarea {
+        width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 8px;
+        font-size: 13px; font-family: inherit;
+      }
+      table { width: 100%; border-collapse: collapse; font-size: 13px; }
+      th { background: #1557b0; color: white; padding: 8px 10px; text-align: left; font-size: 12px; }
+      td { padding: 8px 10px; border-bottom: 1px solid #f0f0f0; }
+      .bos-mesaj { color: #999; font-size: 13px; padding: 12px 0; }
+      .yukleniyor { padding: 40px; text-align: center; color: #888; }
+      .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; }
+      .badge-zumre { background: #e8f0fe; color: #1557b0; }
+      .badge-tumu { background: #f3e8fd; color: #6a1b9a; }
+      .badge-manuel { background: #fef7e0; color: #b06000; }
+      .badge-bekliyor { background: #e6f4ea; color: #1e7e34; }
+      .badge-cekildi { background: #f5f5f5; color: #999; }
+      .torba-satir { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #f0f0f0; flex-wrap: wrap; }
+      .torba-satir:last-child { border-bottom: none; }
+      .torba-ad { font-weight: 700; flex: 1; min-width: 160px; }
+      .uye-listesi { display: none; padding: 10px; background: #f8f9fa; border-radius: 8px; margin-top: 8px; font-size: 12px; }
+      .uye-listesi.acik { display: block; }
+      .uye-chip { display: inline-block; margin: 3px; padding: 3px 8px; border-radius: 6px; font-size: 11px; }
+      .modal-zemin { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 1000; align-items: center; justify-content: center; }
+      .modal-zemin.aktif { display: flex; }
+      .modal-kutu { background: white; border-radius: 12px; padding: 24px; width: 95%; max-width: 500px; max-height: 85vh; overflow-y: auto; }
+      .modal-baslik { font-size: 16px; font-weight: 700; margin-bottom: 14px; color: #1557b0; }
+      .ogr-secim-liste { max-height: 300px; overflow-y: auto; border: 1px solid #eee; border-radius: 8px; padding: 8px; margin-bottom: 12px; }
+      .ogr-secim-satir { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 13px; }
+      .sonuc-kart {
+        background: linear-gradient(135deg, #1a73e8, #1557b0); color: white;
+        border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 16px; display: none;
+      }
+      .sonuc-kart.aktif { display: block; }
+      .sonuc-ad { font-size: 22px; font-weight: 800; margin: 6px 0; }
+      .mesaj-kayan {
+        position: fixed; bottom: 20px; right: 20px; padding: 12px 20px; border-radius: 10px;
+        font-size: 13px; font-weight: 600; display: none; color: white; z-index: 2000;
+      }
+      .mesaj-basari { background: #34a853; }
+      .mesaj-hata { background: #ea4335; }
+      .mesaj-bilgi { background: #1a73e8; }
+    </style>
+  </head>
+  <body>
+    <div class="topbar">
+      <h1>🎲 Kura Çekilişi</h1>
+    </div>
+    <div class="icerik">
+      <div id="yukleniyor" class="yukleniyor">Yükleniyor...</div>
+      <div id="anaIcerik" style="display:none;">
+
+        <div id="adminBolum" style="display:none;">
+          <div class="kart">
+            <div class="kart-baslik">Torbalar</div>
+            <p class="aciklama">Zümre ve tüm öğretmenler torbaları otomatik oluşturulur/yenilenir; farklı bir öğretmen grubu için manuel torba da oluşturabilirsiniz. Çekilen öğretmen torbadan silinmez, sadece "çekildi" olarak işaretlenir.</p>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;">
+              <button class="btn btn-mavi" onclick="zumreTorbalariniSenkronizeEt()">Zümre Torbalarını Oluştur/Yenile</button>
+              <button class="btn btn-mavi" onclick="tumOgretmenlerTorbasiniSenkronizeEt()">Tüm Öğretmenler Torbasını Oluştur/Yenile</button>
+              <button class="btn btn-yesil" onclick="manuelTorbaModalAc()">+ Manuel Torba</button>
+            </div>
+            <div id="torbaListesi"><div class="bos-mesaj">Yükleniyor...</div></div>
+          </div>
+
+          <div class="kart">
+            <div class="kart-baslik">Kura Çek</div>
+            <div id="sonucKart" class="sonuc-kart">
+              <div>🎉 Kura Sonucu</div>
+              <div class="sonuc-ad" id="sonucAd"></div>
+            </div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Kura Oturumu</label>
+                <select id="kuraOturumSecim"></select>
+              </div>
+              <div class="form-group">
+                <label>Yeni Oturum Adı (opsiyonel)</label>
+                <input type="text" id="kuraYeniOturumAdi" placeholder="Şubat Nöbet Kurası" />
+              </div>
+              <div class="form-group">
+                <label>Torba</label>
+                <select id="kuraTorbaSecim"></select>
+              </div>
+              <div class="form-group">
+                <label>Görev</label>
+                <input type="text" id="kuraGorev" placeholder="Örn: Salı nöbeti" />
+              </div>
+            </div>
+            <button class="btn btn-yesil" id="kuraCekBtn" onclick="kuraCekYap()">🎲 Çek!</button>
+          </div>
+        </div>
+
+        <div class="kart">
+          <div class="kart-baslik">Geçmiş Çekilişler</div>
+          <p class="aciklama">Tüm kura sonuçları şeffaflık için burada listelenir.</p>
+          <div id="gecmisListesi"><div class="bos-mesaj">Yükleniyor...</div></div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="modal-zemin" id="manuelTorbaModal">
+      <div class="modal-kutu">
+        <div class="modal-baslik">Manuel Torba Oluştur</div>
+        <div class="form-group" style="margin-bottom:12px;">
+          <label>Torba Adı</label>
+          <input type="text" id="manuelTorbaAdi" placeholder="Sınav Gözetmenleri" />
+        </div>
+        <div class="form-group">
+          <label>Öğretmenler</label>
+          <div class="ogr-secim-liste" id="manuelOgrListesi"></div>
+        </div>
+        <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:10px;">
+          <button class="btn btn-gri" onclick="modalKapat('manuelTorbaModal')">İptal</button>
+          <button class="btn btn-yesil" onclick="manuelTorbaOlustur()">Oluştur</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="mesaj-kayan" id="mesajEl"></div>
+
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+      import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+      import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
+      import {
+        getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc, getDocs, collection,
+        serverTimestamp,
+      } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+      const firebaseConfig = {
+        apiKey: "AIzaSyAHTCiicd4b94rG1-jN0STRbwcrLmkYudo",
+        authDomain: "okul-yoklama-sistemi-8081f.firebaseapp.com",
+        projectId: "okul-yoklama-sistemi-8081f",
+        storageBucket: "okul-yoklama-sistemi-8081f.firebasestorage.app",
+        messagingSenderId: "38230047763",
+        appId: "1:38230047763:web:dfab058df8928b66be13e6",
+      };
+
+      const app = initializeApp(firebaseConfig);
+      const auth = getAuth(app);
+      const db = getFirestore(app);
+      const functions = getFunctions(app, "europe-west1");
+
+      let rol = "";
+      let kullaniciAdi = "";
+      let ogretmenler = [];
+      let torbalar = [];
+      let oturumlar = [];
+      let cekilisler = [];
+
+      function mesaj(metin, tip) {
+        const el = document.getElementById("mesajEl");
+        el.textContent = metin;
+        el.className = "mesaj-kayan mesaj-" + tip;
+        el.style.display = "block";
+        setTimeout(() => (el.style.display = "none"), 3500);
+      }
+
+      window.modalKapat = (id) => document.getElementById(id).classList.remove("aktif");
+
+      function esc(s) {
+        return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+      }
+
+      async function ogretmenleriYukle() {
+        const snap = await getDocs(collection(db, "teachers"));
+        ogretmenler = [];
+        snap.forEach((d) => ogretmenler.push({ id: d.id, ...d.data() }));
+      }
+
+      // ── TORBALAR ──
+      async function torbalariYukle() {
+        const snap = await getDocs(collection(db, "kura_torbalari"));
+        torbalar = [];
+        snap.forEach((d) => torbalar.push({ id: d.id, ...d.data() }));
+        torbalar.sort((a, b) => (a.ad || "").localeCompare(b.ad || "", "tr"));
+        _torbaListesiGoster();
+        _torbaSecimDoldur();
+      }
+
+      function _torbaListesiGoster() {
+        const c = document.getElementById("torbaListesi");
+        if (!torbalar.length) { c.innerHTML = '<div class="bos-mesaj">Henüz torba oluşturulmadı.</div>'; return; }
+        const badgeMap = { zumre: "badge-zumre", tumu: "badge-tumu", manuel: "badge-manuel" };
+        let html = "";
+        torbalar.forEach((t) => {
+          const uyeler = t.uyeler || [];
+          const bekleyen = uyeler.filter((u) => u.durum === "bekliyor").length;
+          const cekilen = uyeler.length - bekleyen;
+          html += `<div class="torba-satir">
+            <span class="badge ${badgeMap[t.tip] || "badge-manuel"}">${t.tip === "zumre" ? "ZÜMRE" : t.tip === "tumu" ? "TÜMÜ" : "MANUEL"}</span>
+            <span class="torba-ad">${esc(t.ad)}</span>
+            <span style="font-size:12px;color:#555;">${bekleyen} bekliyor / ${cekilen} çekildi</span>
+            <button class="btn btn-gri btn-sm" onclick="uyeListesiToggle('${t.id}')">Üyeler</button>
+            <button class="btn btn-mavi btn-sm" onclick="torbaSifirla('${t.id}')">Sıfırla</button>
+            <button class="btn btn-kirmizi btn-sm" onclick="torbaSil('${t.id}','${esc(t.ad)}')">Sil</button>
+          </div>
+          <div class="uye-listesi" id="uyeListesi-${t.id}">
+            ${uyeler.map((u) => `<span class="uye-chip badge-${u.durum}">${esc(u.ogretmen_ad)}</span>`).join("") || '<span style="color:#999;">Üye yok</span>'}
+          </div>`;
+        });
+        c.innerHTML = html;
+      }
+
+      window.uyeListesiToggle = (torbaId) => {
+        document.getElementById("uyeListesi-" + torbaId).classList.toggle("acik");
+      };
+
+      function _torbaSecimDoldur() {
+        const sel = document.getElementById("kuraTorbaSecim");
+        const mevcut = sel.value;
+        sel.innerHTML = torbalar.map((t) => {
+          const bekleyen = (t.uyeler || []).filter((u) => u.durum === "bekliyor").length;
+          return `<option value="${t.id}">${esc(t.ad)} (${bekleyen} bekliyor)</option>`;
+        }).join("") || '<option value="">Torba yok</option>';
+        if (mevcut) sel.value = mevcut;
+      }
+
+      window.zumreTorbalariniSenkronizeEt = async () => {
+        const bransGruplari = {};
+        ogretmenler.forEach((o) => {
+          const b = o.brans || "Diğer";
+          (bransGruplari[b] = bransGruplari[b] || []).push(o);
+        });
+        for (const [brans, liste] of Object.entries(bransGruplari)) {
+          let torba = torbalar.find((t) => t.tip === "zumre" && t.kaynak_deger === brans);
+          const mevcutIds = new Set((torba?.uyeler || []).map((u) => u.ogretmen_id));
+          const yeniUyeler = liste
+            .filter((o) => !mevcutIds.has(o.id))
+            .map((o) => ({ ogretmen_id: o.id, ogretmen_ad: o.ad || "", durum: "bekliyor" }));
+          if (torba) {
+            if (yeniUyeler.length) {
+              await updateDoc(doc(db, "kura_torbalari", torba.id), {
+                uyeler: [...(torba.uyeler || []), ...yeniUyeler],
+                guncelleme: serverTimestamp(),
+              });
+            }
+          } else {
+            await addDoc(collection(db, "kura_torbalari"), {
+              ad: `${brans} Zümresi`, tip: "zumre", kaynak_deger: brans,
+              uyeler: yeniUyeler, olusturulma: serverTimestamp(), guncelleme: serverTimestamp(),
+            });
+          }
+        }
+        mesaj("Zümre torbaları güncellendi.", "basari");
+        await torbalariYukle();
+      };
+
+      window.tumOgretmenlerTorbasiniSenkronizeEt = async () => {
+        let torba = torbalar.find((t) => t.tip === "tumu");
+        const mevcutIds = new Set((torba?.uyeler || []).map((u) => u.ogretmen_id));
+        const yeniUyeler = ogretmenler
+          .filter((o) => !mevcutIds.has(o.id))
+          .map((o) => ({ ogretmen_id: o.id, ogretmen_ad: o.ad || "", durum: "bekliyor" }));
+        if (torba) {
+          if (yeniUyeler.length) {
+            await updateDoc(doc(db, "kura_torbalari", torba.id), {
+              uyeler: [...(torba.uyeler || []), ...yeniUyeler],
+              guncelleme: serverTimestamp(),
+            });
+          }
+        } else {
+          await addDoc(collection(db, "kura_torbalari"), {
+            ad: "Tüm Öğretmenler", tip: "tumu", kaynak_deger: "",
+            uyeler: yeniUyeler, olusturulma: serverTimestamp(), guncelleme: serverTimestamp(),
+          });
+        }
+        mesaj("Tüm Öğretmenler torbası güncellendi.", "basari");
+        await torbalariYukle();
+      };
+
+      window.manuelTorbaModalAc = () => {
+        document.getElementById("manuelTorbaAdi").value = "";
+        const c = document.getElementById("manuelOgrListesi");
+        c.innerHTML = ogretmenler
+          .sort((a, b) => (a.ad || "").localeCompare(b.ad || "", "tr"))
+          .map((o) => `<div class="ogr-secim-satir"><input type="checkbox" value="${o.id}" data-ad="${esc(o.ad)}" /> ${esc(o.ad)} <span style="color:#999;">(${esc(o.brans || "")})</span></div>`)
+          .join("");
+        document.getElementById("manuelTorbaModal").classList.add("aktif");
+      };
+
+      window.manuelTorbaOlustur = async () => {
+        const ad = document.getElementById("manuelTorbaAdi").value.trim();
+        if (!ad) { mesaj("Torba adı girin.", "hata"); return; }
+        const secilenler = [...document.querySelectorAll('#manuelOgrListesi input[type="checkbox"]:checked')];
+        if (!secilenler.length) { mesaj("En az bir öğretmen seçin.", "hata"); return; }
+        const uyeler = secilenler.map((el) => ({ ogretmen_id: el.value, ogretmen_ad: el.dataset.ad, durum: "bekliyor" }));
+        await addDoc(collection(db, "kura_torbalari"), {
+          ad, tip: "manuel", kaynak_deger: "", uyeler,
+          olusturulma: serverTimestamp(), guncelleme: serverTimestamp(),
+        });
+        window.modalKapat("manuelTorbaModal");
+        mesaj("Torba oluşturuldu.", "basari");
+        await torbalariYukle();
+      };
+
+      window.torbaSifirla = async (torbaId) => {
+        if (!confirm("Bu torbadaki tüm öğretmenleri yeniden 'bekliyor' durumuna almak istediğinize emin misiniz?")) return;
+        const torba = torbalar.find((t) => t.id === torbaId);
+        if (!torba) return;
+        const uyeler = (torba.uyeler || []).map((u) => ({ ...u, durum: "bekliyor" }));
+        await updateDoc(doc(db, "kura_torbalari", torbaId), { uyeler, guncelleme: serverTimestamp() });
+        mesaj("Torba sıfırlandı.", "basari");
+        await torbalariYukle();
+      };
+
+      window.torbaSil = async (torbaId, ad) => {
+        if (!confirm(`"${ad}" torbasını silmek istediğinize emin misiniz?`)) return;
+        await deleteDoc(doc(db, "kura_torbalari", torbaId));
+        mesaj("Torba silindi.", "basari");
+        await torbalariYukle();
+      };
+
+      // ── OTURUMLAR ──
+      async function oturumlariYukle() {
+        const snap = await getDocs(collection(db, "kura_oturumlari"));
+        oturumlar = [];
+        snap.forEach((d) => oturumlar.push({ id: d.id, ...d.data() }));
+        oturumlar.sort((a, b) => (b.olusturulma?.toMillis?.() || 0) - (a.olusturulma?.toMillis?.() || 0));
+        const sel = document.getElementById("kuraOturumSecim");
+        sel.innerHTML = oturumlar.map((o) => `<option value="${o.id}">${esc(o.ad)}</option>`).join("") || '<option value="">Oturum yok — yeni ad girin</option>';
+      }
+
+      // ── ÇEKİLİŞ ──
+      window.kuraCekYap = async () => {
+        const btn = document.getElementById("kuraCekBtn");
+        const yeniOturumAdi = document.getElementById("kuraYeniOturumAdi").value.trim();
+        let oturumId = document.getElementById("kuraOturumSecim").value;
+        const torbaId = document.getElementById("kuraTorbaSecim").value;
+        const gorev = document.getElementById("kuraGorev").value.trim();
+
+        if (!torbaId) { mesaj("Torba seçin.", "hata"); return; }
+        if (!gorev) { mesaj("Görev metni girin.", "hata"); return; }
+        if (!oturumId && !yeniOturumAdi) { mesaj("Bir oturum seçin veya yeni oturum adı girin.", "hata"); return; }
+
+        btn.disabled = true;
+        try {
+          if (yeniOturumAdi) {
+            const ref = await addDoc(collection(db, "kura_oturumlari"), {
+              ad: yeniOturumAdi, olusturan_id: auth.currentUser.uid, olusturan_ad: kullaniciAdi,
+              olusturulma: serverTimestamp(),
+            });
+            oturumId = ref.id;
+            document.getElementById("kuraYeniOturumAdi").value = "";
+          }
+          const fn = httpsCallable(functions, "kuraCek");
+          const sonuc = await fn({ torbaId, oturumId, gorev, cekenAd: kullaniciAdi });
+          document.getElementById("sonucAd").textContent = sonuc.data.ogretmenAd;
+          document.getElementById("sonucKart").classList.add("aktif");
+          document.getElementById("kuraGorev").value = "";
+          await Promise.all([torbalariYukle(), oturumlariYukle(), gecmisiYukle()]);
+        } catch (err) {
+          mesaj("Hata: " + err.message, "hata");
+        } finally {
+          btn.disabled = false;
+        }
+      };
+
+      // ── GEÇMİŞ ──
+      async function gecmisiYukle() {
+        const snap = await getDocs(collection(db, "kura_cekilisleri"));
+        cekilisler = [];
+        snap.forEach((d) => cekilisler.push({ id: d.id, ...d.data() }));
+        cekilisler.sort((a, b) => (b.cekilis_tarihi?.toMillis?.() || 0) - (a.cekilis_tarihi?.toMillis?.() || 0));
+        _gecmisListesiGoster();
+      }
+
+      function _gecmisListesiGoster() {
+        const c = document.getElementById("gecmisListesi");
+        if (!cekilisler.length) { c.innerHTML = '<div class="bos-mesaj">Henüz çekiliş yapılmadı.</div>'; return; }
+        const yonetim = rol === "admin" || rol === "mudur_yardimcisi";
+        let html = `<table><thead><tr>
+          <th>Oturum</th><th>Torba</th><th>Öğretmen</th><th>Görev</th><th>Tarih</th><th>Çeken</th>${yonetim ? "<th></th>" : ""}
+        </tr></thead><tbody>`;
+        cekilisler.forEach((c2) => {
+          const tarih = c2.cekilis_tarihi?.toDate ? c2.cekilis_tarihi.toDate().toLocaleString("tr-TR") : "-";
+          html += `<tr>
+            <td>${esc(c2.oturum_ad)}</td>
+            <td>${esc(c2.torba_ad)}</td>
+            <td><strong>${esc(c2.ogretmen_ad)}</strong></td>
+            <td>${esc(c2.gorev)}</td>
+            <td>${tarih}</td>
+            <td>${esc(c2.cekilis_admin_ad)}</td>
+            ${yonetim ? `<td><button class="btn btn-kirmizi btn-sm" onclick="cekilisGeriAl('${c2.id}')">Geri Al</button></td>` : ""}
+          </tr>`;
+        });
+        html += "</tbody></table>";
+        c.innerHTML = html;
+      }
+
+      window.cekilisGeriAl = async (cekilisId) => {
+        if (!confirm("Bu çekilişi geri almak istediğinize emin misiniz? Öğretmen torbaya geri dönecek.")) return;
+        try {
+          const fn = httpsCallable(functions, "kuraCekilisiGeriAl");
+          await fn({ cekilisId });
+          mesaj("Çekiliş geri alındı.", "basari");
+          await Promise.all([torbalariYukle(), gecmisiYukle()]);
+        } catch (err) {
+          mesaj("Hata: " + err.message, "hata");
+        }
+      };
+
+      async function init() {
+        document.getElementById("yukleniyor").style.display = "none";
+        document.getElementById("anaIcerik").style.display = "block";
+        const yonetim = rol === "admin" || rol === "mudur_yardimcisi";
+        document.getElementById("adminBolum").style.display = yonetim ? "block" : "none";
+        await ogretmenleriYukle();
+        await Promise.all([torbalariYukle(), oturumlariYukle(), gecmisiYukle()]);
+      }
+
+      onAuthStateChanged(auth, async (user) => {
+        if (!user) { window.location.href = "/portal.html"; return; }
+        const ud = await getDoc(doc(db, "users", user.uid));
+        if (!ud.exists()) { window.location.href = "/portal.html"; return; }
+        rol = ud.data().rol || "";
+        kullaniciAdi = ud.data().ad || ud.data().email || "";
+        await init();
+      });
+    </script>
+  </body>
+</html>
