@@ -1081,14 +1081,16 @@ exports.manuelDersOlustur = onCall(async (request) => {
     return { success: false, message: `Bu tarih tatil dönemine denk geliyor: ${tatilAdi}. Ders/yoklama oluşturulmadı.` };
   }
 
-  // Mevcut kayıtları sil
+  // Mevcut kayıtları oku (silmek yerine class_id+lesson_number ile eşleştirilip
+  // korunacak — zaten yoklaması girilmiş (status:"filled") dersler sıfırlanmasın).
   const mevcutSnap = await db.collection("today_lessons")
     .where("date", "==", tarih)
     .get();
-
-  const deleteBatch = db.batch();
-  mevcutSnap.forEach(doc => deleteBatch.delete(doc.ref));
-  await deleteBatch.commit();
+  const mevcutMap = new Map();
+  mevcutSnap.forEach(doc => {
+    const d = doc.data();
+    mevcutMap.set(`${d.class_id}_${d.lesson_number}`, doc);
+  });
 
   // schedule.day yazımı Excel kaynağına göre değişebildiğinden tüm program
   // çekilip normalizeGun ile karşılaştırılıyor (exact-match .where() yerine).
@@ -1099,23 +1101,49 @@ exports.manuelDersOlustur = onCall(async (request) => {
     return { success: false, message: "Bu gün için ders programı yok." };
   }
 
+  const gecerliAnahtarlar = new Set();
   const batch = db.batch();
+  let eklenen = 0, korunan = 0;
+
   programDocs.forEach(doc => {
     const ders = doc.data();
-    const yeniRef = db.collection("today_lessons").doc();
-    batch.set(yeniRef, {
-      date: tarih,
-      class_id: ders.class_id,
-      lesson_number: ders.lesson_number,
-      lesson_name: ders.lesson_name,
-      teacher_id: ders.teacher_id,
-      status: "pending",
-      created_at: admin.firestore.FieldValue.serverTimestamp()
-    });
+    const anahtar = `${ders.class_id}_${ders.lesson_number}`;
+    gecerliAnahtarlar.add(anahtar);
+    const mevcutDoc = mevcutMap.get(anahtar);
+    if (mevcutDoc) {
+      // Zaten var (yoklaması girilmiş olabilir) — status'a ve ID'ye dokunma,
+      // sadece güncel ders bilgisiyle senkronize et.
+      batch.update(mevcutDoc.ref, {
+        lesson_name: ders.lesson_name,
+        teacher_id: ders.teacher_id,
+      });
+      korunan++;
+    } else {
+      const yeniRef = db.collection("today_lessons").doc();
+      batch.set(yeniRef, {
+        date: tarih,
+        class_id: ders.class_id,
+        lesson_number: ders.lesson_number,
+        lesson_name: ders.lesson_name,
+        teacher_id: ders.teacher_id,
+        status: "pending",
+        created_at: admin.firestore.FieldValue.serverTimestamp()
+      });
+      eklenen++;
+    }
+  });
+
+  // Programda artık karşılığı olmayan ve henüz yoklaması girilmemiş ("pending")
+  // eski kayıtları temizle. status:"filled" olanlara — programdan çıkmış olsa
+  // bile — dokunulmuyor; girilmiş bir yoklamayı kaybetmemek önceliklidir.
+  mevcutMap.forEach((doc, anahtar) => {
+    if (!gecerliAnahtarlar.has(anahtar) && doc.data().status !== "filled") {
+      batch.delete(doc.ref);
+    }
   });
 
   await batch.commit();
-  return { success: true, message: `${programDocs.length} ders oluşturuldu.` };
+  return { success: true, message: `${eklenen} yeni ders eklendi, ${korunan} mevcut kayıt korundu.` };
 });
 
 // ===========================

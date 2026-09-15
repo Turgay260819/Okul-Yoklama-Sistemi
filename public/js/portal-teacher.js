@@ -1,5 +1,5 @@
 import {
-  db, bugun, YOKLAMA_PENCERE_DK, functions, httpsCallable,
+  db, bugun, dun, YOKLAMA_PENCERE_DK, functions, httpsCallable,
   getDocs, addDoc, updateDoc, deleteDoc, getDoc, setDoc,
   collection, query, where, doc, serverTimestamp,
 } from "./portal-config.js";
@@ -730,6 +730,10 @@ window.manuelKaydet = async () => {
   document.querySelectorAll("#manuelOgrenciListesi input:checked").forEach((c) => yoklar.push(c.id.replace("man-chk-", "")));
   const tarih = document.getElementById("manuelTarih").value;
   const dersNo = parseInt(document.getElementById("manuelDersNo").value);
+  if (tarih < dun || tarih > bugun) {
+    mesajGoster("manuelMesaj", "Sadece bugun veya dun icin yoklama girebilirsiniz.", "hata");
+    return;
+  }
   try {
     const eskiSnap = await getDocs(
       query(collection(db, "attendance"), where("date", "==", tarih), where("class_id", "==", sinif), where("lesson_number", "==", dersNo)),

@@ -28,6 +28,13 @@ export const bugun = new Intl.DateTimeFormat("tr-TR", {
   day: "2-digit",
 }).format(new Date()).split(".").reverse().join("-");
 
+export const dun = new Intl.DateTimeFormat("tr-TR", {
+  timeZone: "Europe/Istanbul",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+}).format(new Date(Date.now() - 24 * 60 * 60 * 1000)).split(".").reverse().join("-");
+
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);

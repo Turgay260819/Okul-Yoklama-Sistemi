@@ -40,6 +40,7 @@ export async function anasayfaYukle() {
     }
 
     await window.ogretmenTakipYukle();
+    await window.bosOgretmenlerYukle();
     if (state.takipInterval) clearInterval(state.takipInterval);
     state.takipInterval = setInterval(() => window.ogretmenTakipYukle(), OGRETMEN_REFRESH_MS);
   } catch (err) {
@@ -217,6 +218,68 @@ window.ogretmenTakipYukle = async function () {
       html += `</div></div>`;
     });
 
+    container.innerHTML = html;
+  } catch (err) {
+    container.innerHTML = `<div class="bos-mesaj" style="color:#ea4335;">Hata: ${esc(err.message)}</div>`;
+  }
+};
+
+// ── ARA BOŞLUĞU OLAN ÖĞRETMENLER ──
+window.bosOgretmenlerYukle = async function () {
+  const container = document.getElementById("bosOgretmenlerListesi");
+  if (!container) return;
+  container.innerHTML = '<div class="yukleniyor">Yükleniyor...</div>';
+
+  try {
+    const [lessonsSnap, devamSnap] = await Promise.all([
+      getDocs(query(collection(db, "today_lessons"), where("date", "==", bugun))),
+      getDocs(query(collection(db, "ogretmen_devam"), where("tarih", "==", bugun))),
+    ]);
+
+    const gelmediSet = new Set();
+    devamSnap.forEach((d) => { const v = d.data(); if (v.durum === "gelmedi") gelmediSet.add(v.ogretmen_id); });
+
+    const ogretmenMap = {};
+    state.ogretmenler.forEach((o) => (ogretmenMap[o.id] = o));
+
+    const doluSaatler = {};
+    lessonsSnap.forEach((d) => {
+      const data = d.data();
+      const tid = data.teacher_id;
+      if (!tid || gelmediSet.has(tid)) return;
+      if (!doluSaatler[tid]) doluSaatler[tid] = new Set();
+      doluSaatler[tid].add(data.lesson_number);
+    });
+
+    const sonuc = [];
+    Object.entries(doluSaatler).forEach(([tid, saatSet]) => {
+      const saatler = [...saatSet].sort((a, b) => a - b);
+      const ilk = saatler[0], son = saatler[saatler.length - 1];
+      const bosSaatler = [];
+      for (let s = ilk + 1; s < son; s++) {
+        if (!saatSet.has(s)) bosSaatler.push(s);
+      }
+      if (bosSaatler.length) {
+        sonuc.push({ ad: ogretmenMap[tid]?.ad || tid, brans: ogretmenMap[tid]?.brans || "-", bosSaatler });
+      }
+    });
+
+    if (!sonuc.length) {
+      container.innerHTML = '<div class="bos-mesaj">Bugün ara boşluğu olan öğretmen yok.</div>';
+      return;
+    }
+
+    sonuc.sort((a, b) => a.ad.localeCompare(b.ad, "tr"));
+
+    let html = '<table style="width:100%;font-size:13px;"><tbody>';
+    sonuc.forEach((o) => {
+      html += `<tr>
+        <td style="padding:4px 8px 4px 0;font-weight:600;">${esc(o.ad)}</td>
+        <td style="padding:4px 6px;color:var(--text2);font-size:12px;">${esc(o.brans)}</td>
+        <td style="padding:4px 0;text-align:right;">${o.bosSaatler.map((s) => s + ". ders").join(", ")}</td>
+      </tr>`;
+    });
+    html += "</tbody></table>";
     container.innerHTML = html;
   } catch (err) {
     container.innerHTML = `<div class="bos-mesaj" style="color:#ea4335;">Hata: ${esc(err.message)}</div>`;

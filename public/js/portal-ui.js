@@ -1,4 +1,5 @@
 import { state } from "./portal-state.js";
+import { dun } from "./portal-config.js";
 
 const GUNLER = ["Pazar", "Pazartesi", "Sali", "Carsamba", "Persembe", "Cuma", "Cumartesi"];
 
@@ -16,6 +17,8 @@ export function baslangicDegerleriniAyarla(bugun) {
     const el = document.getElementById(id);
     if (el) el.value = bugun;
   });
+  const manuelTarihEl = document.getElementById("manuelTarih");
+  if (manuelTarihEl) { manuelTarihEl.min = dun; manuelTarihEl.max = bugun; }
 }
 
 // ── MENÜ ──
