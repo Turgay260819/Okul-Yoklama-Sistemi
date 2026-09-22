@@ -304,6 +304,8 @@
 
     <div class="icerik">
 
+      <div class="mesaj mesaj-basari" id="nobetciBanner" style="margin:0 0 16px 0;">🔔 Bugün nöbetçisiniz, bu nedenle tüm öğrenciler için disiplin kaydı girebilirsiniz.</div>
+
       <!-- KAYIT EKLE -->
       <div class="sayfa aktif" id="sayfa-kayit">
         <div class="sayfa-baslik">Disiplin Kaydi Ekle</div>
@@ -516,6 +518,7 @@
       getFirestore, doc, getDoc, getDocs, addDoc, setDoc, deleteDoc, updateDoc,
       collection, query, where, orderBy, serverTimestamp, limit, Timestamp
     } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyAHTCiicd4b94rG1-jN0STRbwcrLmkYudo",
@@ -529,6 +532,7 @@
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
+    const functions = getFunctions(app, "europe-west1");
 
     let aktifKullanici = null;
     let aktifRol = null;
@@ -571,6 +575,18 @@
           scheduleSnap.forEach(d => _ogretmenSiniflar.add(d.data().class_id));
         } else {
           _ogretmenSiniflar = new Set(); // Güvenlik: eşleşme yoksa hiç sınıf gösterme
+        }
+
+        // Bugün nöbetçiyse tüm öğrenciler için giriş yetkisi ver (admin gibi)
+        try {
+          const nobetKontrolFn = httpsCallable(functions, 'nobetciMiBugun');
+          const sonuc = await nobetKontrolFn({});
+          if (sonuc.data?.nobetciMi) {
+            _ogretmenSiniflar = null;
+            document.getElementById('nobetciBanner').style.display = 'block';
+          }
+        } catch (err) {
+          console.warn('Nobet kontrolu basarisiz:', err);
         }
       }
 

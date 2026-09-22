@@ -442,6 +442,9 @@
         >
         <button class="btn btn-beyaz" onclick="nobetGeriAl()">◀ Geri</button>
         <button class="btn btn-beyaz" onclick="nobetIleri()">İleri ▶</button>
+        <button class="btn btn-beyaz" onclick="rotasyonHizala()">
+          🔄 Okula Göre Hizala
+        </button>
         <button
           class="btn btn-turuncu"
           id="btnDurdur"
@@ -958,7 +961,7 @@
         document.getElementById("haftaTarih").textContent =
           fmt(bas) + " — " + fmt(bit);
         document.getElementById("sayacBilgi").textContent =
-          sayac + ". rotasyon";
+          (sayac + 1) + ". rotasyon";
         const aktif = nobetVerisi.rotasyon_aktif !== false;
         document.getElementById("durumRozet").textContent = aktif
           ? "Rotasyon Aktif"
@@ -1073,6 +1076,57 @@
             ? "Rotasyon başlatıldı."
             : "Rotasyon durduruldu.",
           "bilgi",
+        );
+      };
+
+      // Rotasyon sayacini ve hafta_baslangic'i settings/genel.okul_baslangic_tarihi'ne
+      // gore yeniden hesaplar (ilk kurulumda kullanilan pazartesiyeYuvarla/haftaTarihEkle/
+      // haftaTamamenTatilMi ile ayni mantik — bkz. nobet2HaftaGuncelle). Var olan
+      // nobet2_ayarlar/mevcut dokumani, okul baslangic tarihi sonradan girildiginde ya da
+      // degistirildiginde otomatik guncellenmedigi icin bu buton elle tetikler.
+      window.rotasyonHizala = async () => {
+        if (!OKUL_BASLANGIC) {
+          mesaj("Once Genel Ayarlar'dan okul baslangic tarihini girin.", "hata");
+          return;
+        }
+        if (
+          !confirm(
+            "Rotasyon sayaci, okul baslangic tarihine gore yeniden hesaplanacak (1. rotasyon okul baslangic haftasi olacak). Devam edilsin mi?",
+          )
+        )
+          return;
+
+        const rotasyonAktif = nobetVerisi.rotasyon_aktif !== false;
+        const buguNPzt = pazartesiyeYuvarla(new Date())
+          .toISOString()
+          .split("T")[0];
+        let hafta = pazartesiyeYuvarla(
+          new Date(OKUL_BASLANGIC + "T12:00:00"),
+        )
+          .toISOString()
+          .split("T")[0];
+        let sayac = 0;
+        let guard = 0;
+        while (hafta < buguNPzt && guard < 520) {
+          guard++;
+          const sonraki = haftaTarihEkle(hafta, 7);
+          if (OKUL_BITIS && sonraki > OKUL_BITIS) break;
+          const tamTatil = haftaTamamenTatilMi(sonraki);
+          hafta = sonraki;
+          if (rotasyonAktif && !tamTatil) sayac++;
+        }
+
+        nobetVerisi = {
+          ...nobetVerisi,
+          hafta_baslangic: hafta,
+          rotasyon_sayaci: sayac,
+          son_guncelleme: serverTimestamp(),
+        };
+        await setDoc(doc(db, "nobet2_ayarlar", "mevcut"), nobetVerisi);
+        tabloGoster();
+        mesaj(
+          "Rotasyon okul baslangicina gore hizalandi (" + (sayac + 1) + ". rotasyon).",
+          "basari",
         );
       };
 

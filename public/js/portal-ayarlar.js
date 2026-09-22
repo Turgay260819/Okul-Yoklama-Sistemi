@@ -39,6 +39,7 @@ window.ayarSekme = function (id, el) {
   if (id === "dyk" && window.dykAyarlarYukle) window.dykAyarlarYukle();
   else if (id === "dersler") _dersListesiYukle();
   else if (id === "tatiller") _tatilleriYukle();
+  else if (id === "nobet-bildirim") _nobetBildirimAlicilariYukle();
   else if (id === "sifre-listesi") window.sifreListesiGoster();
   else if (id === "ogrenciler") window.ogrencileriGetir();
   else if (id === "ogretmen-sifre") window.ogretmenSifreListesiGoster();
@@ -239,6 +240,18 @@ window.ogretmenlerTopluKimlikVer = async function () {
   await ogretmenleriListele();
   if (document.getElementById("asekme-ogretmen-sifre")?.classList.contains("aktif")) {
     await window.ogretmenSifreListesiGoster();
+  }
+};
+
+window.ogretmenRolleriniOnar = async function () {
+  const { functions, httpsCallable } = window.__portal;
+  if (!confirm("Tum ogretmenlerin kullanici rolu kontrol edilip eksik olanlar duzeltilecek. Onayliyor musunuz?")) return;
+  try {
+    const fn = httpsCallable(functions, "ogretmenRolleriniOnar");
+    const { data } = await fn();
+    alert(data.duzeltilen ? `${data.duzeltilen} ogretmenin rolu duzeltildi.` : "Duzeltme gereken ogretmen bulunamadi, hepsi zaten dogru.");
+  } catch (err) {
+    alert("Hata: " + err.message);
   }
 };
 
@@ -800,4 +813,85 @@ window.tatilSil = async function (id) {
   if (!confirm("Bu tatil donemini silmek istediginize emin misiniz?")) return;
   await deleteDoc(doc(db, "tatil_donemleri", id));
   _tatilleriYukle();
+};
+
+// ── Nöbet Günlük Bildirimi (Telegram alıcı listesi) ──
+// Her sabah 07:30'da (hafta içi, okul dönemi ve tatil kontrolüne tabi) o
+// günün nöbetçilerini ve ara boşluğu olan öğretmenleri buradaki chat_id'lere
+// gönderir (bkz. functions/index.js nobetGunlukBildirim).
+async function _nobetBildirimAlicilariYukle() {
+  const { db, getDocs, collection } = window.__portal;
+  const snap = await getDocs(collection(db, "nobet_bildirim_alicilari"));
+  const aliciler = [];
+  snap.forEach((d) => aliciler.push({ id: d.id, ...d.data() }));
+  aliciler.sort((a, b) => (a.ad || "").localeCompare(b.ad || "", "tr"));
+
+  const c = document.getElementById("asekme-nobet-bildirim");
+  let html = `<div class="kart">
+    <div class="kart-baslik">Nobet Gunluk Bildirimi</div>
+    <p class="sayfa-aciklama">Her sabah 07:30'da (hafta ici, okul donemi/tatil disinda hariç) bugunun nobetcileri ve ara boslugu olan ogretmenler asagidaki Telegram hesaplarina gonderilir.</p>`;
+  if (aliciler.length) {
+    html += `<table><thead><tr><th>Ad</th><th>Telegram Chat ID</th><th></th></tr></thead><tbody>`;
+    aliciler.forEach((a) => {
+      html += `<tr><td><strong>${a.ad || ""}</strong></td><td>${a.chat_id || ""}</td><td style="text-align:right;"><button class="btn btn-kirmizi btn-sm" onclick="nobetBildirimAliciSil('${a.id}')">Sil</button></td></tr>`;
+    });
+    html += `</tbody></table>`;
+  } else {
+    html += `<div class="bos-mesaj">Henuz alici eklenmemis.</div>`;
+  }
+  html += `<div class="form-grid" style="margin-top:16px;">
+      <div class="form-group"><label>Ad</label><input type="text" id="nobetBildirimAd" placeholder="Mudur Yardimcisi" /></div>
+      <div class="form-group"><label>Telegram Chat ID</label><input type="text" id="nobetBildirimChatId" placeholder="123456789" /></div>
+    </div>
+    <button class="btn btn-yesil" onclick="nobetBildirimAliciEkle()">+ Ekle</button>
+    <button class="btn btn-mavi" onclick="nobetBildirimTest()">Simdi Test Gonder</button>
+    <div class="sayfa-aciklama" style="margin-top:4px;">Bu buton sadece yukaridaki listeye gonderir. Sistem sekmesindeki "Telegram Test" butonu ise her zaman sabit admin numarasina gider, bu listeyle ilgisi yoktur.</div>
+    <div class="mesaj" id="nobetBildirimMesaj"></div>
+    <div id="nobetBildirimSonuclar" style="margin-top:10px;font-size:13px;"></div>
+  </div>`;
+  c.innerHTML = html;
+}
+
+window.nobetBildirimAliciEkle = async function () {
+  const { db, addDoc, collection, serverTimestamp } = window.__portal;
+  const ad = document.getElementById("nobetBildirimAd")?.value?.trim();
+  const chatId = document.getElementById("nobetBildirimChatId")?.value?.trim();
+  if (!ad || !chatId) { mesajGoster("nobetBildirimMesaj", "Tum alanlari doldurun.", "hata"); return; }
+  await addDoc(collection(db, "nobet_bildirim_alicilari"), { ad, chat_id: chatId, olusturulma: serverTimestamp() });
+  _nobetBildirimAlicilariYukle();
+};
+
+window.nobetBildirimAliciSil = async function (id) {
+  const { db, deleteDoc, doc } = window.__portal;
+  if (!confirm("Bu aliciyi silmek istediginize emin misiniz?")) return;
+  await deleteDoc(doc(db, "nobet_bildirim_alicilari", id));
+  _nobetBildirimAlicilariYukle();
+};
+
+window.nobetBildirimTest = async function () {
+  const { functions, httpsCallable } = window.__portal;
+  const sonucEl = document.getElementById("nobetBildirimSonuclar");
+  if (sonucEl) sonucEl.innerHTML = "";
+  mesajGoster("nobetBildirimMesaj", "Gonderiliyor...", "bilgi");
+  try {
+    const fn = httpsCallable(functions, "nobetGunlukBildirimTest");
+    const res = await fn({});
+    const sebep = res.data?.sebep;
+    const sonuclar = res.data?.sonuclar || [];
+    if (sebep) {
+      mesajGoster("nobetBildirimMesaj", "Gonderilmedi: " + sebep, "hata");
+    } else if (!sonuclar.length) {
+      mesajGoster("nobetBildirimMesaj", "Alici listesi bos, once bir alici ekleyin.", "hata");
+    } else {
+      const hepsiBasarili = sonuclar.every((s) => s.ok);
+      mesajGoster("nobetBildirimMesaj", hepsiBasarili ? "Tum alicilara gonderildi." : "Bazi alicilara gonderilemedi, asagiya bakin.", hepsiBasarili ? "basari" : "hata");
+      if (sonucEl) {
+        sonucEl.innerHTML = sonuclar.map((s) =>
+          `<div>${s.ok ? "✅" : "❌"} <strong>${s.ad || ""}</strong> (${s.chat_id || ""})${s.ok ? "" : ": " + (s.hata || "Bilinmeyen hata")}</div>`
+        ).join("");
+      }
+    }
+  } catch (err) {
+    mesajGoster("nobetBildirimMesaj", "Hata: " + err.message, "hata");
+  }
 };

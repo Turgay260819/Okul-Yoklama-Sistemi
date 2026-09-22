@@ -7,8 +7,9 @@ import { state } from "./portal-state.js";
 import { tarihBilgisiniGoster, baslangicDegerleriniAyarla } from "./portal-ui.js";
 import { authBaslat } from "./portal-auth.js";
 import { anasayfaYukle } from "./portal-admin.js";
-import { dersleriniYukle, ogretmenGorevleriniYukle, nobetBugunKontrolEt } from "./portal-teacher.js";
+import { dersleriniYukle, ogretmenGorevleriniYukle, nobetBugunKontrolEt, vekaletBugunKontrolEt } from "./portal-teacher.js";
 import { gorevSayfasiBaslat } from "./portal-gorev.js";
+import { vekilAtamaSayfasiBaslat } from "./portal-vekil.js";
 import { kazanimSayfasiYukle, kazanimlarimYukle } from "./portal-kazanim.js";
 import { bildirimleriYukle } from "./portal-bildirim.js";
 import "./portal-yoklama.js";
@@ -48,7 +49,9 @@ window.sayfaYukle = (id) => {
   else if (id === "raporlar")     window.raporSayfasiBaslat?.();
   else if (id === "ayarlar")      window.ayarlarYukle?.();
   else if (id === "disiplin")     window.disiplinYukle?.();
+  else if (id === "izin")           _iframeYukle("izin",           "/izin.html");
   else if (id === "gorev")        gorevSayfasiBaslat();
+  else if (id === "vekil-atama")  vekilAtamaSayfasiBaslat();
   else if (id === "gorevlerim")   ogretmenGorevleriniYukle();
   else if (id === "kazanimlar")   kazanimSayfasiYukle();
   else if (id === "kazanimlarim") kazanimlarimYukle();
@@ -138,6 +141,7 @@ authBaslat(async (user, rol) => {
     }
     bildirimleriYukle();
     nobetBugunKontrolEt().catch((e) => console.warn("Nobet kontrolu basarisiz:", e));
+    vekaletBugunKontrolEt().catch((e) => console.warn("Vekalet kontrolu basarisiz:", e));
   }
 
   // Go to teacher grid home

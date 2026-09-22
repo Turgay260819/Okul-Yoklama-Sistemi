@@ -5,7 +5,7 @@ import {
 } from "./portal-config.js";
 import { state } from "./portal-state.js";
 import { esc, mesajGoster, sor_giris } from "./portal-utils.js";
-import { OGRETMEN_REFRESH_MS } from "./portal-config.js";
+import { OGRETMEN_REFRESH_MS, YOKLAMA_PENCERE_DK } from "./portal-config.js";
 
 // ── ANASAYFA ──
 export async function anasayfaYukle() {
@@ -36,20 +36,33 @@ export async function anasayfaYukle() {
       document.getElementById("bugunDurum").innerHTML =
         '<div class="bos-mesaj">Bugün için ders programı oluşturulmamış</div>';
     } else {
-      document.getElementById("bugunDurum").innerHTML = _bugunDurumHtml(durumlar);
+      const raporSnap = await getDocs(
+        query(collection(db, "ogretmen_rapor"), where("baslangic_tarihi", "<=", bugun)),
+      );
+      const raporluIds = new Set();
+      raporSnap.forEach((d) => {
+        const r = d.data();
+        if (r.bitis_tarihi >= bugun) raporluIds.add(r.ogretmen_id);
+      });
+      document.getElementById("bugunDurum").innerHTML = _bugunDurumHtml(durumlar, raporluIds);
     }
 
     await window.ogretmenTakipYukle();
     await window.bosOgretmenlerYukle();
+    await window.yoklamaGirmeyenlerYukle();
     if (state.takipInterval) clearInterval(state.takipInterval);
-    state.takipInterval = setInterval(() => window.ogretmenTakipYukle(), OGRETMEN_REFRESH_MS);
+    state.takipInterval = setInterval(() => {
+      window.ogretmenTakipYukle();
+      window.yoklamaGirmeyenlerYukle();
+    }, OGRETMEN_REFRESH_MS);
   } catch (err) {
     console.error("Anasayfa yükleme hatası:", err);
   }
 }
 window.anasayfaYukle = anasayfaYukle;
 
-function _bugunDurumHtml(durumlar) {
+function _bugunDurumHtml(durumlar, raporluIds) {
+  raporluIds = raporluIds || new Set();
   const ogretmenIdMap = {};
   state.ogretmenler.forEach((o) => (ogretmenIdMap[o.id] = o.ad));
 
@@ -98,7 +111,11 @@ function _bugunDurumHtml(durumlar) {
         <div id="${subeId}" style="display:none;padding:6px 0 6px 12px;">
           <table style="width:100%;font-size:13px;"><tbody>`;
       dersler.forEach((d) => {
-        const ogretmenAd = esc(ogretmenIdMap[d.teacher_id] || "-");
+        let ogretmenAd = esc(ogretmenIdMap[d.teacher_id] || "-");
+        if (raporluIds.has(d.teacher_id)) {
+          ogretmenAd = `<span style="background:#d4f7d4;color:#1e7e34;padding:2px 6px;border-radius:4px;">🏥 ${ogretmenAd}</span>`;
+          if (d.substitute_teacher_ad) ogretmenAd += ` → vekil: ${esc(d.substitute_teacher_ad)}`;
+        }
         const droz = d.status === "filled"
           ? '<span class="rozet rozet-yesil" style="font-size:11px;">Girildi</span>'
           : '<span class="rozet rozet-kirmizi" style="font-size:11px;">Eksik</span>';
@@ -277,6 +294,83 @@ window.bosOgretmenlerYukle = async function () {
         <td style="padding:4px 8px 4px 0;font-weight:600;">${esc(o.ad)}</td>
         <td style="padding:4px 6px;color:var(--text2);font-size:12px;">${esc(o.brans)}</td>
         <td style="padding:4px 0;text-align:right;">${o.bosSaatler.map((s) => s + ". ders").join(", ")}</td>
+      </tr>`;
+    });
+    html += "</tbody></table>";
+    container.innerHTML = html;
+  } catch (err) {
+    container.innerHTML = `<div class="bos-mesaj" style="color:#ea4335;">Hata: ${esc(err.message)}</div>`;
+  }
+};
+
+// ── YOKLAMA GİRMEYEN ÖĞRETMENLER ──
+// Bir dersin 15 dakikalık giriş penceresi (YOKLAMA_PENCERE_DK) kapandığı
+// halde hâlâ yoklaması girilmemişse (today_lessons.status !== "filled")
+// "kaçırılmış" sayılır ve sorumlu öğretmen (vekil atanmışsa vekil, yoksa
+// asıl öğretmen) altında gruplanır. Vekilsiz raporlu öğretmenlerin dersleri
+// zaten "🏥" rozetiyle ayrı gösterildiği için burada atlanır.
+window.yoklamaGirmeyenlerYukle = async function () {
+  const container = document.getElementById("yoklamaGirmeyenlerListesi");
+  if (!container) return;
+  container.innerHTML = '<div class="yukleniyor">Yükleniyor...</div>';
+
+  try {
+    const [lessonsSnap, saatDoc, raporSnap] = await Promise.all([
+      getDocs(query(collection(db, "today_lessons"), where("date", "==", bugun))),
+      getDoc(doc(db, "ders_saatleri", "varsayilan")),
+      getDocs(query(collection(db, "ogretmen_rapor"), where("baslangic_tarihi", "<=", bugun))),
+    ]);
+
+    const saatler = saatDoc.exists() ? saatDoc.data().saatler || {} : {};
+    const raporluIds = new Set();
+    raporSnap.forEach((d) => {
+      const r = d.data();
+      if (r.bitis_tarihi >= bugun) raporluIds.add(r.ogretmen_id);
+    });
+
+    const ogretmenMap = {};
+    state.ogretmenler.forEach((o) => (ogretmenMap[o.id] = o));
+
+    const simdi = new Date();
+    const simdiDk = simdi.getHours() * 60 + simdi.getMinutes();
+
+    const kacirilanlar = {};
+    lessonsSnap.forEach((d) => {
+      const data = d.data();
+      if (data.status === "filled") return;
+      const saatStr = saatler[data.lesson_number];
+      if (!saatStr) return;
+      const [saat, dakika] = saatStr.split(":").map(Number);
+      const bitimDk = saat * 60 + dakika + YOKLAMA_PENCERE_DK;
+      if (simdiDk <= bitimDk) return;
+
+      if (raporluIds.has(data.teacher_id) && !data.substitute_teacher_id) return;
+
+      const tid = data.substitute_teacher_id || data.teacher_id;
+      if (!tid) return;
+      if (!kacirilanlar[tid]) kacirilanlar[tid] = { ad: ogretmenMap[tid]?.ad || tid, dersler: [] };
+      kacirilanlar[tid].dersler.push({ lesson_number: data.lesson_number, class_id: data.class_id });
+    });
+
+    const liste = Object.values(kacirilanlar).sort(
+      (a, b) => b.dersler.length - a.dersler.length || a.ad.localeCompare(b.ad, "tr"),
+    );
+
+    if (!liste.length) {
+      container.innerHTML = '<div class="bos-mesaj">Suresi gecmis, girilmemis yoklama yok.</div>';
+      return;
+    }
+
+    let html = '<table style="width:100%;font-size:13px;"><tbody>';
+    liste.forEach((o) => {
+      const dersStr = o.dersler
+        .sort((a, b) => a.lesson_number - b.lesson_number)
+        .map((d) => `${d.lesson_number}. Ders — ${esc(d.class_id)}`)
+        .join(", ");
+      html += `<tr>
+        <td style="padding:4px 8px 4px 0;font-weight:600;white-space:nowrap;">${esc(o.ad)}</td>
+        <td style="padding:4px 6px;"><span class="rozet rozet-kirmizi" style="font-size:11px;">${o.dersler.length} eksik</span></td>
+        <td style="padding:4px 0;color:var(--text2);font-size:12px;">${dersStr}</td>
       </tr>`;
     });
     html += "</tbody></table>";

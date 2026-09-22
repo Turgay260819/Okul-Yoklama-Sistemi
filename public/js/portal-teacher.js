@@ -23,7 +23,7 @@ export async function dersleriniYukle() {
   let dersler = [];
   snap.forEach((d) => {
     const data = { id: d.id, ...d.data() };
-    if (!state.ogretmenDoc || data.teacher_id === state.ogretmenDoc.id) dersler.push(data);
+    if (!state.ogretmenDoc || data.teacher_id === state.ogretmenDoc.id || data.substitute_teacher_id === state.ogretmenDoc.id) dersler.push(data);
   });
 
   if (!dersler.length) {
@@ -185,7 +185,7 @@ window.yoklamalarimYukle = async function () {
   state.ymDersler = [];
   snap.forEach((d) => {
     const data = { id: d.id, ...d.data() };
-    if (!state.ogretmenDoc || data.teacher_id === state.ogretmenDoc.id) state.ymDersler.push(data);
+    if (!state.ogretmenDoc || data.teacher_id === state.ogretmenDoc.id || data.substitute_teacher_id === state.ogretmenDoc.id) state.ymDersler.push(data);
   });
   state.ymDersler.sort((a, b) => a.lesson_number - b.lesson_number);
 
@@ -218,7 +218,7 @@ window.yoklamalarimYukle = async function () {
     );
     const ogrenciler = [];
     ogrSnap.forEach((d) => ogrenciler.push({ id: d.id, ...d.data() }));
-    ogrenciler.sort((a, b) => (a.name || "").localeCompare(b.name || "", "tr"));
+    ogrenciler.sort((a, b) => (a.student_number || "").localeCompare(b.student_number || "", "tr", { numeric: true }));
 
     let ogrenciGridHtml;
     if (ogrenciler.length) {
@@ -227,7 +227,7 @@ window.yoklamalarimYukle = async function () {
         const numara = ogr.student_number || ogr.id;
         const chkId = "ymchk_" + ders.class_id + "_" + ders.lesson_number + "_" + ogr.id;
         const yokMu = mevcutYoklar.includes(numara);
-        ogrenciGridHtml += `<label class="ogrenci-label"><input type="checkbox" id="${chkId}" value="${esc(numara)}" ${yokMu ? "checked" : ""} style="width:16px;height:16px;"><span>${esc(ogr.name || "")}</span></label>`;
+        ogrenciGridHtml += `<label class="ogrenci-label"><input type="checkbox" id="${chkId}" value="${esc(numara)}" ${yokMu ? "checked" : ""} style="width:16px;height:16px;"><span class="ogrenci-no">${esc(ogr.student_number || "")}</span><span>${esc(ogr.name || "")}</span></label>`;
       });
       ogrenciGridHtml += "</div>";
     } else {
@@ -251,6 +251,7 @@ window.yoklamalarimYukle = async function () {
         <div style="flex:1;min-width:0;">
           <div class="ders-bilgi-baslik">${esc(ders.class_id)} — ${esc(ders.lesson_name || "-")}</div>
           <div class="ders-bilgi-alt" style="margin-top:4px;">${ders.lesson_number}. Ders${saatStr ? " • " + saatStr : ""}</div>
+          ${ders.substitute_teacher_id && state.ogretmenDoc && ders.substitute_teacher_id === state.ogretmenDoc.id ? `<div style="margin-top:4px;font-size:11px;font-weight:700;color:#1565c0;">🔄 Vekalet: ${esc(ders.substitute_for_teacher_ad || "")} yerine</div>` : ""}
           ${ozetHtml}
         </div>
         <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
@@ -284,26 +285,27 @@ function _ymZamanGuncelle() {
     const kart = document.getElementById(kartId);
     if (!kart) continue;
     const badge = document.getElementById("badge_" + kartId);
-
-    if (state.ymGirilmis?.has(ders.class_id + "|" + ders.lesson_number)) {
-      kart.style.opacity = "1"; kart.style.pointerEvents = ""; kart.style.borderLeft = "4px solid var(--yesil)";
-      if (badge) { badge.textContent = "✓ Girildi"; badge.style.cssText = "background:#e6f4ea;color:#1e7e34;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;"; }
-      continue;
-    }
-    if (kart.style.display === "none") continue;
-    const saatStr = state.ymSaatler[ders.lesson_number];
     const uyari = document.getElementById("uyari_" + kartId);
     const panel = document.getElementById("panel_" + kartId);
     const ok = document.getElementById("ok_" + kartId);
+    const girildi = state.ymGirilmis?.has(ders.class_id + "|" + ders.lesson_number);
+    const saatStr = state.ymSaatler[ders.lesson_number];
 
     if (!saatStr) {
-      if (badge) { badge.textContent = "Acik"; badge.style.cssText = "background:#e6f4ea;color:#1e7e34;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;"; }
+      // Ders saati bilinmiyorsa sure kisiti uygulanamaz; her zaman acik kalir.
+      kart.style.opacity = "1"; kart.style.pointerEvents = ""; kart.style.borderLeft = girildi ? "4px solid var(--yesil)" : "";
+      if (badge) {
+        badge.textContent = girildi ? "✓ Girildi" : "Acik";
+        badge.style.cssText = "background:#e6f4ea;color:#1e7e34;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;";
+      }
       if (panel && panel.style.display === "none") { panel.style.display = "block"; if (ok) ok.style.transform = ""; }
       continue;
     }
+
     const [saat, dakika] = saatStr.split(":").map(Number);
     const baslamaDk = saat * 60 + dakika;
     const bitimDk = baslamaDk + YOKLAMA_PENCERE_DK;
+
     if (simdiDk < baslamaDk) {
       const fark = baslamaDk - simdiDk;
       kart.style.opacity = "0.7"; kart.style.pointerEvents = "none";
@@ -313,9 +315,25 @@ function _ymZamanGuncelle() {
       const kalan = bitimDk - simdiDk;
       kart.style.opacity = "1"; kart.style.pointerEvents = ""; kart.style.borderLeft = "4px solid var(--yesil)";
       if (panel && panel.style.display === "none") { panel.style.display = "block"; if (ok) ok.style.transform = ""; }
-      if (badge) { badge.textContent = "⏱ " + kalan + " dk kaldi"; badge.style.cssText = "background:#fff3e0;color:#e65100;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;"; }
-      if (uyari) { uyari.textContent = "Gelmeyen ogrencileri isaretleyin. " + kalan + " dakika icinde kaydedin."; uyari.style.cssText = "background:#e6f4ea;color:#1e7e34;border-radius:8px;padding:8px 12px;font-size:12px;margin-bottom:10px;display:block;"; }
+      if (badge) {
+        badge.textContent = girildi ? `✓ Girildi (${kalan} dk daha duzenlenebilir)` : `⏱ ${kalan} dk kaldi`;
+        badge.style.cssText = "background:" + (girildi ? "#e6f4ea;color:#1e7e34;" : "#fff3e0;color:#e65100;") + "font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;";
+      }
+      if (uyari) {
+        if (girildi) {
+          uyari.style.display = "none";
+        } else {
+          uyari.textContent = "Gelmeyen ogrencileri isaretleyin. " + kalan + " dakika icinde kaydedin.";
+          uyari.style.cssText = "background:#e6f4ea;color:#1e7e34;border-radius:8px;padding:8px 12px;font-size:12px;margin-bottom:10px;display:block;";
+        }
+      }
+    } else if (girildi) {
+      // Sure doldu ama daha once girilmis: kart gorunur kalir, sadece kilitlenir.
+      kart.style.opacity = "0.85"; kart.style.pointerEvents = "none"; kart.style.borderLeft = "4px solid var(--text2)";
+      if (panel) { panel.style.display = "none"; if (ok) ok.style.transform = "rotate(180deg)"; }
+      if (badge) { badge.textContent = "🔒 Kilitlendi"; badge.style.cssText = "background:#f1f3f4;color:#5f6368;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;"; }
     } else {
+      // Sure doldu ve hic girilmemis: Manuel Yoklama kullanilsin diye listeden kaldirilir.
       kart.style.display = "none";
     }
   }
@@ -426,7 +444,7 @@ window.dykSayfasiYukle = async function () {
       const ogrSnap = await getDocs(query(collection(db, "students"), where("class_id", "==", kurs.class_id)));
       ogrSnap.forEach((d) => ogrenciler.push({ id: d.id, ...d.data() }));
     }
-    ogrenciler.sort((a, b) => (a.name || "").localeCompare(b.name || "", "tr"));
+    ogrenciler.sort((a, b) => (a.student_number || "").localeCompare(b.student_number || "", "tr", { numeric: true }));
     const cokSinifli = ogrenciler.some((o) => o.class_id !== kurs.class_id);
 
     if (ogrenciler.length) {
@@ -434,7 +452,7 @@ window.dykSayfasiYukle = async function () {
       ogrenciler.forEach((ogr) => {
         const chkId = "dykchk_" + kurs.id + "_" + ogr.id;
         const sinifEtiketi = cokSinifli ? ` <small style="color:#888;font-size:11px;">(${esc(ogr.class_id)})</small>` : "";
-        html += `<label class="ogrenci-label"><input type="checkbox" id="${chkId}" value="${esc(ogr.student_number || ogr.id)}" style="width:16px;height:16px;"><span>${esc(ogr.name || "")}${sinifEtiketi}</span></label>`;
+        html += `<label class="ogrenci-label"><input type="checkbox" id="${chkId}" value="${esc(ogr.student_number || ogr.id)}" style="width:16px;height:16px;"><span class="ogrenci-no">${esc(ogr.student_number || "")}</span><span>${esc(ogr.name || "")}${sinifEtiketi}</span></label>`;
       });
       html += "</div>";
     } else {
@@ -722,6 +740,13 @@ window.manuelIsaretle = (no) => {
   chk.checked = !chk.checked;
   document.getElementById("man-satir-" + no).classList.toggle("yok", chk.checked);
 };
+window.manuelSinifTam = () => {
+  document.querySelectorAll("#manuelOgrenciListesi input[type=checkbox]").forEach((c) => {
+    c.checked = false;
+    document.getElementById("man-satir-" + c.id.replace("man-chk-", "")).classList.remove("yok");
+  });
+  window.manuelKaydet();
+};
 window.manuelKaydet = async () => {
   const sinif = document.getElementById("manuelSinif").value;
   const dersAdi = document.getElementById("manuelDersAdi").value.trim();
@@ -829,6 +854,52 @@ window.nobetBugunModalKapat = async () => {
       );
     } catch (e) {
       console.warn("Nobet gorulme kaydi yazilamadi:", e);
+    }
+  }
+};
+
+// ── BUGÜN VEKİL MİSİN KONTROLÜ ──
+// today_lessons'daki substitute_teacher_id alanı zaten mevcut olduğundan
+// (bkz. raporluIcinVekilAta) sunucuya gerek yok — doğrudan istemciden okunur.
+export async function vekaletBugunKontrolEt() {
+  if (!state.ogretmenDoc) return;
+  try {
+    const gorulmeDoc = await getDoc(doc(db, "vekalet_gorulme", state.ogretmenDoc.id));
+    if (gorulmeDoc.exists() && gorulmeDoc.data().son_tarih === bugun) return;
+
+    const snap = await getDocs(
+      query(collection(db, "today_lessons"), where("date", "==", bugun)),
+    );
+    const dersler = [];
+    snap.forEach((d) => {
+      const data = d.data();
+      if (data.substitute_teacher_id === state.ogretmenDoc.id) dersler.push(data);
+    });
+    if (!dersler.length) return;
+
+    dersler.sort((a, b) => a.lesson_number - b.lesson_number);
+    document.getElementById("vekaletBugunListe").innerHTML = dersler
+      .map((d) => `${d.lesson_number}. Ders — ${esc(d.class_id)} (${esc(d.substitute_for_teacher_ad || "?")} yerine)`)
+      .join("<br>");
+    document.getElementById("vekaletBugunBirDahaGosterme").checked = false;
+    document.getElementById("vekaletBugunModal").classList.add("aktif");
+  } catch (e) {
+    console.warn("Vekalet kontrolu basarisiz:", e);
+  }
+}
+
+window.vekaletBugunModalKapat = async () => {
+  document.getElementById("vekaletBugunModal").classList.remove("aktif");
+  const birDahaGosterme = document.getElementById("vekaletBugunBirDahaGosterme").checked;
+  if (birDahaGosterme && state.ogretmenDoc) {
+    try {
+      await setDoc(
+        doc(db, "vekalet_gorulme", state.ogretmenDoc.id),
+        { son_tarih: bugun, guncelleme: serverTimestamp() },
+        { merge: true },
+      );
+    } catch (e) {
+      console.warn("Vekalet gorulme kaydi yazilamadi:", e);
     }
   }
 };

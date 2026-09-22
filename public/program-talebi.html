@@ -398,6 +398,7 @@
         setDoc,
         getDocs,
         addDoc,
+        updateDoc,
         deleteDoc,
         collection,
         query,
@@ -433,6 +434,22 @@
       let subeToplam = {};
       let tumMatrisler = {};
       let benimMatris = {};
+      let programSeciliOgretmenId = null;
+      let programOgretmenSchedule = {};
+
+      // schedule.day yazımı import kaynağına göre aksanlı/aksansız olabilir;
+      // functions/index.js ve portal-utils.js'teki normalizeGun ile aynı mantık.
+      function normalizeGunLocal(gun) {
+        return String(gun || "")
+          .trim()
+          .toLocaleLowerCase("tr")
+          .replace(/ı/g, "i")
+          .replace(/ş/g, "s")
+          .replace(/ç/g, "c")
+          .replace(/ğ/g, "g")
+          .replace(/ü/g, "u")
+          .replace(/ö/g, "o");
+      }
 
       // Matris key: "Pzt-1", "Sal-3" vs
       function matrisKey(gi, di) {
@@ -849,11 +866,13 @@
       <button class="sekme-btn aktif" onclick="adminSekme('tanim', this)">Tanımlar</button>
       <button class="sekme-btn" onclick="adminSekme('isi', this)">Isı Haritası</button>
       <button class="sekme-btn" onclick="adminSekme('acmaz', this)">Açmaz Analizi</button>
+      <button class="sekme-btn" onclick="adminSekme('programDuzenle', this)">📐 Ders Programını Düzenle</button>
       <button class="sekme-btn" onclick="adminSekme('ayarlar', this)">Ayarlar</button>
     </div>
     <div class="sekme-icerik aktif" id="asekme-tanim"></div>
     <div class="sekme-icerik" id="asekme-isi"></div>
     <div class="sekme-icerik" id="asekme-acmaz"></div>
+    <div class="sekme-icerik" id="asekme-programDuzenle"></div>
     <div class="sekme-icerik" id="asekme-ayarlar"></div>
   `;
         adminTanimGoster();
@@ -871,6 +890,7 @@
         if (id === "tanim") adminTanimGoster();
         else if (id === "isi") adminIsiGoster();
         else if (id === "acmaz") adminAcmazGoster();
+        else if (id === "programDuzenle") adminProgramDuzenleGoster();
         else if (id === "ayarlar") adminAyarlarGoster();
       };
 
@@ -1165,6 +1185,147 @@
         }
         c.innerHTML = html;
       }
+
+      // ── DERS PROGRAMINI DÜZENLE (admin) ──
+      function adminProgramDuzenleGoster() {
+        const c = document.getElementById("asekme-programDuzenle");
+        const ogretmenOptions = tumOgretmenler
+          .map((o) => `<option value="${o.id}">${o.ad || "(isimsiz)"}</option>`)
+          .join("");
+        c.innerHTML = `<div class="kart">
+          <div class="kart-baslik">Ders Programını Düzenle</div>
+          <p style="font-size:13px;color:#888;margin-bottom:14px;">Bir öğretmen seçip hücrelere tıklayarak o saatteki dersi değiştirebilir veya boşaltabilirsiniz. Ufak düzeltmeler için veri import etmeye gerek kalmaz. Değişiklikler bir sonraki günün ders oluşturma işleminden (gece 03:00) itibaren geçerli olur; bugünü de düzeltmek için Genel Durum'daki "Bugünün Derslerini Oluştur" kullanılmalı.</p>
+          <div class="form-group" style="max-width:320px;">
+            <label>Öğretmen</label>
+            <select id="programOgretmenSec" onchange="programOgretmenSecildi()"><option value="">Seçin</option>${ogretmenOptions}</select>
+          </div>
+          <div id="programMatrisAlani"></div>
+        </div>`;
+      }
+
+      window.programOgretmenSecildi = async () => {
+        const id = document.getElementById("programOgretmenSec").value;
+        programSeciliOgretmenId = id || null;
+        const alan = document.getElementById("programMatrisAlani");
+        if (!programSeciliOgretmenId) { alan.innerHTML = ""; return; }
+        alan.innerHTML = '<div class="yukleniyor">Yükleniyor...</div>';
+        await programOgretmenScheduleYukle();
+        programMatrisGuncelle();
+      };
+
+      async function programOgretmenScheduleYukle() {
+        const snap = await getDocs(
+          query(collection(db, "schedule"), where("teacher_id", "==", programSeciliOgretmenId)),
+        );
+        programOgretmenSchedule = {};
+        snap.forEach((d) => {
+          const v = d.data();
+          const key = normalizeGunLocal(v.day) + "-" + v.lesson_number;
+          programOgretmenSchedule[key] = { id: d.id, class_id: v.class_id || "", lesson_name: v.lesson_name || "" };
+        });
+      }
+
+      function programMatrisGuncelle() {
+        const alan = document.getElementById("programMatrisAlani");
+        if (!alan) return;
+        let html = '<div class="matris-wrap"><table class="matris"><thead><tr><th>Gün \\ Ders</th>';
+        DERSLER.forEach((d) => { html += "<th>" + d + ". Ders</th>"; });
+        html += "</tr></thead><tbody>";
+        GUNLER.forEach((g, gi) => {
+          html += "<tr><td>" + g + "</td>";
+          DERSLER.forEach((d, di) => {
+            const key = normalizeGunLocal(g) + "-" + d;
+            const hucre = programOgretmenSchedule[key];
+            html += `<td class="${hucre ? "hucre-x" : "hucre-bos"}" onclick="programHucreDuzenle(${gi},${di})">`;
+            html += hucre
+              ? `<div style="font-size:11px;font-weight:700;color:#0d47a1;line-height:1.3;">${hucre.class_id}</div><div style="font-size:10px;color:#666;line-height:1.2;">${hucre.lesson_name}</div>`
+              : '<div style="color:#ccc;">—</div>';
+            html += "</td>";
+          });
+          html += "</tr>";
+        });
+        html += "</tbody></table></div>";
+        alan.innerHTML = html;
+      }
+
+      window.programHucreDuzenle = (gi, di) => {
+        const gun = GUNLER[gi];
+        const dersNo = DERSLER[di];
+        const key = normalizeGunLocal(gun) + "-" + dersNo;
+        const mevcut = programOgretmenSchedule[key];
+        document.getElementById("programHucreOverlay")?.remove();
+        const sinifOptions = tumSiniflar
+          .map((s) => `<option value="${s.class_name}"${mevcut && mevcut.class_id === s.class_name ? " selected" : ""}>${s.class_name}</option>`)
+          .join("");
+        const dersOptions = tumDersListesi
+          .map((d) => `<option value="${d.ders_adi}"${mevcut && mevcut.lesson_name === d.ders_adi ? " selected" : ""}>${d.ders_adi}</option>`)
+          .join("");
+        const overlay = document.createElement("div");
+        overlay.id = "programHucreOverlay";
+        overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;";
+        overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+        overlay.innerHTML = `<div class="kart" style="max-width:420px;width:100%;">
+          <div class="kart-baslik">${gun} — ${dersNo}. Ders
+            <button class="btn btn-gri btn-sm" onclick="document.getElementById('programHucreOverlay').remove()">Kapat</button>
+          </div>
+          <div class="form-group">
+            <label>Sınıf</label>
+            <select id="programHucreSinif"><option value="">Seçin</option>${sinifOptions}</select>
+          </div>
+          <div class="form-group">
+            <label>Ders Adı</label>
+            <select id="programHucreDers"><option value="">Seçin</option>${dersOptions}</select>
+          </div>
+          <div style="display:flex;gap:10px;">
+            <button class="btn btn-yesil" onclick="programHucreKaydet(${gi},${di})">💾 Kaydet</button>
+            ${mevcut ? `<button class="btn btn-kirmizi" onclick="programHucreBosalt(${gi},${di})">Boşalt</button>` : ""}
+          </div>
+          <div class="mesaj" id="programHucreMesaj" style="margin-top:10px;"></div>
+        </div>`;
+        document.body.appendChild(overlay);
+      };
+
+      window.programHucreKaydet = async (gi, di) => {
+        const gun = GUNLER[gi];
+        const dersNo = DERSLER[di];
+        const key = normalizeGunLocal(gun) + "-" + dersNo;
+        const sinif = document.getElementById("programHucreSinif").value;
+        const dersAdi = document.getElementById("programHucreDers").value;
+        if (!sinif || !dersAdi) { mesajGoster("programHucreMesaj", "Sınıf ve ders adını seçin.", "hata"); return; }
+        const mevcut = programOgretmenSchedule[key];
+        try {
+          if (mevcut) {
+            await updateDoc(doc(db, "schedule", mevcut.id), { class_id: sinif, lesson_name: dersAdi });
+          } else {
+            await addDoc(collection(db, "schedule"), {
+              teacher_id: programSeciliOgretmenId,
+              day: gun,
+              lesson_number: dersNo,
+              class_id: sinif,
+              lesson_name: dersAdi,
+              created_at: serverTimestamp(),
+            });
+          }
+          document.getElementById("programHucreOverlay")?.remove();
+          await programOgretmenScheduleYukle();
+          programMatrisGuncelle();
+        } catch (err) {
+          mesajGoster("programHucreMesaj", "Hata: " + err.message, "hata");
+        }
+      };
+
+      window.programHucreBosalt = async (gi, di) => {
+        const gun = GUNLER[gi];
+        const dersNo = DERSLER[di];
+        const key = normalizeGunLocal(gun) + "-" + dersNo;
+        const mevcut = programOgretmenSchedule[key];
+        if (!mevcut) return;
+        if (!confirm("Bu ders saatini boşaltmak istiyor musunuz?")) return;
+        await deleteDoc(doc(db, "schedule", mevcut.id));
+        document.getElementById("programHucreOverlay")?.remove();
+        await programOgretmenScheduleYukle();
+        programMatrisGuncelle();
+      };
 
       function adminAyarlarGoster() {
         const c = document.getElementById("asekme-ayarlar");

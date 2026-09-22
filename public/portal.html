@@ -113,6 +113,13 @@
               </div>
               <div class="kart">
                 <div class="kart-baslik-satir">
+                  <div class="kart-baslik">⏰ Yoklama Girmeyen Ogretmenler</div>
+                  <button class="btn btn-gri btn-sm" onclick="yoklamaGirmeyenlerYukle()">🔄 Yenile</button>
+                </div>
+                <div id="yoklamaGirmeyenlerListesi"><div class="yukleniyor">Yukleniyor...</div></div>
+              </div>
+              <div class="kart">
+                <div class="kart-baslik-satir">
                   <div class="kart-baslik">Bugun Dersi Olan Ogretmenler</div>
                   <button class="btn btn-gri btn-sm" onclick="ogretmenTakipYukle()">🔄 Yenile</button>
                 </div>
@@ -239,6 +246,7 @@
                 <div class="uyari-kutu-sm">Gelmeyen ogrencileri isaretleyin</div>
                 <div id="manuelOgrenciListesi"></div>
                 <button class="btn btn-yesil mt-12" onclick="manuelKaydet()">Manuel Yoklamayi Kaydet</button>
+                <button class="btn btn-mavi mt-12" onclick="manuelSinifTam()">✓ Sınıf Tam</button>
                 <div class="mesaj" id="manuelMesaj"></div>
               </div>
             </div>
@@ -246,6 +254,43 @@
             <!-- DİSİPLİN -->
             <div class="sayfa" id="sayfa-disiplin">
               <div class="yukleniyor">Yukleniyor...</div>
+            </div>
+
+            <!-- İZİN -->
+            <div class="sayfa" id="sayfa-izin"></div>
+
+            <!-- VEKİL ATAMA -->
+            <div class="sayfa" id="sayfa-vekil-atama">
+              <div class="kart">
+                <div class="kart-baslik">🏥 Raporlu Öğretmen Ekle</div>
+                <div class="form-grid" style="margin-bottom:8px;">
+                  <div class="form-group">
+                    <label>Öğretmen</label>
+                    <select id="vekilOgretmenSecim"></select>
+                  </div>
+                  <div class="form-group">
+                    <label>Başlangıç Tarihi</label>
+                    <input type="date" id="vekilRaporBaslangic">
+                  </div>
+                  <div class="form-group">
+                    <label>Bitiş Tarihi</label>
+                    <input type="date" id="vekilRaporBitis">
+                  </div>
+                  <div class="form-group">
+                    <label>Açıklama (opsiyonel)</label>
+                    <input type="text" id="vekilRaporAciklama" placeholder="Ör. Rapor / Izin">
+                  </div>
+                </div>
+                <button class="btn btn-yesil" onclick="vekilRaporKaydet()">+ Rapor Ekle</button>
+                <div class="mesaj" id="vekilRaporMesaj"></div>
+              </div>
+              <div class="kart">
+                <div class="kart-baslik">Bugün Aktif / Yaklaşan Raporlu Öğretmenler</div>
+                <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">
+                  "Vekil Ata" butonu, önce bugün nöbetçi olup o saatte boş olan öğretmenleri, yoksa diğer boş öğretmenleri dener. Sadece bugüne atama yapar — rapor birden fazla günü kapsıyorsa her gün tekrar tıklamanız gerekir.
+                </div>
+                <div id="vekilRaporListesi"><div class="yukleniyor">Yukleniyor...</div></div>
+              </div>
             </div>
 
             <!-- iframe SAYFALARI -->
@@ -524,6 +569,7 @@
                 <button class="sekme-btn" onclick="raporSekme('istatistik', this)">Istatistikler</button>
                 <button class="sekme-btn" onclick="raporSekme('ogretmendevam', this)">Ogretmen Devam</button>
                 <button class="sekme-btn" onclick="raporSekme('dyk', this)">DYK Raporu</button>
+                <button class="sekme-btn" onclick="raporSekme('vekillik', this)">Vekillik</button>
               </div>
               <div class="sekme-icerik aktif" id="rsekme-gunluk">
                 <div class="kart">
@@ -581,6 +627,18 @@
                 </div>
                 <div id="dykRaporIcerik"><div class="bos-mesaj">Tarih araligi secin</div></div>
               </div>
+              <div class="sekme-icerik" id="rsekme-vekillik">
+                <div class="kart">
+                  <div class="kart-baslik">Vekillik Raporu</div>
+                  <div class="flex-form">
+                    <div class="form-group mb-0"><label>Baslangic</label><input type="date" id="vekillikBaslangic" /></div>
+                    <div class="form-group mb-0"><label>Bitis</label><input type="date" id="vekillikBitis" /></div>
+                    <button class="btn btn-mavi" onclick="vekillikRaporGetir()">Rapor Getir</button>
+                    <button class="btn btn-gri" onclick="window.print()">Yazdir</button>
+                  </div>
+                </div>
+                <div id="vekillikRaporIcerik"><div class="bos-mesaj">Tarih araligi secin</div></div>
+              </div>
               <div class="sekme-icerik" id="rsekme-ogretmendevam">
                 <div class="kart">
                   <div class="kart-baslik">Ogretmen Devam Raporu</div>
@@ -613,6 +671,7 @@
                 <button class="sekme-btn" onclick="ayarSekme('sistem', this)">Sistem</button>
                 <button class="sekme-btn" onclick="ayarSekme('tatiller', this)">Tatil Gunleri</button>
                 <button class="sekme-btn" onclick="ayarSekme('dersler', this)">Ders Listesi</button>
+                <button class="sekme-btn" onclick="ayarSekme('nobet-bildirim', this)">Nobet Bildirimi</button>
               </div>
               <div class="sekme-icerik aktif" id="asekme-ogretmenler">
                 <div class="kart">
@@ -675,6 +734,7 @@
                     <div style="display:flex;gap:6px;">
                       <button class="btn btn-mavi btn-sm" onclick="ogretmenlerTopluKimlikVer()">🔑 Kimliksiz Öğretmenlere Toplu Kimlik Ver</button>
                       <button class="btn btn-gri btn-sm" onclick="branslarNormalizeEt()">🔧 Branşları Normalize Et</button>
+                      <button class="btn btn-gri btn-sm" onclick="ogretmenRolleriniOnar()">🛠️ Öğretmen Rollerini Onar</button>
                     </div>
                   </div>
                   <div class="mesaj" id="bransNormalizeMesaj"></div>
@@ -862,6 +922,7 @@
               </div>
               <div class="sekme-icerik" id="asekme-tatiller"></div>
               <div class="sekme-icerik" id="asekme-dersler"></div>
+              <div class="sekme-icerik" id="asekme-nobet-bildirim"></div>
             </div>
 
           </div>
@@ -912,6 +973,22 @@
         </label>
         <div class="modal-butonlar">
           <button class="btn btn-mavi" onclick="nobetBugunModalKapat()">Tamam</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- BUGUN VEKILSINIZ MODAL -->
+    <div class="modal-zemin" id="vekaletBugunModal">
+      <div class="modal-kutu" style="text-align:center;">
+        <div style="font-size:48px;margin-bottom:8px;">🔄</div>
+        <div class="modal-baslik" style="font-size:20px;">Bugün Vekilsiniz!</div>
+        <p id="vekaletBugunListe" style="color:var(--text2);margin:12px 0 20px;font-weight:600;"></p>
+        <label style="display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;color:var(--text2);margin-bottom:16px;cursor:pointer;">
+          <input type="checkbox" id="vekaletBugunBirDahaGosterme" />
+          Bugün için bir daha gösterme
+        </label>
+        <div class="modal-butonlar">
+          <button class="btn btn-mavi" onclick="vekaletBugunModalKapat()">Tamam</button>
         </div>
       </div>
     </div>

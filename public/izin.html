@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Izin Yonetimi</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f0f4f8; }
+
+    .topbar {
+      background: #1a73e8; color: white;
+      padding: 14px 24px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .topbar h1 { font-size: 18px; font-weight: 600; }
+
+    .layout { display: flex; min-height: calc(100vh - 50px); }
+
+    .sidebar {
+      width: 200px; background: white;
+      border-right: 1px solid #e0e0e0; padding: 20px 0;
+      flex-shrink: 0;
+    }
+    .menu-item {
+      padding: 12px 20px; cursor: pointer; font-size: 14px;
+      color: #444; transition: background 0.2s;
+    }
+    .menu-item:hover { background: #f0f4f8; }
+    .menu-item.aktif {
+      background: #e8f0fe; color: #1a73e8;
+      font-weight: 600; border-right: 3px solid #1a73e8;
+    }
+
+    .icerik { flex: 1; padding: 24px; }
+    .sayfa { display: none; }
+    .sayfa.aktif { display: block; }
+    .sayfa-baslik { font-size: 20px; font-weight: 600; color: #333; margin-bottom: 20px; }
+
+    .kart {
+      background: white; border-radius: 10px;
+      padding: 20px; box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+      margin-bottom: 20px;
+    }
+    .kart h3 {
+      font-size: 15px; color: #333; margin-bottom: 14px;
+      padding-bottom: 10px; border-bottom: 1px solid #f0f0f0;
+    }
+
+    .btn {
+      padding: 10px 20px; border: none; border-radius: 8px;
+      font-size: 14px; font-weight: 600; cursor: pointer;
+    }
+    .btn-mavi { background: #1a73e8; color: white; }
+    .btn-mavi:hover { background: #1557b0; }
+    .btn-yesil { background: #34a853; color: white; }
+    .btn-yesil:hover { background: #2d8f47; }
+    .btn-kirmizi { background: #ea4335; color: white; }
+    .btn-kirmizi:hover { background: #c5221f; }
+    .btn-gri { background: #666; color: white; }
+    .btn-sm { padding: 6px 12px; font-size: 12px; }
+
+    .form-group { margin-bottom: 16px; }
+    .form-group label {
+      display: block; font-size: 13px; color: #444;
+      margin-bottom: 6px; font-weight: 500;
+    }
+    .form-group input, .form-group select, .form-group textarea {
+      width: 100%; padding: 10px 12px; border: 1px solid #ddd;
+      border-radius: 8px; font-size: 14px; outline: none;
+      font-family: inherit;
+    }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+      border-color: #1a73e8;
+    }
+    .form-group textarea { resize: vertical; min-height: 80px; }
+
+    .tur-secim { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+    .tur-secenek {
+      flex: 1; min-width: 200px; border: 2px solid #e0e0e0; border-radius: 8px;
+      padding: 12px 16px; cursor: pointer; transition: all 0.2s;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .tur-secenek:hover { border-color: #1a73e8; background: #f8fbff; }
+    .tur-secenek.secili { border-color: #1a73e8; background: #e8f0fe; }
+
+    .karakter-sayac { font-size: 12px; color: #888; text-align: right; margin-top: 4px; }
+    .karakter-uyari { color: #ea4335; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th {
+      background: #f8f9fa; padding: 10px 14px; text-align: left;
+      font-weight: 600; color: #555; border-bottom: 2px solid #e0e0e0;
+    }
+    td { padding: 10px 14px; border-bottom: 1px solid #f0f0f0; color: #333; vertical-align: top; }
+    tr:hover td { background: #fafafa; }
+
+    .rozet {
+      display: inline-block; padding: 3px 10px;
+      border-radius: 12px; font-size: 12px; font-weight: 500; white-space: nowrap;
+    }
+    .rozet-kirmizi { background: #fce8e6; color: #c5221f; }
+    .rozet-sari { background: #fef7e0; color: #b06000; }
+    .rozet-yesil { background: #e6f4ea; color: #1e7e34; }
+    .rozet-mavi { background: #e8f0fe; color: #1a73e8; }
+
+    .ogrenci-arama { position: relative; }
+    .ogrenci-sonuclar {
+      position: absolute; top: 100%; left: 0; right: 0;
+      background: white; border: 1px solid #ddd; border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      z-index: 100; max-height: 200px; overflow-y: auto; display: none;
+    }
+    .ogrenci-sonuc-item {
+      padding: 10px 14px; cursor: pointer; font-size: 14px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .ogrenci-sonuc-item:hover { background: #f0f4f8; }
+    .ogrenci-sonuc-item:last-child { border-bottom: none; }
+
+    .secili-ogrenci {
+      background: #e8f0fe; border-radius: 8px;
+      padding: 12px 16px; margin-bottom: 16px;
+      display: none; align-items: center; justify-content: space-between;
+    }
+    .secili-ogrenci-bilgi strong { color: #1a73e8; }
+
+    .mesaj {
+      padding: 12px 16px; border-radius: 8px;
+      font-size: 14px; margin-top: 12px; display: none;
+    }
+    .mesaj-basari { background: #e6f4ea; color: #1e7e34; }
+    .mesaj-hata { background: #fce8e6; color: #c5221f; }
+
+    .yukleniyor-mesaj { text-align: center; color: #666; padding: 30px; }
+    .bos-mesaj { text-align: center; color: #999; padding: 30px; }
+
+    .filtre-bar {
+      display: flex; gap: 12px; flex-wrap: wrap;
+      margin-bottom: 16px; align-items: flex-end;
+    }
+    .filtre-bar .form-group { margin-bottom: 0; min-width: 160px; }
+
+    @media (max-width: 768px) {
+      .layout { flex-direction: column; }
+      .sidebar { width: 100%; display: flex; flex-wrap: wrap; padding: 10px; }
+      .menu-item { padding: 8px 12px; font-size: 13px; }
+      .tur-secim { flex-direction: column; }
+    }
+  </style>
+  <script>if(new URLSearchParams(location.search).get("embedded"))document.addEventListener("DOMContentLoaded",()=>document.querySelector("h1")?.remove());</script>
+</head>
+<body>
+
+  <div class="topbar">
+    <h1>Izin Yonetimi</h1>
+  </div>
+
+  <div class="layout">
+    <div class="sidebar">
+      <div class="menu-item aktif" onclick="sayfaGoster('olustur', this)">Izin Talebi Olustur</div>
+      <div class="menu-item" onclick="sayfaGoster('rehber-onay', this)" id="menuRehberOnay" style="display:none;">Rehber Onayi</div>
+      <div class="menu-item" onclick="sayfaGoster('admin-onay', this)" id="menuAdminOnay" style="display:none;">Onay Bekleyenler</div>
+      <div class="menu-item" onclick="sayfaGoster('kayitlar', this)">Kayitlar</div>
+    </div>
+
+    <div class="icerik">
+
+      <!-- IZIN TALEBI OLUSTUR -->
+      <div class="sayfa aktif" id="sayfa-olustur">
+        <div class="sayfa-baslik">Izin Talebi Olustur</div>
+        <div class="kart">
+          <h3>1. Ogrenci Sec</h3>
+          <div class="ogrenci-arama">
+            <div class="form-group" style="margin-bottom:8px;">
+              <input type="text" id="ogrenciArama" placeholder="Ogrenci adi veya numarasi ile ara..."
+                autocomplete="off" oninput="ogrenciAra(this.value)">
+            </div>
+            <div class="ogrenci-sonuclar" id="ogrenciSonuclar"></div>
+          </div>
+          <div class="secili-ogrenci" id="seciliOgrenciDiv">
+            <div class="secili-ogrenci-bilgi">
+              <strong id="seciliOgrenciAd"></strong>
+              <span id="seciliOgrenciDetay" style="color:#666; margin-left:8px;"></span>
+            </div>
+            <button class="btn btn-gri btn-sm" onclick="ogrenciTemizle()">Degistir</button>
+          </div>
+
+          <h3 style="margin-top:20px;">2. Izin Turu</h3>
+          <div class="tur-secim">
+            <div class="tur-secenek secili" id="tur-cok_gunlu" onclick="izinTuruSec('cok_gunlu')">
+              <input type="radio" name="izinTur" checked style="pointer-events:none;">
+              <span>Cok Gunlu Izin (en fazla 5 gun)</span>
+            </div>
+            <div class="tur-secenek" id="tur-gun_ici" onclick="izinTuruSec('gun_ici')">
+              <input type="radio" name="izinTur" style="pointer-events:none;">
+              <span>Bugunun Kalan Dersleri</span>
+            </div>
+          </div>
+
+          <div id="tarihAlanlari" style="display:flex; gap:12px; flex-wrap:wrap;">
+            <div class="form-group" style="flex:1; min-width:160px;">
+              <label>Baslangic Tarihi</label>
+              <input type="date" id="izinBaslangic">
+            </div>
+            <div class="form-group" style="flex:1; min-width:160px;">
+              <label>Bitis Tarihi</label>
+              <input type="date" id="izinBitis">
+            </div>
+          </div>
+
+          <h3>3. Izin Nedeni (Zorunlu)</h3>
+          <div class="form-group">
+            <textarea id="izinNot" placeholder="Izin nedenini kisaca yazin... (en az 5, en fazla 250 karakter)"
+              oninput="karakterSay(this)"></textarea>
+            <div class="karakter-sayac" id="karakterSayac">0 / 250</div>
+          </div>
+
+          <button class="btn btn-yesil" onclick="izinKaydet()" id="btnIzinKaydet">Izin Talebini Kaydet</button>
+          <div class="mesaj" id="izinMesaj"></div>
+        </div>
+      </div>
+
+      <!-- REHBER ONAYI -->
+      <div class="sayfa" id="sayfa-rehber-onay">
+        <div class="sayfa-baslik">Rehber Onayi Bekleyen Izinler</div>
+        <div class="kart">
+          <div id="rehberOnayListesi"><div class="yukleniyor-mesaj">Yukleniyor...</div></div>
+        </div>
+      </div>
+
+      <!-- ADMIN ONAYI -->
+      <div class="sayfa" id="sayfa-admin-onay">
+        <div class="sayfa-baslik">Admin Onayi Bekleyen Izinler</div>
+        <div class="kart">
+          <div id="adminOnayListesi"><div class="yukleniyor-mesaj">Yukleniyor...</div></div>
+        </div>
+      </div>
+
+      <!-- KAYITLAR -->
+      <div class="sayfa" id="sayfa-kayitlar">
+        <div class="sayfa-baslik">Izin Kayitlari</div>
+        <div class="kart">
+          <div class="filtre-bar">
+            <div class="form-group">
+              <label>Durum</label>
+              <select id="filtreDurum" onchange="kayitlariGetir()">
+                <option value="">Tum Durumlar</option>
+                <option value="beklemede_rehber">Rehber Onayi Bekliyor</option>
+                <option value="beklemede_admin">Admin Onayi Bekliyor</option>
+                <option value="onaylandi">Onaylandi</option>
+                <option value="reddedildi">Reddedildi</option>
+              </select>
+            </div>
+            <button class="btn btn-mavi" onclick="kayitlariGetir()">Filtrele</button>
+          </div>
+          <div id="kayitlarListesi"><div class="yukleniyor-mesaj">Yukleniyor...</div></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    import {
+      getFirestore, doc, getDoc, getDocs, addDoc, updateDoc,
+      collection, query, where, orderBy, serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyAHTCiicd4b94rG1-jN0STRbwcrLmkYudo",
+      authDomain: "okul-yoklama-sistemi-8081f.firebaseapp.com",
+      projectId: "okul-yoklama-sistemi-8081f",
+      storageBucket: "okul-yoklama-sistemi-8081f.firebasestorage.app",
+      messagingSenderId: "38230047763",
+      appId: "1:38230047763:web:dfab058df8928b66be13e6"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const functions = getFunctions(app, "europe-west1");
+
+    let aktifKullanici = null;
+    let aktifRol = null;
+    let aktifOgretmenDocId = null;
+    let aktifOgretmenRehberSube = null;
+    let tumOgrenciler = [];
+    let tumOgretmenler = [];
+    let seciliOgrenci = null;
+    let seciliTur = 'cok_gunlu';
+    // null = admin (tüm sınıflar), Set = öğretmenin sınıfları
+    let _ogretmenSiniflar = null;
+
+    function bugunStr() {
+      const d = new Date();
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) { window.location.href = '/index.html'; return; }
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (!userDoc.exists()) { window.location.href = '/index.html'; return; }
+      aktifKullanici = userDoc.data();
+      aktifRol = aktifKullanici.rol;
+
+      const ogretmenlerSnap = await getDocs(collection(db, 'teachers'));
+      tumOgretmenler = [];
+      ogretmenlerSnap.forEach(d => tumOgretmenler.push({ id: d.id, ...d.data() }));
+
+      if (aktifRol === 'admin' || aktifRol === 'mudur_yardimcisi') {
+        _ogretmenSiniflar = null;
+        document.getElementById('menuAdminOnay').style.display = 'block';
+      } else {
+        const kendiDoc = tumOgretmenler.find(o => o.uid === user.uid);
+        if (kendiDoc) {
+          aktifOgretmenDocId = kendiDoc.id;
+          aktifOgretmenRehberSube = kendiDoc.rehberSube || null;
+        }
+        if (aktifOgretmenRehberSube) {
+          document.getElementById('menuRehberOnay').style.display = 'block';
+        }
+
+        // Öğretmen: kendi ders programındaki sınıfları belirle
+        if (aktifOgretmenDocId) {
+          const scheduleSnap = await getDocs(query(collection(db, 'schedule'), where('teacher_id', '==', aktifOgretmenDocId)));
+          _ogretmenSiniflar = new Set();
+          scheduleSnap.forEach(d => _ogretmenSiniflar.add(d.data().class_id));
+        } else {
+          _ogretmenSiniflar = new Set();
+        }
+      }
+
+      const ogrSnap = await getDocs(collection(db, 'students'));
+      tumOgrenciler = [];
+      ogrSnap.forEach(d => {
+        const o = { id: d.id, ...d.data() };
+        if (_ogretmenSiniflar === null || _ogretmenSiniflar.has(o.class_id)) {
+          tumOgrenciler.push(o);
+        }
+      });
+
+      document.getElementById('izinBaslangic').value = bugunStr();
+      document.getElementById('izinBitis').value = bugunStr();
+
+      if (aktifOgretmenRehberSube) rehberOnayGetir();
+      kayitlariGetir();
+    });
+
+    window.sayfaGoster = (sayfaId, menuItem) => {
+      document.querySelectorAll('.sayfa').forEach(s => s.classList.remove('aktif'));
+      document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('aktif'));
+      document.getElementById('sayfa-' + sayfaId).classList.add('aktif');
+      menuItem.classList.add('aktif');
+      if (sayfaId === 'rehber-onay') rehberOnayGetir();
+      if (sayfaId === 'admin-onay') adminOnayGetir();
+      if (sayfaId === 'kayitlar') kayitlariGetir();
+    };
+
+    // ── ÖĞRENCİ SEÇ ──
+    window.ogrenciAra = (q) => {
+      const sonuclar = document.getElementById('ogrenciSonuclar');
+      if (q.length < 2) { sonuclar.style.display = 'none'; return; }
+      const filtre = tumOgrenciler.filter(o =>
+        o.name.toLowerCase().includes(q.toLowerCase()) ||
+        o.student_number.toString().includes(q)
+      ).slice(0, 8);
+      if (!filtre.length) {
+        sonuclar.innerHTML = '<div class="ogrenci-sonuc-item">Sonuc bulunamadi</div>';
+      } else {
+        sonuclar.innerHTML = filtre.map(o =>
+          `<div class="ogrenci-sonuc-item" onclick="ogrenciSec('${o.id}')">
+            <strong>${o.name}</strong>
+            <span style="color:#888; margin-left:8px; font-size:12px;">${o.student_number} | ${o.class_id}</span>
+          </div>`
+        ).join('');
+      }
+      sonuclar.style.display = 'block';
+    };
+
+    window.ogrenciSec = (id) => {
+      seciliOgrenci = tumOgrenciler.find(o => o.id === id);
+      document.getElementById('ogrenciArama').value = '';
+      document.getElementById('ogrenciSonuclar').style.display = 'none';
+      document.getElementById('seciliOgrenciAd').textContent = seciliOgrenci.name;
+      document.getElementById('seciliOgrenciDetay').textContent = `No: ${seciliOgrenci.student_number} | Sinif: ${seciliOgrenci.class_id}`;
+      document.getElementById('seciliOgrenciDiv').style.display = 'flex';
+    };
+
+    window.ogrenciTemizle = () => {
+      seciliOgrenci = null;
+      document.getElementById('seciliOgrenciDiv').style.display = 'none';
+      document.getElementById('ogrenciArama').value = '';
+    };
+
+    // ── IZIN TÜRÜ ──
+    window.izinTuruSec = (tur) => {
+      seciliTur = tur;
+      document.getElementById('tur-cok_gunlu').classList.toggle('secili', tur === 'cok_gunlu');
+      document.getElementById('tur-gun_ici').classList.toggle('secili', tur === 'gun_ici');
+      document.querySelector('#tur-cok_gunlu input').checked = tur === 'cok_gunlu';
+      document.querySelector('#tur-gun_ici input').checked = tur === 'gun_ici';
+      const bas = document.getElementById('izinBaslangic');
+      const bit = document.getElementById('izinBitis');
+      if (tur === 'gun_ici') {
+        bas.value = bugunStr(); bit.value = bugunStr();
+        bas.disabled = true; bit.disabled = true;
+      } else {
+        bas.disabled = false; bit.disabled = false;
+      }
+    };
+
+    window.karakterSay = (el) => {
+      const sayi = el.value.length;
+      const sayac = document.getElementById('karakterSayac');
+      sayac.textContent = sayi + ' / 250';
+      sayac.className = 'karakter-sayac' + (sayi > 250 ? ' karakter-uyari' : '');
+    };
+
+    // ── IZIN KAYDET ──
+    window.izinKaydet = async () => {
+      if (!seciliOgrenci) { mesajGoster('izinMesaj', 'Lutfen ogrenci secin.', 'hata'); return; }
+      const bas = document.getElementById('izinBaslangic').value;
+      const bit = document.getElementById('izinBitis').value;
+      if (!bas || !bit) { mesajGoster('izinMesaj', 'Lutfen tarih araligini secin.', 'hata'); return; }
+      if (bit < bas) { mesajGoster('izinMesaj', 'Bitis tarihi baslangictan once olamaz.', 'hata'); return; }
+      const gunFarki = (new Date(bit + 'T12:00:00') - new Date(bas + 'T12:00:00')) / 86400000;
+      if (seciliTur === 'cok_gunlu' && gunFarki > 4) { mesajGoster('izinMesaj', 'Izin en fazla 5 gun olabilir.', 'hata'); return; }
+
+      const not = document.getElementById('izinNot').value.trim();
+      if (not.length < 5) { mesajGoster('izinMesaj', 'Neden en az 5 karakter olmali.', 'hata'); return; }
+      if (not.length > 250) { mesajGoster('izinMesaj', 'Neden en fazla 250 karakter olmali.', 'hata'); return; }
+
+      // Rehber öğretmeni çöz: teachers.rehberSube === öğrencinin sınıfı
+      const rehber = tumOgretmenler.find(o => o.rehberSube === seciliOgrenci.class_id);
+
+      document.getElementById('btnIzinKaydet').disabled = true;
+      try {
+        await addDoc(collection(db, 'izinler'), {
+          ogrenci_id: seciliOgrenci.id,
+          ogrenci_no: seciliOgrenci.student_number,
+          ogrenci_ad: seciliOgrenci.name,
+          sinif: seciliOgrenci.class_id,
+          tur: seciliTur,
+          baslangic_tarih: bas,
+          bitis_tarih: bit,
+          neden: not,
+          durum: rehber ? 'beklemede_rehber' : 'beklemede_admin',
+          olusturan_ogretmen_id: auth.currentUser.uid,
+          olusturan_ogretmen_ad: aktifKullanici.ad,
+          olusturma_tarihi: serverTimestamp(),
+          rehber_id: rehber ? rehber.id : null,
+          rehber_ad: rehber ? rehber.ad : null,
+        });
+        mesajGoster('izinMesaj', rehber
+          ? 'Izin talebi olusturuldu, rehber ogretmen onayi bekleniyor.'
+          : 'Izin talebi olusturuldu (bu sinif icin rehber ogretmen atanmamis, dogrudan admin onayina gonderildi).', 'basari');
+        document.getElementById('izinNot').value = '';
+        document.getElementById('karakterSayac').textContent = '0 / 250';
+        ogrenciTemizle();
+        kayitlariGetir();
+      } catch (err) {
+        mesajGoster('izinMesaj', 'Hata: ' + err.message, 'hata');
+      }
+      document.getElementById('btnIzinKaydet').disabled = false;
+    };
+
+    // ── REHBER ONAYI ──
+    async function rehberOnayGetir() {
+      const container = document.getElementById('rehberOnayListesi');
+      if (!aktifOgretmenRehberSube) { container.innerHTML = '<div class="bos-mesaj">Rehber ogretmen olarak atanmis bir sinifiniz yok.</div>'; return; }
+      container.innerHTML = '<div class="yukleniyor-mesaj">Yukleniyor...</div>';
+      const snap = await getDocs(query(
+        collection(db, 'izinler'),
+        where('durum', '==', 'beklemede_rehber'),
+        where('sinif', '==', aktifOgretmenRehberSube)
+      ));
+      const kayitlar = [];
+      snap.forEach(d => kayitlar.push({ id: d.id, ...d.data() }));
+      kayitlar.sort((a, b) => (a.baslangic_tarih || '').localeCompare(b.baslangic_tarih || ''));
+      if (!kayitlar.length) { container.innerHTML = '<div class="bos-mesaj">Onay bekleyen izin yok.</div>'; return; }
+      container.innerHTML = kayitlar.map(k => izinKartiOlustur(k, 'rehber')).join('');
+    }
+
+    // ── ADMIN ONAYI ──
+    async function adminOnayGetir() {
+      const container = document.getElementById('adminOnayListesi');
+      container.innerHTML = '<div class="yukleniyor-mesaj">Yukleniyor...</div>';
+      const snap = await getDocs(query(collection(db, 'izinler'), where('durum', '==', 'beklemede_admin')));
+      const kayitlar = [];
+      snap.forEach(d => kayitlar.push({ id: d.id, ...d.data() }));
+      kayitlar.sort((a, b) => (a.baslangic_tarih || '').localeCompare(b.baslangic_tarih || ''));
+      if (!kayitlar.length) { container.innerHTML = '<div class="bos-mesaj">Onay bekleyen izin yok.</div>'; return; }
+      container.innerHTML = kayitlar.map(k => izinKartiOlustur(k, 'admin')).join('');
+    }
+
+    function izinKartiOlustur(k, asama) {
+      const tarihMetin = k.baslangic_tarih === k.bitis_tarih ? k.baslangic_tarih : `${k.baslangic_tarih} - ${k.bitis_tarih}`;
+      const turMetin = k.tur === 'gun_ici' ? 'Bugunun Kalan Dersleri' : 'Cok Gunlu';
+      return `<div class="kart" style="background:#f8f9fa; margin-bottom:12px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px;">
+          <div>
+            <strong>${k.ogrenci_ad}</strong>
+            <span style="color:#888; font-size:12px; margin-left:6px;">No: ${k.ogrenci_no} | ${k.sinif}</span>
+            <div style="font-size:13px; color:#555; margin-top:4px;">${tarihMetin} — ${turMetin}</div>
+            <div style="font-size:13px; color:#333; margin-top:6px;">${k.neden}</div>
+            <div style="font-size:12px; color:#888; margin-top:4px;">Talep eden: ${k.olusturan_ogretmen_ad}</div>
+          </div>
+          <div style="display:flex; gap:8px; flex-shrink:0;">
+            <button class="btn btn-yesil btn-sm" onclick="izinOnayla('${k.id}','${asama}')">Onayla</button>
+            <button class="btn btn-kirmizi btn-sm" onclick="izinReddet('${k.id}','${asama}')">Reddet</button>
+          </div>
+        </div>
+      </div>`;
+    }
+
+    window.izinOnayla = async (id, asama) => {
+      if (asama === 'rehber') {
+        await updateDoc(doc(db, 'izinler', id), { durum: 'beklemede_admin', rehber_onay_tarihi: serverTimestamp() });
+        rehberOnayGetir();
+      } else {
+        await updateDoc(doc(db, 'izinler', id), {
+          durum: 'onaylandi',
+          admin_onaylayan_id: auth.currentUser.uid,
+          admin_onaylayan_ad: aktifKullanici.ad,
+          admin_onay_tarihi: serverTimestamp()
+        });
+        adminOnayGetir();
+      }
+      kayitlariGetir();
+    };
+
+    window.izinReddet = async (id, asama) => {
+      await updateDoc(doc(db, 'izinler', id), {
+        durum: 'reddedildi',
+        red_eden_id: auth.currentUser.uid,
+        red_eden_ad: aktifKullanici.ad,
+        red_asama: asama,
+        red_tarihi: serverTimestamp()
+      });
+      if (asama === 'rehber') rehberOnayGetir(); else adminOnayGetir();
+      kayitlariGetir();
+    };
+
+    // ── KAYITLAR ──
+    window.kayitlariGetir = async () => {
+      const durumFiltre = document.getElementById('filtreDurum').value;
+      const container = document.getElementById('kayitlarListesi');
+      container.innerHTML = '<div class="yukleniyor-mesaj">Yukleniyor...</div>';
+
+      let snap;
+      const isYonetim = aktifRol === 'admin' || aktifRol === 'mudur_yardimcisi';
+      if (isYonetim) {
+        snap = await getDocs(collection(db, 'izinler'));
+      } else {
+        snap = await getDocs(query(collection(db, 'izinler'), where('olusturan_ogretmen_id', '==', auth.currentUser.uid)));
+      }
+
+      let kayitlar = [];
+      snap.forEach(d => kayitlar.push({ id: d.id, ...d.data() }));
+      if (durumFiltre) kayitlar = kayitlar.filter(k => k.durum === durumFiltre);
+      kayitlar.sort((a, b) => {
+        const ta = a.olusturma_tarihi?.toDate ? a.olusturma_tarihi.toDate() : new Date(0);
+        const tb = b.olusturma_tarihi?.toDate ? b.olusturma_tarihi.toDate() : new Date(0);
+        return tb - ta;
+      });
+
+      if (!kayitlar.length) { container.innerHTML = '<div class="bos-mesaj">Kayit bulunamadi</div>'; return; }
+
+      let html = `<table><thead><tr><th>Ogrenci</th><th>Sinif</th><th>Tarih</th><th>Tur</th><th>Neden</th><th>Durum</th><th>Talep Eden</th></tr></thead><tbody>`;
+      kayitlar.forEach(k => {
+        const tarihMetin = k.baslangic_tarih === k.bitis_tarih ? k.baslangic_tarih : `${k.baslangic_tarih} - ${k.bitis_tarih}`;
+        const turMetin = k.tur === 'gun_ici' ? 'Kalan Dersler' : 'Cok Gunlu';
+        html += `<tr>
+          <td><strong>${k.ogrenci_ad}</strong><br><small style="color:#888">${k.ogrenci_no}</small></td>
+          <td>${k.sinif}</td>
+          <td>${tarihMetin}</td>
+          <td>${turMetin}</td>
+          <td style="max-width:220px; font-size:12px;">${k.neden}</td>
+          <td>${durumRozeti(k.durum)}</td>
+          <td style="font-size:12px;">${k.olusturan_ogretmen_ad}</td>
+        </tr>`;
+      });
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    };
+
+    function durumRozeti(durum) {
+      if (durum === 'onaylandi') return '<span class="rozet rozet-yesil">Onaylandi</span>';
+      if (durum === 'reddedildi') return '<span class="rozet rozet-kirmizi">Reddedildi</span>';
+      if (durum === 'beklemede_admin') return '<span class="rozet rozet-mavi">Admin Onayi Bekliyor</span>';
+      return '<span class="rozet rozet-sari">Rehber Onayi Bekliyor</span>';
+    }
+
+    function mesajGoster(id, metin, tip) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = metin; el.className = 'mesaj mesaj-' + tip; el.style.display = 'block';
+      if (tip === 'basari') setTimeout(() => el.style.display = 'none', 4000);
+    }
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.ogrenci-arama')) {
+        document.getElementById('ogrenciSonuclar').style.display = 'none';
+      }
+    });
+
+  </script>
+</body>
+</html>

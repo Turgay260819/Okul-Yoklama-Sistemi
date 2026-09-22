@@ -114,6 +114,14 @@ service cloud.firestore {
       allow create: if isYonetim() || isOgretmen();
       allow update, delete: if isYonetim();
     }
+    match /izinler/{docId} {
+      allow read: if isYonetim() || isOgretmen();
+      allow create: if isYonetim() || isOgretmen();
+      allow update: if isYonetim() ||
+        (isOgretmen() && resource.data.rehber_id != null &&
+         get(/databases/$(database)/documents/teachers/$(resource.data.rehber_id)).data.uid == request.auth.uid);
+      allow delete: if isYonetim();
+    }
     match /disiplin_turleri/{docId} {
       allow read: if isLoggedIn();
       allow write: if isYonetim();
@@ -167,6 +175,10 @@ service cloud.firestore {
       allow write: if isYonetim();
     }
     match /nobet2_ayarlar/{docId} {
+      allow read: if isLoggedIn();
+      allow write: if isYonetim();
+    }
+    match /nobet_bildirim_alicilari/{docId} {
       allow read: if isLoggedIn();
       allow write: if isYonetim();
     }
@@ -262,6 +274,9 @@ service cloud.firestore {
       allow write: if isYonetim();
     }
     match /nobet_gorulme/{docId} {
+      allow read, write: if isLoggedIn();
+    }
+    match /vekalet_gorulme/{docId} {
       allow read, write: if isLoggedIn();
     }
   }

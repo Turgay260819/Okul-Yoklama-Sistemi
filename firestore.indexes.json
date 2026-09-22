@@ -56,6 +56,14 @@
         { "fieldPath": "ogrenci_no", "order": "ASCENDING" },
         { "fieldPath": "tarih", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "izinler",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "durum", "order": "ASCENDING" },
+        { "fieldPath": "baslangic_tarih", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

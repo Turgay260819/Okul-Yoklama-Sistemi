@@ -217,18 +217,55 @@ exports.ogretmenGuncelle = onCall(async (request) => {
       await teacherRef.update(firestoreUpdate);
     }
 
-    const usersUpdate = {};
+    const usersUpdate = { rol: "ogretmen" };
     if (ad)    usersUpdate.ad    = ad;
     if (email) usersUpdate.email = email;
-    if (yeniHesap) usersUpdate.rol = "ogretmen";
-    if (Object.keys(usersUpdate).length) {
-      await admin.firestore().collection("users").doc(uid).set(usersUpdate, { merge: true });
-    }
+    await admin.firestore().collection("users").doc(uid).set(usersUpdate, { merge: true });
 
     return { success: true, uid };
   } catch (err) {
     throw new HttpsError("internal", err.message);
   }
+});
+
+// ===========================
+// ÖĞRETMEN ROLLERİNİ ONAR
+// ===========================
+// "users/{uid}" belgesinde rol alani eksik kalmis (ör. eski/bozuk veri, ya da
+// ogretmenGuncelle'nin bir onceki suru sadece yeni hesaplarda rol set ediyordu)
+// ogretmenleri tarayip duzeltir. Boyle bir hesap icin isOgretmen()/isYonetim()
+// firestore.rules kontrolleri hep false donuyor, bu da "Missing or insufficient
+// permissions" hatasina yol aciyordu.
+exports.ogretmenRolleriniOnar = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Giriş yapılmamış.");
+  }
+
+  const callerDoc = await admin.firestore()
+    .collection("users")
+    .doc(request.auth.uid)
+    .get();
+
+  const callerRole = callerDoc.data()?.rol;
+  if (callerRole !== "admin" && callerRole !== "mudur_yardimcisi") {
+    throw new HttpsError("permission-denied", "Yetkiniz yok.");
+  }
+
+  const teachersSnap = await admin.firestore().collection("teachers").get();
+  let duzeltilen = 0;
+
+  for (const teacherDoc of teachersSnap.docs) {
+    const uid = teacherDoc.data().uid;
+    if (!uid) continue;
+    const userRef = admin.firestore().collection("users").doc(uid);
+    const userSnap = await userRef.get();
+    if (!userSnap.exists || userSnap.data().rol !== "ogretmen") {
+      await userRef.set({ rol: "ogretmen" }, { merge: true });
+      duzeltilen++;
+    }
+  }
+
+  return { success: true, duzeltilen };
 });
 
 // ===========================
@@ -715,6 +752,70 @@ function nobet2PozHesapla(s, sayac, slots, N) {
   return nobet2SlotToPos(serbest[yeniIdx], N);
 }
 
+// Bugun (verilen tarih) nobetci olan ogretmenlerin id setini dondurur.
+// raporluIcinVekilAta tarafindan "nobetci once" onceliklendirmesi icin kullanilir.
+async function bugunNobetciIdSeti(db, bugun, bugunGi) {
+  const [nbDoc, nokDoc] = await Promise.all([
+    db.collection("nobet2_ayarlar").doc("mevcut").get(),
+    db.collection("nobet2_ayarlar").doc("noktalar").get(),
+  ]);
+  if (!nbDoc.exists) return new Set();
+
+  const nb = nbDoc.data();
+  const NOKTALAR = nokDoc.exists ? (nokDoc.data().liste || []) : [];
+  const N = NOKTALAR.length;
+  if (!N) return new Set();
+
+  const slotlar = nb.slotlar || [];
+  const haftaBas = new Date(nb.hafta_baslangic + "T12:00:00");
+  const haftaBit = new Date(haftaBas);
+  haftaBit.setDate(haftaBas.getDate() + 4);
+  const bugunTarih = new Date(bugun + "T12:00:00");
+  if (bugunTarih < haftaBas || bugunTarih > haftaBit) return new Set();
+
+  const sayac = nb.rotasyon_sayaci || 0;
+  const idSeti = new Set();
+  slotlar.forEach((s) => {
+    const pos = nobet2PozHesapla(s, sayac, slotlar, N);
+    if (pos.gi === bugunGi) idSeti.add(s.ogretmen_id);
+  });
+  return idSeti;
+}
+
+// today_lessons'a gore, o gun en az bir dersi olan ogretmenlerin ders
+// saatleri arasindaki bosluklari saat bazinda gruplar: { [lesson_number]:
+// [{id, ad}] }. haricTutulacakIds icindeki ogretmenler havuza hic girmez
+// (ör. bugun raporlu olanlar). "Ara Bosluğu Olan Ogretmenler" bildirimi ve
+// raporluIcinVekilAta tarafindan ortak kullanilir.
+function saatBazliBosOgretmenler(lessonsSnap, ogretmenAdMap, haricTutulacakIds = new Set()) {
+  const doluSaatler = {};
+  const isaretle = (tid, saat) => {
+    if (!tid) return;
+    if (!doluSaatler[tid]) doluSaatler[tid] = new Set();
+    doluSaatler[tid].add(saat);
+  };
+  lessonsSnap.forEach((d) => {
+    const data = d.data();
+    isaretle(data.teacher_id, data.lesson_number);
+    if (data.substitute_teacher_id) isaretle(data.substitute_teacher_id, data.lesson_number);
+  });
+
+  const saatteBosOlanlar = {};
+  Object.entries(doluSaatler).forEach(([tid, saatSet]) => {
+    if (haricTutulacakIds.has(tid)) return;
+    const saatler = [...saatSet].sort((a, b) => a - b);
+    const ilk = saatler[0];
+    const son = saatler[saatler.length - 1];
+    for (let s = ilk + 1; s < son; s++) {
+      if (!saatSet.has(s)) {
+        if (!saatteBosOlanlar[s]) saatteBosOlanlar[s] = [];
+        saatteBosOlanlar[s].push({ id: tid, ad: ogretmenAdMap[tid] || tid });
+      }
+    }
+  });
+  return saatteBosOlanlar;
+}
+
 exports.nobetTelegramGonder = onCall(async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Giris yapilmamis.");
 
@@ -790,20 +891,12 @@ exports.nobetTelegramGonder = onCall(async (request) => {
 });
 
 // ===========================
-// BUGÜN NÖBETÇİ MİSİN KONTROLÜ (Gün Değişme Nöbeti)
-// Öğretmen girişinde çağrılır; rastgelelik gerektirmez ama rotasyon
-// mantığının istemcide (henüz yüklenmemiş nobet2.html iframe'inde) yeniden
-// hesaplanmasını gerektirmeyecek şekilde tamamen sunucu tarafında çalışır.
+// BUGÜN NÖBETÇİ Mİ HESAPLAMA (paylaşılan yardımcı)
+// nobetBugunKontrol (portal bildirimi, "bir daha gösterme" gorulme durumunu
+// da kontrol eder) ve nobetciMiBugun (disiplin sayfası gibi yerler için,
+// gorulme durumundan bağımsız saf kontrol) tarafından ortak kullanılır.
 // ===========================
-exports.nobetBugunKontrol = onCall(async (request) => {
-  if (!request.auth) throw new HttpsError("unauthenticated", "Giris yapilmamis.");
-
-  const db = admin.firestore();
-
-  const teacherSnap = await db.collection("teachers").where("uid", "==", request.auth.uid).limit(1).get();
-  if (teacherSnap.empty) return { nobetciMi: false };
-  const teacherId = teacherSnap.docs[0].id;
-
+async function nobetBugunMu(db, teacherId) {
   const bugun = new Date().toLocaleString("sv-SE", { timeZone: "Europe/Istanbul" }).slice(0, 10);
   const jsDay = new Date(bugun + "T12:00:00").getDay();
   if (jsDay === 0 || jsDay === 6) return { nobetciMi: false };
@@ -813,9 +906,6 @@ exports.nobetBugunKontrol = onCall(async (request) => {
   if (donemDurumu) return { nobetciMi: false };
   const bugunTatilAdi = await tatilKontrol(db, bugun);
   if (bugunTatilAdi) return { nobetciMi: false };
-
-  const gorulmeDoc = await db.collection("nobet_gorulme").doc(teacherId).get();
-  if (gorulmeDoc.exists && gorulmeDoc.data().son_tarih === bugun) return { nobetciMi: false };
 
   const [nbDoc, nokDoc] = await Promise.all([
     db.collection("nobet2_ayarlar").doc("mevcut").get(),
@@ -844,6 +934,365 @@ exports.nobetBugunKontrol = onCall(async (request) => {
   if (pos.gi !== bugunGi) return { nobetciMi: false };
 
   return { nobetciMi: true, nokta: NOKTALAR[pos.ni] || "" };
+}
+
+// ===========================
+// BUGÜN NÖBETÇİ MİSİN KONTROLÜ (Gün Değişme Nöbeti)
+// Öğretmen girişinde çağrılır; rastgelelik gerektirmez ama rotasyon
+// mantığının istemcide (henüz yüklenmemiş nobet2.html iframe'inde) yeniden
+// hesaplanmasını gerektirmeyecek şekilde tamamen sunucu tarafında çalışır.
+// ===========================
+exports.nobetBugunKontrol = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Giris yapilmamis.");
+
+  const db = admin.firestore();
+
+  const teacherSnap = await db.collection("teachers").where("uid", "==", request.auth.uid).limit(1).get();
+  if (teacherSnap.empty) return { nobetciMi: false };
+  const teacherId = teacherSnap.docs[0].id;
+
+  const bugun = new Date().toLocaleString("sv-SE", { timeZone: "Europe/Istanbul" }).slice(0, 10);
+  const gorulmeDoc = await db.collection("nobet_gorulme").doc(teacherId).get();
+  if (gorulmeDoc.exists && gorulmeDoc.data().son_tarih === bugun) return { nobetciMi: false };
+
+  return nobetBugunMu(db, teacherId);
+});
+
+// ===========================
+// BUGÜN NÖBETÇİ Mİ (disiplin sayfası için)
+// nobetBugunKontrol'den farkı: "bir daha gösterme" (nobet_gorulme) durumunu
+// kontrol etmez, öğretmen portal bildirimini kapatmış olsa bile gün boyunca
+// dogru sonuc doner.
+// ===========================
+exports.nobetciMiBugun = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Giris yapilmamis.");
+
+  const db = admin.firestore();
+
+  const teacherSnap = await db.collection("teachers").where("uid", "==", request.auth.uid).limit(1).get();
+  if (teacherSnap.empty) return { nobetciMi: false };
+  const teacherId = teacherSnap.docs[0].id;
+
+  return nobetBugunMu(db, teacherId);
+});
+
+// ===========================
+// GÜNLÜK NÖBET BİLDİRİMİ (Telegram)
+// Her sabah 07:30'da (hafta içi) o günün nöbetçi öğretmenlerini, nöbet
+// noktalarını ve ders programında ara boşluğu olan öğretmenleri
+// nobet_bildirim_alicilari listesindeki Telegram hesaplarına gönderir. Okul
+// dönemi dışında veya tatil gününde bildirim gönderilmez.
+// ===========================
+async function nobetGunlukBildirimCalistir(db) {
+  const bugun = new Date().toLocaleString("sv-SE", { timeZone: "Europe/Istanbul" }).slice(0, 10);
+  const jsDay = new Date(bugun + "T12:00:00").getDay();
+  if (jsDay === 0 || jsDay === 6) {
+    console.log("Hafta sonu, nobet bildirimi gonderilmedi.");
+    return { sebep: "Hafta sonu." };
+  }
+
+  const donemDurumu = await okulDonemDisindaMi(db, bugun);
+  if (donemDurumu) {
+    console.log(`${bugun} okul donemi disinda (${donemDurumu}), nobet bildirimi gonderilmedi.`);
+    return { sebep: `Okul donemi disinda (${donemDurumu}).` };
+  }
+  const tatilAdi = await tatilKontrol(db, bugun);
+  if (tatilAdi) {
+    console.log(`${bugun} tatil donemine (${tatilAdi}) denk geliyor, nobet bildirimi gonderilmedi.`);
+    return { sebep: `Tatil donemi: ${tatilAdi}.` };
+  }
+
+  const aliciSnap = await db.collection("nobet_bildirim_alicilari").get();
+  const aliciListesi = aliciSnap.docs.map((d) => d.data()).filter((a) => a.chat_id);
+  if (!aliciListesi.length) {
+    console.log("Nobet bildirimi icin tanimli alici yok.");
+    return { sebep: "Tanimli alici yok." };
+  }
+
+  const bugunGi = jsDay - 1;
+  const [nbDoc, nokDoc, lessonsSnap, teachersSnap] = await Promise.all([
+    db.collection("nobet2_ayarlar").doc("mevcut").get(),
+    db.collection("nobet2_ayarlar").doc("noktalar").get(),
+    db.collection("today_lessons").where("date", "==", bugun).get(),
+    db.collection("teachers").get(),
+  ]);
+
+  const ogretmenAdMap = {};
+  teachersSnap.forEach((d) => (ogretmenAdMap[d.id] = d.data().ad || d.id));
+
+  let mesaj = `📋 <b>${bugun} - GÜNLÜK NÖBET BİLDİRİMİ</b>\n\n`;
+
+  // ── Bugünün nöbetçileri ──
+  mesaj += "🔔 <b>Bugünün Nöbetçileri</b>\n";
+  const nb = nbDoc.exists ? nbDoc.data() : null;
+  const NOKTALAR = nokDoc.exists ? (nokDoc.data().liste || []) : [];
+  const N = NOKTALAR.length;
+  if (nb && N) {
+    const slotlar = nb.slotlar || [];
+    const sayac = nb.rotasyon_sayaci || 0;
+    const haftaBas = new Date(nb.hafta_baslangic + "T12:00:00");
+    const haftaBit = new Date(haftaBas);
+    haftaBit.setDate(haftaBas.getDate() + 4);
+    const bugunTarih = new Date(bugun + "T12:00:00");
+    const bugunHaftaIcinde = bugunTarih >= haftaBas && bugunTarih <= haftaBit;
+
+    const bugunNobetciler = [];
+    if (bugunHaftaIcinde) {
+      slotlar.forEach((s) => {
+        const pos = nobet2PozHesapla(s, sayac, slotlar, N);
+        if (pos.gi === bugunGi) bugunNobetciler.push({ ni: pos.ni, ad: s.ogretmen_ad });
+      });
+    }
+    if (bugunNobetciler.length) {
+      bugunNobetciler.sort((a, b) => a.ni - b.ni);
+      bugunNobetciler.forEach((n) => {
+        mesaj += `• ${NOKTALAR[n.ni] || "-"}: ${n.ad}\n`;
+      });
+    } else {
+      mesaj += "Bugün nöbetçi yok.\n";
+    }
+  } else {
+    mesaj += "Nöbet çizelgesi tanımlı değil.\n";
+  }
+
+  // ── Ara boşluğu olan öğretmenler (sadece ders programına göre) ──
+  mesaj += "\n🕳 <b>Ara Boşluğu Olan Öğretmenler</b>\n";
+  const doluSaatler = {};
+  lessonsSnap.forEach((d) => {
+    const data = d.data();
+    const tid = data.teacher_id;
+    if (!tid) return;
+    if (!doluSaatler[tid]) doluSaatler[tid] = new Set();
+    doluSaatler[tid].add(data.lesson_number);
+  });
+
+  const bosluklar = [];
+  Object.entries(doluSaatler).forEach(([tid, saatSet]) => {
+    const saatler = [...saatSet].sort((a, b) => a - b);
+    const ilk = saatler[0];
+    const son = saatler[saatler.length - 1];
+    const bosSaatler = [];
+    for (let s = ilk + 1; s < son; s++) {
+      if (!saatSet.has(s)) bosSaatler.push(s);
+    }
+    if (bosSaatler.length) {
+      bosluklar.push({ ad: ogretmenAdMap[tid] || tid, bosSaatler });
+    }
+  });
+
+  if (bosluklar.length) {
+    bosluklar.sort((a, b) => a.ad.localeCompare(b.ad, "tr"));
+    bosluklar.forEach((o) => {
+      mesaj += `• ${o.ad}: ${o.bosSaatler.map((s) => s + ". ders").join(", ")}\n`;
+    });
+  } else {
+    mesaj += "Bugün ara boşluğu olan öğretmen yok.\n";
+  }
+
+  // ── Raporlu öğretmenlerin bugünkü kapsanmamış dersleri (bilgi amaçlı) ──
+  // Vekil ataması artık burada otomatik yapılmıyor — admin "Vekil Atama"
+  // ekranından nöbetçi-öncelikli manuel atamayı tetikler (raporluIcinVekilAta).
+  mesaj += "\n📌 <b>Raporlu Öğretmenlerin Kapsanmamış Dersleri</b>\n";
+  const raporSnap = await db.collection("ogretmen_rapor").where("baslangic_tarihi", "<=", bugun).get();
+  const bugunRaporluIds = new Set();
+  raporSnap.forEach((d) => {
+    const r = d.data();
+    if (r.bitis_tarihi >= bugun) bugunRaporluIds.add(r.ogretmen_id);
+  });
+
+  if (!bugunRaporluIds.size) {
+    mesaj += "Bugün raporlu öğretmen yok.\n";
+  } else {
+    const kapsanmamis = [];
+    lessonsSnap.forEach((d) => {
+      const data = d.data();
+      if (bugunRaporluIds.has(data.teacher_id) && !data.substitute_teacher_id) kapsanmamis.push(data);
+    });
+    kapsanmamis.sort((a, b) => a.lesson_number - b.lesson_number);
+
+    if (!kapsanmamis.length) {
+      mesaj += "Raporlu öğretmenlerin kapsanmamış dersi yok.\n";
+    } else {
+      kapsanmamis.forEach((data) => {
+        const raporluAd = ogretmenAdMap[data.teacher_id] || data.teacher_id;
+        mesaj += `⚠️ ${data.class_id} ${data.lesson_name || "-"} (${data.lesson_number}. ders): ${raporluAd} — vekil atanmadı (Vekil Atama sekmesinden atayın)\n`;
+      });
+    }
+  }
+
+  const sonuclar = await Promise.all(
+    aliciListesi.map(async (a) => {
+      try {
+        const r = await telegramMesajGonderKisiye(a.chat_id, mesaj);
+        return { ad: a.ad, chat_id: a.chat_id, ok: !!r.ok, hata: r.ok ? null : (r.description || "Bilinmeyen hata") };
+      } catch (err) {
+        return { ad: a.ad, chat_id: a.chat_id, ok: false, hata: err.message };
+      }
+    })
+  );
+  sonuclar.filter((s) => !s.ok).forEach((s) => {
+    console.error(`Nobet bildirimi gonderilemedi (${s.ad}, ${s.chat_id}): ${s.hata}`);
+  });
+  return { sonuclar };
+}
+
+exports.nobetGunlukBildirim = onSchedule(
+  { schedule: "30 7 * * 1-5", timeZone: "Europe/Istanbul" },
+  async () => { await nobetGunlukBildirimCalistir(admin.firestore()); }
+);
+
+// Admin panelinden 07:30'u beklemeden test amaçlı tetiklenebilir.
+exports.nobetGunlukBildirimTest = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Giris yapilmamis.");
+
+  const callerDoc = await admin.firestore().collection("users").doc(request.auth.uid).get();
+  const callerRole = callerDoc.data()?.rol;
+  if (callerRole !== "admin" && callerRole !== "mudur_yardimcisi") {
+    throw new HttpsError("permission-denied", "Yetkiniz yok.");
+  }
+
+  const sonuc = await nobetGunlukBildirimCalistir(admin.firestore());
+  return { success: true, sebep: sonuc?.sebep || null, sonuclar: sonuc?.sonuclar || [] };
+});
+
+// ===========================
+// RAPORLU ÖĞRETMEN İÇİN VEKİL ATA (admin panelinden manuel tetiklenir)
+// Once bugun nobetci olup o saatte bos olan ogretmenleri (Tier 1), yoksa
+// diger bos ogretmenleri (Tier 2) dener. Zaten vekili atanmis dersler
+// varsayilan olarak atlanir; dersIdListesi verilirse sadece o ders(ler)
+// icin zorla (mevcut atamayi degistirerek) yeniden atama yapilir.
+// ===========================
+exports.raporluIcinVekilAta = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Giriş yapılmamış.");
+
+  const callerDoc = await admin.firestore().collection("users").doc(request.auth.uid).get();
+  const callerRole = callerDoc.data()?.rol;
+  if (callerRole !== "admin" && callerRole !== "mudur_yardimcisi") {
+    throw new HttpsError("permission-denied", "Yetkiniz yok.");
+  }
+
+  const { ogretmenId, dersIdListesi } = request.data || {};
+  const zorlaMod = Array.isArray(dersIdListesi) && dersIdListesi.length > 0;
+  if (!ogretmenId && !zorlaMod) {
+    throw new HttpsError("invalid-argument", "ogretmenId veya dersIdListesi gerekli.");
+  }
+
+  const db = admin.firestore();
+  const bugun = new Date().toLocaleString("sv-SE", { timeZone: "Europe/Istanbul" }).slice(0, 10);
+  const jsDay = new Date(bugun + "T12:00:00").getDay();
+  if (jsDay === 0 || jsDay === 6) return { success: false, message: "Bugün hafta sonu." };
+
+  const donemDurumu = await okulDonemDisindaMi(db, bugun);
+  if (donemDurumu) return { success: false, message: "Okul dönemi dışında." };
+  const tatilAdi = await tatilKontrol(db, bugun);
+  if (tatilAdi) return { success: false, message: `Bugün tatil: ${tatilAdi}.` };
+  const bugunGi = jsDay - 1;
+
+  let hedefOgretmenId = ogretmenId;
+  if (!hedefOgretmenId) {
+    const ilkDers = await db.collection("today_lessons").doc(dersIdListesi[0]).get();
+    if (!ilkDers.exists) throw new HttpsError("not-found", "Ders bulunamadı.");
+    hedefOgretmenId = ilkDers.data().teacher_id;
+  }
+
+  const raporSnap = await db.collection("ogretmen_rapor").where("baslangic_tarihi", "<=", bugun).get();
+  const bugunRaporluIds = new Set();
+  let raporluAd = null;
+  raporSnap.forEach((d) => {
+    const r = d.data();
+    if (r.bitis_tarihi >= bugun) {
+      bugunRaporluIds.add(r.ogretmen_id);
+      if (r.ogretmen_id === hedefOgretmenId) raporluAd = r.ogretmen_ad;
+    }
+  });
+  if (!bugunRaporluIds.has(hedefOgretmenId)) {
+    return { success: false, message: "Bu öğretmen bugün için raporlu değil." };
+  }
+
+  const [lessonsSnap, teachersSnap] = await Promise.all([
+    db.collection("today_lessons").where("date", "==", bugun).get(),
+    db.collection("teachers").get(),
+  ]);
+  const ogretmenAdMap = {};
+  teachersSnap.forEach((d) => (ogretmenAdMap[d.id] = d.data().ad || d.id));
+  if (!raporluAd) raporluAd = ogretmenAdMap[hedefOgretmenId] || hedefOgretmenId;
+
+  const saatteBosOlanlar = saatBazliBosOgretmenler(lessonsSnap, ogretmenAdMap, bugunRaporluIds);
+  const nobetciIdSeti = await bugunNobetciIdSeti(db, bugun, bugunGi);
+
+  const hedefDersler = [];
+  lessonsSnap.forEach((d) => {
+    const data = d.data();
+    if (data.teacher_id !== hedefOgretmenId) return;
+    if (zorlaMod) {
+      if (dersIdListesi.includes(d.id)) hedefDersler.push({ id: d.id, ref: d.ref, data });
+    } else if (!data.substitute_teacher_id) {
+      hedefDersler.push({ id: d.id, ref: d.ref, data });
+    }
+  });
+  hedefDersler.sort((a, b) => a.data.lesson_number - b.data.lesson_number);
+
+  if (!hedefDersler.length) {
+    return {
+      success: true, raporluAd, sonuclar: [],
+      message: "Bugün için atanacak ders bulunamadı (henüz oluşturulmamış olabilir — Manuel Giriş sekmesinden oluşturabilirsiniz).",
+    };
+  }
+
+  const gunIciAtamaSayaci = {};
+  const buCalistirmadaAtananlar = {};
+  const sonuclar = [];
+
+  const secimYap = (adaylar) => {
+    if (!adaylar.length) return null;
+    const kopya = adaylar.slice();
+    kopya.sort((a, b) => {
+      const sa = gunIciAtamaSayaci[a.id] || 0;
+      const sb = gunIciAtamaSayaci[b.id] || 0;
+      return sa !== sb ? sa - sb : a.ad.localeCompare(b.ad, "tr");
+    });
+    return kopya[0];
+  };
+
+  for (const ders of hedefDersler) {
+    const saat = ders.data.lesson_number;
+    const zatenAtanan = buCalistirmadaAtananlar[saat] || new Set();
+    const havuz = (saatteBosOlanlar[saat] || []).filter((a) => !zatenAtanan.has(a.id));
+
+    let tier = "nobetci";
+    let secilen = secimYap(havuz.filter((a) => nobetciIdSeti.has(a.id)));
+    if (!secilen) {
+      secilen = secimYap(havuz);
+      tier = "diger";
+    }
+
+    if (!secilen) {
+      sonuclar.push({
+        dersId: ders.id, classId: ders.data.class_id, lessonName: ders.data.lesson_name || "",
+        lessonNumber: saat, atandi: false,
+      });
+      continue;
+    }
+
+    gunIciAtamaSayaci[secilen.id] = (gunIciAtamaSayaci[secilen.id] || 0) + 1;
+    if (!buCalistirmadaAtananlar[saat]) buCalistirmadaAtananlar[saat] = new Set();
+    buCalistirmadaAtananlar[saat].add(secilen.id);
+
+    await ders.ref.update({
+      substitute_teacher_id: secilen.id,
+      substitute_teacher_ad: secilen.ad,
+      substitute_for_teacher_id: hedefOgretmenId,
+      substitute_for_teacher_ad: raporluAd,
+      substitute_assigned_at: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    sonuclar.push({
+      dersId: ders.id, classId: ders.data.class_id, lessonName: ders.data.lesson_name || "",
+      lessonNumber: saat, atandi: true, tier, vekilId: secilen.id, vekilAd: secilen.ad,
+    });
+  }
+
+  return { success: true, raporluAd, sonuclar };
 });
 
 // Verilen YYYY-MM-DD tarihinin ait oldugu haftanin Pazartesi'sini dondurur

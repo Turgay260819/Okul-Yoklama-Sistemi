@@ -51,6 +51,16 @@ window.raporSekme = function (id, el) {
     const e = document.getElementById("dykRapBitis");
     if (b && !b.value) b.value = ayBas;
     if (e && !e.value) e.value = ayBit;
+  } else if (id === "vekillik") {
+    const bugun = new Date();
+    const ayBas = new Date(bugun.getFullYear(), bugun.getMonth(), 1)
+      .toISOString()
+      .split("T")[0];
+    const ayBit = bugun.toISOString().split("T")[0];
+    const b = document.getElementById("vekillikBaslangic");
+    const e = document.getElementById("vekillikBitis");
+    if (b && !b.value) b.value = ayBas;
+    if (e && !e.value) e.value = ayBit;
   }
 };
 
@@ -93,6 +103,20 @@ window.gunlukRaporGetir = async function () {
     return;
   }
 
+  // Onaylı izinler — bu tarihi kapsayan onaylanmış izin kayıtları (i) işareti için
+  const izinSnap = await getDocs(
+    query(
+      collection(db, "izinler"),
+      where("durum", "==", "onaylandi"),
+      where("baslangic_tarih", "<=", tarih),
+    ),
+  );
+  const izinSet = new Set();
+  izinSnap.forEach((d) => {
+    const v = d.data();
+    if (v.bitis_tarih >= tarih) izinSet.add(v.sinif + "|" + v.ogrenci_no);
+  });
+
   const ogrenciDersler = {};
   const sinifDersler = {};
 
@@ -129,9 +153,12 @@ window.gunlukRaporGetir = async function () {
     weekday: "long",
   });
   let html = `<div class="kart"><div style="text-align:center;margin-bottom:16px;"><div style="font-size:16px;font-weight:800;">AHMET YENİCE ORTAOKULU</div><div style="font-size:13px;color:var(--text2);margin-top:4px;">Gunluk Devamsizlik Raporu — ${tarihStr}</div></div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;">`;
+  const izinliEtiketle = (sinifAdi, no) => (izinSet.has(sinifAdi + "|" + no) ? no + "(i)" : no);
   siniflar.forEach((s) => {
     const v = sinifDevamsiz[s.class_name] || { tamGun: [], yarimGun: [] };
-    html += `<div class="rapor-sinif"><div class="rapor-sinif-baslik">${s.class_name}</div><div class="rapor-sinif-icerik"><div class="rapor-tam"><div class="rapor-alt-baslik">Tam Gun</div><div class="rapor-ogrenciler">${v.tamGun.length ? v.tamGun.join(", ") : '<span class="rapor-bos">Yok</span>'}</div></div><div class="rapor-yarim"><div class="rapor-alt-baslik">Yarim Gun</div><div class="rapor-ogrenciler">${v.yarimGun.length ? v.yarimGun.join(", ") : '<span class="rapor-bos">Yok</span>'}</div></div></div></div>`;
+    const tamGunStr = v.tamGun.map((no) => izinliEtiketle(s.class_name, no)).join(", ");
+    const yarimGunStr = v.yarimGun.map((no) => izinliEtiketle(s.class_name, no)).join(", ");
+    html += `<div class="rapor-sinif"><div class="rapor-sinif-baslik">${s.class_name}</div><div class="rapor-sinif-icerik"><div class="rapor-tam"><div class="rapor-alt-baslik">Tam Gun</div><div class="rapor-ogrenciler">${v.tamGun.length ? tamGunStr : '<span class="rapor-bos">Yok</span>'}</div></div><div class="rapor-yarim"><div class="rapor-alt-baslik">Yarim Gun</div><div class="rapor-ogrenciler">${v.yarimGun.length ? yarimGunStr : '<span class="rapor-bos">Yok</span>'}</div></div></div></div>`;
   });
   html += "</div></div>";
   container.innerHTML = html;
@@ -541,4 +568,69 @@ window.istatistikGetir = async function () {
       scales: { y: { beginAtZero: true } },
     },
   });
+};
+
+window.vekillikRaporGetir = async function () {
+  const { db, getDocs, collection, query, where } = window.__portal;
+  const bas = document.getElementById("vekillikBaslangic").value;
+  const bit = document.getElementById("vekillikBitis").value;
+  const container = document.getElementById("vekillikRaporIcerik");
+  if (!bas || !bit) {
+    container.innerHTML = '<div class="bos-mesaj">Tarih araligi secin.</div>';
+    return;
+  }
+  container.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
+
+  const snap = await getDocs(
+    query(collection(db, "today_lessons"), where("date", ">=", bas), where("date", "<=", bit)),
+  );
+
+  const vekilStat = {};
+  let toplamDers = 0;
+  snap.forEach((d) => {
+    const v = d.data();
+    if (!v.substitute_teacher_id) return;
+    toplamDers++;
+    if (!vekilStat[v.substitute_teacher_id]) {
+      vekilStat[v.substitute_teacher_id] = { ad: v.substitute_teacher_ad || v.substitute_teacher_id, kayitlar: [] };
+    }
+    vekilStat[v.substitute_teacher_id].kayitlar.push({
+      tarih: v.date,
+      class_id: v.class_id,
+      lesson_number: v.lesson_number,
+      lesson_name: v.lesson_name || "-",
+      icin: v.substitute_for_teacher_ad || "?",
+    });
+  });
+
+  if (!toplamDers) {
+    container.innerHTML = '<div class="bos-mesaj">Bu tarih araliginda vekillik kaydi yok.</div>';
+    return;
+  }
+
+  const sirali = Object.values(vekilStat).sort(
+    (a, b) => b.kayitlar.length - a.kayitlar.length || a.ad.localeCompare(b.ad, "tr"),
+  );
+
+  let html = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px;">
+    <div class="stat-kart"><div class="stat-sayi">${toplamDers}</div><div class="stat-etiket">Toplam Vekillik Dersi</div></div>
+    <div class="stat-kart"><div class="stat-sayi" style="color:var(--mavi)">${sirali.length}</div><div class="stat-etiket">Farkli Vekil Ogretmen</div></div>
+  </div>
+  <div class="kart"><div class="kart-baslik">Ogretmen Bazinda Vekillik (ders ucreti icin)</div>
+  <table><thead><tr><th>Ogretmen</th><th>Toplam Ders</th><th>Detay</th></tr></thead><tbody>`;
+
+  sirali.forEach((o) => {
+    const detay = o.kayitlar
+      .sort((a, b) => a.tarih.localeCompare(b.tarih) || a.lesson_number - b.lesson_number)
+      .map((k) => `${k.tarih} — ${k.class_id} ${k.lesson_name} (${k.lesson_number}. ders, ${k.icin} yerine)`)
+      .join("<br>");
+    html += `<tr>
+      <td><strong>${o.ad}</strong></td>
+      <td><strong style="color:var(--mavi)">${o.kayitlar.length}</strong></td>
+      <td><small style="color:var(--text2);">${detay}</small></td>
+    </tr>`;
+  });
+
+  html += "</tbody></table></div>";
+  container.innerHTML = html;
 };
