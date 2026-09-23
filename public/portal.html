@@ -310,6 +310,7 @@
               <div class="sekme-bar">
                 <button class="sekme-btn aktif" onclick="gorevSekme('liste', this)">Gorev Listesi</button>
                 <button class="sekme-btn" onclick="gorevSekme('yeni', this)">Yeni Gorev</button>
+                <button class="sekme-btn" onclick="gorevSekme('idare', this)">İdare Görevi Ver</button>
                 <button class="sekme-btn" onclick="gorevSekme('siralar', this)">Sira Durumu</button>
                 <button class="sekme-btn" onclick="gorevSekme('istatistik', this)">Istatistikler</button>
                 <button class="sekme-btn" onclick="gorevSekme('raporlar', this)">Raporlar</button>
@@ -362,6 +363,31 @@
                   </div>
                   <button class="btn btn-yesil" onclick="gorevOlustur()">📋 Olustur ve Ata</button>
                   <div class="mesaj" id="gorevOlusturMesaj"></div>
+                </div>
+              </div>
+
+              <div class="sekme-icerik" id="gsekme-idare">
+                <div class="kart">
+                  <div class="kart-baslik">İdare Görevi Ver</div>
+                  <p class="sayfa-aciklama-lg">Sıra/kuyruk mantığını atlayıp, seçtiğiniz öğretmen(ler)e doğrudan görev verin.</p>
+                  <div class="form-group">
+                    <label>Görev Başlığı *</label>
+                    <input type="text" id="idareBaslik" placeholder="Ornek: Nöbet Devri" />
+                  </div>
+                  <div class="form-group">
+                    <label>Açıklama</label>
+                    <textarea id="idareAciklama" rows="3" placeholder="Görev detayları..."></textarea>
+                  </div>
+                  <div class="form-group">
+                    <label>Son Tarih *</label>
+                    <input type="date" id="idareSonTarih" />
+                  </div>
+                  <div class="form-group">
+                    <label>Öğretmen(ler) *</label>
+                    <div id="idareOgretmenListesi" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px;max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px;"></div>
+                  </div>
+                  <button class="btn btn-yesil" onclick="idareGoreviVer()">📌 Görevi Ver</button>
+                  <div class="mesaj" id="idareGoreviMesaj"></div>
                 </div>
               </div>
 
@@ -989,6 +1015,18 @@
         </label>
         <div class="modal-butonlar">
           <button class="btn btn-mavi" onclick="vekaletBugunModalKapat()">Tamam</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- YENI IDARE GOREVI MODAL -->
+    <div class="modal-zemin" id="idareGoreviModal">
+      <div class="modal-kutu" style="text-align:center;">
+        <div style="font-size:48px;margin-bottom:8px;">📌</div>
+        <div class="modal-baslik" style="font-size:20px;">Yeni Göreviniz Var!</div>
+        <p id="idareGoreviListe" style="color:var(--text2);margin:12px 0 20px;font-weight:600;text-align:left;"></p>
+        <div class="modal-butonlar">
+          <button class="btn btn-mavi" onclick="idareGoreviModalKapat()">Tamam</button>
         </div>
       </div>
     </div>

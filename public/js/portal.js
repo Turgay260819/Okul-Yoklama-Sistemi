@@ -7,7 +7,7 @@ import { state } from "./portal-state.js";
 import { tarihBilgisiniGoster, baslangicDegerleriniAyarla } from "./portal-ui.js";
 import { authBaslat } from "./portal-auth.js";
 import { anasayfaYukle } from "./portal-admin.js";
-import { dersleriniYukle, ogretmenGorevleriniYukle, nobetBugunKontrolEt, vekaletBugunKontrolEt } from "./portal-teacher.js";
+import { dersleriniYukle, ogretmenGorevleriniYukle, nobetBugunKontrolEt, vekaletBugunKontrolEt, idareGoreviKontrolEt } from "./portal-teacher.js";
 import { gorevSayfasiBaslat } from "./portal-gorev.js";
 import { vekilAtamaSayfasiBaslat } from "./portal-vekil.js";
 import { kazanimSayfasiYukle, kazanimlarimYukle } from "./portal-kazanim.js";
@@ -142,6 +142,7 @@ authBaslat(async (user, rol) => {
     bildirimleriYukle();
     nobetBugunKontrolEt().catch((e) => console.warn("Nobet kontrolu basarisiz:", e));
     vekaletBugunKontrolEt().catch((e) => console.warn("Vekalet kontrolu basarisiz:", e));
+    idareGoreviKontrolEt().catch((e) => console.warn("Idare gorevi kontrolu basarisiz:", e));
   }
 
   // Go to teacher grid home

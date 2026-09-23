@@ -903,3 +903,43 @@ window.vekaletBugunModalKapat = async () => {
     }
   }
 };
+
+// ── İDARE GÖREVİ KONTROLÜ ──
+// bildirimler.okundu zaten "gorulme" isini gordugu icin (nobet/vekalet'teki gibi)
+// ayri bir gorulme koleksiyonu gerekmiyor — bir gorev bir kez okundu isaretlenince
+// bir daha gosterilmez (gunluk sifirlanma yok, bu bir hatirlatma degil bildirim).
+export async function idareGoreviKontrolEt() {
+  if (!state.ogretmenDoc) return;
+  try {
+    const snap = await getDocs(
+      query(
+        collection(db, "bildirimler"),
+        where("alici_id", "==", state.ogretmenDoc.id),
+        where("okundu", "==", false),
+      ),
+    );
+    const gorevler = [];
+    snap.forEach((d) => {
+      const data = d.data();
+      if (data.tip === "idare_gorevi") gorevler.push({ id: d.id, ...data });
+    });
+    if (!gorevler.length) return;
+
+    document.getElementById("idareGoreviListe").innerHTML = gorevler
+      .map((g) => `<strong>${esc(g.baslik)}</strong>${g.mesaj ? " — " + esc(g.mesaj) : ""}`)
+      .join("<br><br>");
+    document.getElementById("idareGoreviModal").dataset.ids = gorevler.map((g) => g.id).join(",");
+    document.getElementById("idareGoreviModal").classList.add("aktif");
+  } catch (e) {
+    console.warn("Idare gorevi kontrolu basarisiz:", e);
+  }
+}
+
+window.idareGoreviModalKapat = async () => {
+  const modal = document.getElementById("idareGoreviModal");
+  const ids = (modal.dataset.ids || "").split(",").filter(Boolean);
+  modal.classList.remove("aktif");
+  await Promise.all(
+    ids.map((id) => updateDoc(doc(db, "bildirimler", id), { okundu: true }).catch(() => {})),
+  );
+};

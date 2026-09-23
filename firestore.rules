@@ -251,7 +251,7 @@ service cloud.firestore {
     }
     match /bildirimler/{docId} {
       allow read: if isLoggedIn();
-      allow write: if isYonetim();
+      allow write: if isLoggedIn();
     }
     match /ogretmen_rapor/{docId} {
       allow read: if request.auth != null;

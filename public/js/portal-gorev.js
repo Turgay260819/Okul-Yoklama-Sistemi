@@ -26,10 +26,67 @@ window.gorevSekme = (id, el) => {
   document.getElementById("gsekme-" + id).classList.add("aktif");
   el.classList.add("aktif");
   if (id === "liste") gorevleriniYukle();
+  else if (id === "idare") _idareOgretmenListesiDoldur();
   else if (id === "siralar") _siralariYukle();
   else if (id === "istatistik") _gorevIstatistikYukle();
   else if (id === "raporlar") _gorevRaporlariYukle();
   else if (id === "takvim") _kilitliGunleriYukle();
+};
+
+function _idareOgretmenListesiDoldur() {
+  const container = document.getElementById("idareOgretmenListesi");
+  if (!container) return;
+  const siralanmis = [...state.ogretmenler].sort((a, b) => (a.ad || "").localeCompare(b.ad || "", "tr"));
+  container.innerHTML = siralanmis
+    .map((o) => `<label style="display:flex;align-items:center;gap:6px;padding:5px 8px;background:#fff;border-radius:6px;cursor:pointer;font-size:13px;"><input type="checkbox" value="${o.id}" data-ad="${esc(o.ad || "")}" style="width:14px;height:14px;"><span>${esc(o.ad || "")}</span></label>`)
+    .join("");
+}
+
+window.idareGoreviVer = async function () {
+  const baslik = document.getElementById("idareBaslik").value.trim();
+  const aciklama = document.getElementById("idareAciklama").value.trim();
+  const sonTarih = document.getElementById("idareSonTarih").value;
+  const secililer = [...document.querySelectorAll("#idareOgretmenListesi input:checked")]
+    .map((c) => ({ id: c.value, ad: c.dataset.ad }));
+
+  if (!baslik) { mesajGoster("idareGoreviMesaj", "Gorev basligi gerekli.", "hata"); return; }
+  if (!sonTarih) { mesajGoster("idareGoreviMesaj", "Son tarih gerekli.", "hata"); return; }
+  if (!secililer.length) { mesajGoster("idareGoreviMesaj", "En az bir ogretmen secin.", "hata"); return; }
+
+  const kilitSnap = await getDocs(
+    query(collection(db, "takvim_kilidi"), where("tarih", "==", bugun)),
+  );
+  if (!kilitSnap.empty) { mesajGoster("idareGoreviMesaj", "Bugun gorev atamasina kapali bir gun.", "hata"); return; }
+
+  mesajGoster("idareGoreviMesaj", "Gorev veriliyor...", "bilgi");
+  try {
+    const atananAdlar = secililer.map((s) => s.ad);
+    const atananIds = secililer.map((s) => s.id);
+    const gorevRef = await addDoc(collection(db, "gorevler"), {
+      baslik, aciklama, tur: "idare", brans: "", sayi: secililer.length, son_tarih: sonTarih,
+      durum: "acik", atananlar: atananAdlar, atanan_ids: atananIds, kaynak: "idare",
+      olusturan_id: state.kullanici?.uid || "", olusturan_ad: state.kullanici?.ad || "",
+      olusturulma_tarihi: bugun, kapatma_tarihi: "", kapatma_notu: "",
+    });
+    try {
+      const fn = httpsCallable(functions, "gorevAtandiBildir");
+      fn({ baslik, aciklama, atananlar: atananAdlar, sonTarih, olusturanAd: state.kullanici?.ad || "" });
+    } catch {}
+    for (const ogr of secililer) {
+      addDoc(collection(db, "bildirimler"), {
+        alici_id: ogr.id, tip: "idare_gorevi", baslik: `Yeni görev: ${baslik}`,
+        mesaj: aciklama || `Son tarih: ${sonTarih}`, referans_id: gorevRef.id,
+        okundu: false, tarih: serverTimestamp(),
+      }).catch(() => {});
+    }
+    mesajGoster("idareGoreviMesaj", `Gorev verildi: ${atananAdlar.join(", ")}`, "basari");
+    document.getElementById("idareBaslik").value = "";
+    document.getElementById("idareAciklama").value = "";
+    document.querySelectorAll("#idareOgretmenListesi input:checked").forEach((c) => (c.checked = false));
+    if (document.getElementById("gsekme-liste")?.classList.contains("aktif")) await gorevleriniYukle();
+  } catch (err) {
+    mesajGoster("idareGoreviMesaj", "Hata: " + err.message, "hata");
+  }
 };
 
 window.gorevTurDegisti = () => {
@@ -79,7 +136,7 @@ function _gorevleriniRender() {
       <div class="gorev-meta">
         <span>👤 ${esc(atanenAdlar)}</span>
         <span>📅 Son: <strong ${gecti ? 'style="color:var(--kirmizi)"' : ""}>${esc(g.son_tarih || "—")}${gecti ? " ⚠️" : ""}</strong></span>
-        <span>${g.tur === "brans" ? "🎓 Brans: " + esc(g.brans) : "📌 Genel"}</span>
+        <span>${g.tur === "brans" ? "🎓 Brans: " + esc(g.brans) : g.kaynak === "idare" ? "🏛 İdare Görevi" : "📌 Genel"}</span>
       </div>
       ${g.aciklama ? `<p style="font-size:13px;color:var(--text2);margin-bottom:8px;">${esc(g.aciklama)}</p>` : ""}
       <div class="gorev-butonlar">
