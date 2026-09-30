@@ -147,6 +147,7 @@
       .filtre-satir select { flex: 1; min-width: 200px; }
     </style>
     <script>if(new URLSearchParams(location.search).get("embedded"))document.addEventListener("DOMContentLoaded",()=>document.querySelector("h1")?.remove());</script>
+    <script src="/js/salt-okunur.js"></script>
   </head>
   <body>
     <div class="topbar">
@@ -325,7 +326,7 @@
         const ud = await getDoc(doc(db, "users", user.uid));
         if (!ud.exists()) { window.location.href = "/portal.html"; return; }
         const rol = ud.data().rol;
-        if (rol !== "admin" && rol !== "mudur_yardimcisi") {
+        if (rol !== "admin" && rol !== "mudur_yardimcisi" && rol !== "idareci_izleyici") {
           window.location.href = "/portal.html";
           return;
         }

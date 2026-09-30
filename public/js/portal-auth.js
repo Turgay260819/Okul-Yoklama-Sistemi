@@ -29,8 +29,23 @@ export function authBaslat(onGiris) {
     document.getElementById("kullaniciRol").textContent =
       state.rol === "admin" ? "Admin"
         : state.rol === "mudur_yardimcisi" ? "Mudur Yardimcisi"
+        : state.rol === "idareci_izleyici" ? "İdareci (Görüntüleme)"
         : state.rol === "ogrenci" ? "Ogrenci"
         : "Ogretmen";
+
+    // Salt-okunur idareci: admin ekranlarini gorur ama yazamaz (firestore.rules).
+    if (state.rol === "idareci_izleyici" && !document.getElementById("saltOkunurSerit")) {
+      const serit = document.createElement("div");
+      serit.id = "saltOkunurSerit";
+      serit.textContent = "👁 Görüntüleme modu — değişiklik yapamazsınız";
+      serit.title = "Bu hesap sadece görüntüleme yetkisine sahip.";
+      serit.style.cssText =
+        "background:#fff3cd;color:#7a5b00;border:1px solid #f0d78c;border-radius:999px;" +
+        "padding:4px 12px;font-size:12px;font-weight:600;white-space:nowrap;" +
+        "overflow:hidden;text-overflow:ellipsis;min-width:0;";
+      const topbarSag = document.querySelector(".topbar-sag");
+      topbarSag?.parentNode.insertBefore(serit, topbarSag);
+    }
 
     menuOlustur(state.rol);
     await onGiris(user, state.rol);

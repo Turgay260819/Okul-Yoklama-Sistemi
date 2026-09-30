@@ -17,6 +17,7 @@
     <link rel="stylesheet" href="/portal.css" />
     <script src="/js/portal-raporlar.js"></script>
     <script src="/js/portal-ayarlar.js"></script>
+    <script src="/js/salt-okunur.js"></script>
   </head>
   <body>
     <!-- GİRİŞ -->
@@ -291,11 +292,23 @@
                 </div>
                 <div id="vekilRaporListesi"><div class="yukleniyor">Yukleniyor...</div></div>
               </div>
+              <div class="kart">
+                <div class="kart-baslik-satir">
+                  <div class="kart-baslik">📋 Geçmiş Vekil Atamaları</div>
+                  <button class="btn btn-gri btn-sm" onclick="vekilGecmisYukle()">🔄 Yenile</button>
+                </div>
+                <div class="flex-form" style="margin-bottom:10px;">
+                  <div class="form-group mb-0"><label>Başlangıç</label><input type="date" id="vekilGecmisBaslangic" onchange="vekilGecmisYukle()"></div>
+                  <div class="form-group mb-0"><label>Bitiş</label><input type="date" id="vekilGecmisBitis" onchange="vekilGecmisYukle()"></div>
+                </div>
+                <div id="vekilGecmisIcerik"><div class="yukleniyor">Yukleniyor...</div></div>
+              </div>
             </div>
 
             <!-- iframe SAYFALARI -->
             <div class="sayfa" id="sayfa-nobet2"></div>
             <div class="sayfa" id="sayfa-kura"></div>
+            <div class="sayfa" id="sayfa-aksaklik"></div>
             <div class="sayfa" id="sayfa-yoklama-fisi"></div>
             <div class="sayfa" id="sayfa-dyk-fisi"></div>
             <div class="sayfa" id="sayfa-program-talebi"></div>
@@ -698,6 +711,7 @@
                 <button class="sekme-btn" onclick="ayarSekme('tatiller', this)">Tatil Gunleri</button>
                 <button class="sekme-btn" onclick="ayarSekme('dersler', this)">Ders Listesi</button>
                 <button class="sekme-btn" onclick="ayarSekme('nobet-bildirim', this)">Nobet Bildirimi</button>
+                <button class="sekme-btn" onclick="ayarSekme('izleyici', this)">Idareci Hesaplari</button>
               </div>
               <div class="sekme-icerik aktif" id="asekme-ogretmenler">
                 <div class="kart">
@@ -949,6 +963,40 @@
               <div class="sekme-icerik" id="asekme-tatiller"></div>
               <div class="sekme-icerik" id="asekme-dersler"></div>
               <div class="sekme-icerik" id="asekme-nobet-bildirim"></div>
+              <div class="sekme-icerik" id="asekme-izleyici">
+                <div class="kart">
+                  <div class="kart-baslik">Yeni Görüntüleme (İdareci) Hesabı</div>
+                  <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">
+                    Bu hesapla admin panelindeki her şey görülebilir ama hiçbir değişiklik yapılamaz.
+                    Kişinin öğretmen hesabından ayrı, ikinci bir hesaptır — öğretmen hesabındaki e-postadan <strong>farklı</strong> bir e-posta girin.
+                  </p>
+                  <div class="form-grid">
+                    <div class="form-group">
+                      <label>Ad Soyad</label><input type="text" id="izleyiciAd" placeholder="Ör. Süleyman AYYILDIZ" />
+                    </div>
+                    <div class="form-group">
+                      <label>Görev</label>
+                      <select id="izleyiciGorev">
+                        <option>Okul Müdürü</option>
+                        <option>Müdür Yardımcısı</option>
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label>E-posta</label><input type="email" id="izleyiciEmail" placeholder="Ör. suleyman.idare@gmail.com" />
+                    </div>
+                    <div class="form-group">
+                      <label>Şifre</label><input type="text" id="izleyiciSifre" placeholder="Boş bırakılırsa otomatik üretilir" />
+                    </div>
+                  </div>
+                  <button class="btn btn-mavi" id="izleyiciOlusturBtn" onclick="izleyiciHesapOlustur()">Hesap Oluştur</button>
+                  <div id="izleyiciMesaj" class="mesaj" style="display:none;margin-top:12px;"></div>
+                  <div id="izleyiciSonuc" hidden style="margin-top:12px;padding:12px 14px;border:1px solid #b7dfb9;background:#e6f4ea;border-radius:8px;font-size:14px;"></div>
+                </div>
+                <div class="kart">
+                  <div class="kart-baslik">Mevcut Görüntüleme Hesapları</div>
+                  <div id="izleyiciListe"><div class="yukleniyor">Yukleniyor...</div></div>
+                </div>
+              </div>
             </div>
 
           </div>

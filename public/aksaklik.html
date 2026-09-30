@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aksaklik Bildirimi</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f0f4f8; }
+
+    .topbar {
+      background: #1a73e8; color: white;
+      padding: 14px 24px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .topbar h1 { font-size: 18px; font-weight: 600; }
+
+    .icerik { padding: 20px; max-width: 960px; margin: 0 auto; }
+
+    .sekmeler { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+    .sekme-btn {
+      padding: 9px 16px; border: 1px solid #ddd; background: white; border-radius: 8px;
+      font-size: 14px; cursor: pointer; color: #444; font-family: inherit;
+    }
+    .sekme-btn.aktif { background: #1a73e8; color: white; border-color: #1a73e8; font-weight: 600; }
+
+    .sayfa { display: none; }
+    .sayfa.aktif { display: block; }
+
+    .kart {
+      background: white; border-radius: 10px;
+      padding: 20px; box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+      margin-bottom: 20px;
+    }
+    .kart h3 {
+      font-size: 15px; color: #333; margin-bottom: 14px;
+      padding-bottom: 10px; border-bottom: 1px solid #f0f0f0;
+    }
+
+    .btn {
+      padding: 10px 20px; border: none; border-radius: 8px;
+      font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit;
+    }
+    .btn:disabled { opacity: 0.6; cursor: default; }
+    .btn-mavi { background: #1a73e8; color: white; }
+    .btn-yesil { background: #34a853; color: white; }
+    .btn-kirmizi { background: #ea4335; color: white; }
+    .btn-gri { background: #666; color: white; }
+    .btn-sm { padding: 6px 12px; font-size: 12px; }
+
+    .form-group { margin-bottom: 16px; }
+    .form-group label {
+      display: block; font-size: 13px; color: #444;
+      margin-bottom: 6px; font-weight: 600;
+    }
+    .form-group input, .form-group select, .form-group textarea {
+      width: 100%; padding: 10px 12px; border: 1px solid #ddd;
+      border-radius: 8px; font-size: 14px; outline: none; font-family: inherit; background: white;
+    }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: #1a73e8; }
+    .form-group textarea { resize: vertical; min-height: 90px; }
+
+    .karakter-sayac { font-size: 12px; color: #888; text-align: right; margin-top: 4px; }
+    .karakter-uyari { color: #ea4335; }
+
+    .oncelik-secim { display: flex; gap: 10px; flex-wrap: wrap; }
+    .oncelik-secenek {
+      flex: 1; min-width: 160px; border: 2px solid #e0e0e0; border-radius: 10px;
+      padding: 14px; cursor: pointer; transition: all 0.15s;
+      display: flex; align-items: center; gap: 10px; background: white;
+      font-family: inherit; font-size: 14px; text-align: left;
+    }
+    .oncelik-nokta { width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; }
+    .oncelik-secenek strong { display: block; }
+    .oncelik-secenek span.alt { font-size: 12px; color: #777; }
+    .oncelik-secenek.secili { border-width: 3px; }
+    .oncelik-secenek.secili[data-oncelik="acil"] { border-color: #d32f2f; background: #fdecea; }
+    .oncelik-secenek.secili[data-oncelik="oncelikli"] { border-color: #795548; background: #efebe9; }
+    .oncelik-secenek.secili[data-oncelik="uzun_vadeli"] { border-color: #2e7d32; background: #e8f5e9; }
+
+    .rozet {
+      display: inline-block; padding: 3px 10px;
+      border-radius: 12px; font-size: 12px; font-weight: 600; white-space: nowrap;
+    }
+    .rozet-acil { background: #d32f2f; color: white; }
+    .rozet-oncelikli { background: #795548; color: white; }
+    .rozet-uzun_vadeli { background: #2e7d32; color: white; }
+    .rozet-durum-acik { background: #fce8e6; color: #c5221f; }
+    .rozet-durum-islemde { background: #fef7e0; color: #b06000; }
+    .rozet-durum-cozuldu { background: #e6f4ea; color: #1e7e34; }
+
+    .bildirim {
+      border: 1px solid #eee; border-left: 5px solid #ccc; border-radius: 8px;
+      padding: 12px 14px; margin-bottom: 10px; background: white;
+    }
+    .bildirim.o-acil { border-left-color: #d32f2f; }
+    .bildirim.o-oncelikli { border-left-color: #795548; }
+    .bildirim.o-uzun_vadeli { border-left-color: #2e7d32; }
+    .bildirim.d-cozuldu { opacity: 0.7; }
+    .bildirim-ust { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }
+    .bildirim-baslik { font-weight: 600; color: #333; }
+    .bildirim-aciklama { font-size: 14px; color: #333; white-space: pre-wrap; margin: 6px 0; }
+    .bildirim-alt { font-size: 12px; color: #777; }
+    .idare-notu { background: #f5f7fa; border-radius: 6px; padding: 8px 10px; font-size: 13px; margin-top: 8px; }
+    .idare-islem { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+    .idare-islem select, .idare-islem input {
+      padding: 6px 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; font-family: inherit;
+    }
+    .idare-islem input { flex: 1; min-width: 160px; }
+
+    .ozet { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+    .ozet-kutu { flex: 1; min-width: 120px; border-radius: 10px; padding: 12px; color: white; }
+    .ozet-kutu .sayi { font-size: 24px; font-weight: 700; }
+    .ozet-kutu .etiket { font-size: 12px; }
+
+    .filtre-bar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+    .filtre-bar .form-group { margin-bottom: 0; flex: 1; min-width: 140px; }
+
+    .liste-oge {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 7px 10px; border-bottom: 1px solid #f0f0f0; font-size: 14px;
+    }
+    .liste-ekle { display: flex; gap: 8px; margin-top: 12px; }
+    .liste-ekle input { flex: 1; padding: 8px 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; font-family: inherit; }
+    .liste-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+
+    .mesaj { padding: 12px 16px; border-radius: 8px; font-size: 14px; margin-top: 12px; display: none; }
+    .mesaj-basari { background: #e6f4ea; color: #1e7e34; }
+    .mesaj-hata { background: #fce8e6; color: #c5221f; }
+
+    .yukleniyor-mesaj { text-align: center; color: #666; padding: 30px; }
+    .bos-mesaj { text-align: center; color: #999; padding: 24px; }
+
+    @media (max-width: 600px) {
+      .icerik { padding: 12px; }
+      .oncelik-secim { flex-direction: column; }
+    }
+  </style>
+  <script>if(new URLSearchParams(location.search).get("embedded"))document.addEventListener("DOMContentLoaded",()=>document.querySelector(".topbar")?.remove());</script>
+    <script src="/js/salt-okunur.js"></script>
+  </head>
+<body>
+
+  <div class="topbar">
+    <h1>Aksaklik Bildirimi</h1>
+  </div>
+
+  <div class="icerik">
+    <div class="sekmeler" id="sekmeler"></div>
+
+    <!-- YENİ BİLDİRİM (öğretmen) -->
+    <div class="sayfa" id="sayfa-yeni">
+      <div class="kart">
+        <h3>Okul Aksakligi Bildir</h3>
+        <div class="form-group">
+          <label>1. Sorunun Turu</label>
+          <select id="formTur"><option value="">Seciniz...</option></select>
+        </div>
+        <div class="form-group">
+          <label>2. Sorun Nerede?</label>
+          <select id="formYer"><option value="">Seciniz...</option></select>
+        </div>
+        <div class="form-group">
+          <label>3. Sorun Ne?</label>
+          <textarea id="formAciklama" maxlength="500" placeholder="Sorunu kisaca aciklayin... (en az 10 karakter)" oninput="karakterSay(this)"></textarea>
+          <div class="karakter-sayac" id="karakterSayac">0 / 500</div>
+        </div>
+        <div class="form-group">
+          <label>4. Oncelik Durumu</label>
+          <div class="oncelik-secim">
+            <button type="button" class="oncelik-secenek" data-oncelik="acil" onclick="oncelikSec('acil')">
+              <div class="oncelik-nokta" style="background:#d32f2f;"></div>
+              <div><strong>Acil</strong><span class="alt">Hemen mudahale gerekli</span></div>
+            </button>
+            <button type="button" class="oncelik-secenek" data-oncelik="oncelikli" onclick="oncelikSec('oncelikli')">
+              <div class="oncelik-nokta" style="background:#795548;"></div>
+              <div><strong>Oncelikli</strong><span class="alt">Kisa surede cozulmeli</span></div>
+            </button>
+            <button type="button" class="oncelik-secenek" data-oncelik="uzun_vadeli" onclick="oncelikSec('uzun_vadeli')">
+              <div class="oncelik-nokta" style="background:#2e7d32;"></div>
+              <div><strong>Uzun Vadeli</strong><span class="alt">Uzun vadede cozulebilir</span></div>
+            </button>
+          </div>
+        </div>
+        <button class="btn btn-yesil" id="btnGonder" onclick="bildirimGonder()">Bildirimi Gonder</button>
+        <div class="mesaj" id="formMesaj"></div>
+      </div>
+    </div>
+
+    <!-- BİLDİRİMLERİM (öğretmen) -->
+    <div class="sayfa" id="sayfa-bildirimlerim">
+      <div class="kart">
+        <h3>Bildirimlerim</h3>
+        <div id="bildirimlerimListe"><div class="yukleniyor-mesaj">Yukleniyor...</div></div>
+      </div>
+    </div>
+
+    <!-- TÜM BİLDİRİMLER (idare) -->
+    <div class="sayfa" id="sayfa-idare">
+      <div class="ozet" id="idareOzet"></div>
+      <div class="kart">
+        <div class="filtre-bar">
+          <div class="form-group">
+            <label>Durum</label>
+            <select id="filtreDurum" onchange="idareListele()">
+              <option value="aktif">Acik + Islemde</option>
+              <option value="">Tumu</option>
+              <option value="acik">Acik</option>
+              <option value="islemde">Islemde</option>
+              <option value="cozuldu">Cozuldu</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Oncelik</label>
+            <select id="filtreOncelik" onchange="idareListele()">
+              <option value="">Tumu</option>
+              <option value="acil">Acil</option>
+              <option value="oncelikli">Oncelikli</option>
+              <option value="uzun_vadeli">Uzun Vadeli</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Tur</label>
+            <select id="filtreTur" onchange="idareListele()"><option value="">Tumu</option></select>
+          </div>
+        </div>
+        <div id="idareListe"><div class="yukleniyor-mesaj">Yukleniyor...</div></div>
+      </div>
+    </div>
+
+    <!-- LİSTELER (idare) -->
+    <div class="sayfa" id="sayfa-listeler">
+      <div class="kart">
+        <h3>Form Secenekleri</h3>
+        <p style="font-size:13px; color:#666; margin-bottom:14px;">Ogretmen formundaki acilir menulerde gorunecek secenekler. Siniflar, sistemdeki sinif listesinden otomatik eklenir.</p>
+        <div class="liste-grid">
+          <div>
+            <h3>Sorun Turleri</h3>
+            <div id="listeTurler"></div>
+            <div class="liste-ekle">
+              <input type="text" id="yeniTur" placeholder="Yeni tur...">
+              <button class="btn btn-mavi btn-sm" onclick="listeEkle('turler', 'yeniTur')">Ekle</button>
+            </div>
+          </div>
+          <div>
+            <h3>Okul Alanlari</h3>
+            <div id="listeYerler"></div>
+            <div class="liste-ekle">
+              <input type="text" id="yeniYer" placeholder="Yeni alan...">
+              <button class="btn btn-mavi btn-sm" onclick="listeEkle('yerler', 'yeniYer')">Ekle</button>
+            </div>
+          </div>
+        </div>
+        <div class="mesaj" id="listeMesaj"></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    import {
+      getFirestore, doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, setDoc,
+      collection, query, where, serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyAHTCiicd4b94rG1-jN0STRbwcrLmkYudo",
+      authDomain: "okul-yoklama-sistemi-8081f.firebaseapp.com",
+      projectId: "okul-yoklama-sistemi-8081f",
+      storageBucket: "okul-yoklama-sistemi-8081f.firebasestorage.app",
+      messagingSenderId: "38230047763",
+      appId: "1:38230047763:web:dfab058df8928b66be13e6"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    const VARSAYILAN_TURLER = [
+      "Elektrik", "Su / Tesisat", "Isitma / Klima", "Temizlik / Hijyen",
+      "Mobilya (sira, masa, dolap)", "Kapi / Pencere / Kilit", "Bilgisayar / Internet",
+      "Akilli Tahta / Projeksiyon", "Guvenlik", "Boya / Duvar / Tavan", "Bahce / Dis Alan", "Diger"
+    ];
+    const VARSAYILAN_YERLER = [
+      "Ogretmenler Odasi", "Mudur Odasi", "Mudur Yardimcisi Odasi", "Rehberlik Servisi", "Kutuphane",
+      "Fen Laboratuvari", "Bilisim Sinifi", "Muzik Sinifi", "Gorsel Sanatlar Atolyesi", "Spor Salonu",
+      "Konferans Salonu", "Kantin", "Yemekhane", "Zemin Kat Koridoru", "1. Kat Koridoru", "2. Kat Koridoru",
+      "Merdivenler", "Kiz Tuvaleti", "Erkek Tuvaleti", "Ogretmen Tuvaleti", "Bahce", "Otopark",
+      "Okul Girisi", "Kazan Dairesi", "Arsiv", "Revir", "Mescit", "Diger"
+    ];
+
+    const ONCELIK = {
+      acil:        { ad: "Acil",        sira: 0 },
+      oncelikli:   { ad: "Oncelikli",   sira: 1 },
+      uzun_vadeli: { ad: "Uzun Vadeli", sira: 2 },
+    };
+    const DURUM = {
+      acik:    { ad: "Acik",    sira: 0 },
+      islemde: { ad: "Islemde", sira: 1 },
+      cozuldu: { ad: "Cozuldu", sira: 2 },
+    };
+
+    let aktifUid = null;
+    let aktifKullanici = null;
+    let yonetimMi = false;
+    let listeler = { turler: [...VARSAYILAN_TURLER], yerler: [...VARSAYILAN_YERLER] };
+    let siniflar = [];
+    let seciliOncelik = null;
+    let tumBildirimler = [];
+
+    const kacis = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+
+    function mesajGoster(id, metin, tip) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = metin; el.className = 'mesaj mesaj-' + tip; el.style.display = 'block';
+      if (tip === 'basari') setTimeout(() => el.style.display = 'none', 4000);
+    }
+
+    function tarihYaz(ts) {
+      const d = ts?.toDate?.();
+      if (!d) return "";
+      return d.toLocaleDateString("tr-TR") + " " + d.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+    }
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) { window.location.href = '/index.html'; return; }
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (!userDoc.exists()) { window.location.href = '/index.html'; return; }
+      aktifUid = user.uid;
+      aktifKullanici = userDoc.data();
+      yonetimMi = aktifKullanici.rol === 'admin' || aktifKullanici.rol === 'mudur_yardimcisi' || aktifKullanici.rol === 'idareci_izleyici';
+
+      await listeleriYukle();
+
+      const sekmeler = yonetimMi
+        ? [["idare", "Bildirimler"], ["listeler", "Form Secenekleri"], ["yeni", "Yeni Bildirim"]]
+        : [["yeni", "Yeni Bildirim"], ["bildirimlerim", "Bildirimlerim"]];
+      document.getElementById('sekmeler').innerHTML = sekmeler.map(([id, ad]) =>
+        `<button class="sekme-btn" id="sekme-${id}" onclick="sekmeGoster('${id}')">${ad}</button>`).join('');
+      sekmeGoster(sekmeler[0][0]);
+    });
+
+    async function listeleriYukle() {
+      const [ayarDoc, sinifSnap] = await Promise.all([
+        getDoc(doc(db, 'aksaklik_ayarlar', 'listeler')),
+        getDocs(collection(db, 'classes')),
+      ]);
+      if (ayarDoc.exists()) {
+        const d = ayarDoc.data();
+        listeler = { turler: d.turler || [], yerler: d.yerler || [] };
+      }
+      siniflar = [];
+      sinifSnap.forEach(d => { if (d.data().class_name) siniflar.push(d.data()); });
+      siniflar.sort((a, b) => (a.grade - b.grade) || String(a.class_name).localeCompare(String(b.class_name), 'tr'));
+      formSecenekleriniDoldur();
+    }
+
+    function formSecenekleriniDoldur() {
+      const tur = document.getElementById('formTur');
+      tur.innerHTML = '<option value="">Seciniz...</option>' +
+        listeler.turler.map(t => `<option value="${kacis(t)}">${kacis(t)}</option>`).join('');
+
+      const yer = document.getElementById('formYer');
+      let html = '<option value="">Seciniz...</option>';
+      if (siniflar.length) {
+        html += '<optgroup label="Siniflar">' +
+          siniflar.map(s => `<option value="${kacis(s.class_name)}">${kacis(s.class_name)}</option>`).join('') +
+          '</optgroup>';
+      }
+      if (listeler.yerler.length) {
+        html += '<optgroup label="Okul Alanlari">' +
+          listeler.yerler.map(y => `<option value="${kacis(y)}">${kacis(y)}</option>`).join('') +
+          '</optgroup>';
+      }
+      yer.innerHTML = html;
+
+      const filtreTur = document.getElementById('filtreTur');
+      filtreTur.innerHTML = '<option value="">Tumu</option>' +
+        listeler.turler.map(t => `<option value="${kacis(t)}">${kacis(t)}</option>`).join('');
+    }
+
+    window.sekmeGoster = (id) => {
+      document.querySelectorAll('.sayfa').forEach(s => s.classList.remove('aktif'));
+      document.querySelectorAll('.sekme-btn').forEach(b => b.classList.remove('aktif'));
+      document.getElementById('sayfa-' + id).classList.add('aktif');
+      document.getElementById('sekme-' + id)?.classList.add('aktif');
+      if (id === 'bildirimlerim') bildirimlerimYukle();
+      else if (id === 'idare') idareYukle();
+      else if (id === 'listeler') listeleriGoster();
+    };
+
+    // ── ÖĞRETMEN FORMU ──
+    window.karakterSay = (el) => {
+      const sayi = el.value.length;
+      const sayac = document.getElementById('karakterSayac');
+      sayac.textContent = sayi + ' / 500';
+      sayac.className = 'karakter-sayac' + (sayi > 0 && sayi < 10 ? ' karakter-uyari' : '');
+    };
+
+    window.oncelikSec = (oncelik) => {
+      seciliOncelik = oncelik;
+      document.querySelectorAll('.oncelik-secenek').forEach(b =>
+        b.classList.toggle('secili', b.dataset.oncelik === oncelik));
+    };
+
+    window.bildirimGonder = async () => {
+      const tur = document.getElementById('formTur').value;
+      const yer = document.getElementById('formYer').value;
+      const aciklama = document.getElementById('formAciklama').value.trim();
+      if (!tur) return mesajGoster('formMesaj', 'Lutfen sorunun turunu secin.', 'hata');
+      if (!yer) return mesajGoster('formMesaj', 'Lutfen sorunun nerede oldugunu secin.', 'hata');
+      if (aciklama.length < 10) return mesajGoster('formMesaj', 'Aciklama en az 10 karakter olmali.', 'hata');
+      if (!seciliOncelik) return mesajGoster('formMesaj', 'Lutfen oncelik durumunu secin.', 'hata');
+
+      const btn = document.getElementById('btnGonder');
+      btn.disabled = true;
+      try {
+        await addDoc(collection(db, 'aksakliklar'), {
+          tur, yer, aciklama,
+          oncelik: seciliOncelik,
+          durum: 'acik',
+          ogretmen_uid: aktifUid,
+          ogretmen_ad: aktifKullanici.ad || '',
+          idare_notu: '',
+          tarih: serverTimestamp(),
+        });
+        mesajGoster('formMesaj', 'Bildiriminiz idareye iletildi. Tesekkurler!', 'basari');
+        document.getElementById('formTur').value = '';
+        document.getElementById('formYer').value = '';
+        document.getElementById('formAciklama').value = '';
+        document.getElementById('karakterSayac').textContent = '0 / 500';
+        oncelikSec(null);
+      } catch (err) {
+        mesajGoster('formMesaj', 'Hata: ' + err.message, 'hata');
+      }
+      btn.disabled = false;
+    };
+
+    function siraliBildirimler(liste) {
+      const ms = (b) => b.tarih?.toMillis?.() ?? Date.now();
+      return [...liste].sort((a, b) =>
+        (DURUM[a.durum]?.sira ?? 9) - (DURUM[b.durum]?.sira ?? 9) ||
+        (ONCELIK[a.oncelik]?.sira ?? 9) - (ONCELIK[b.oncelik]?.sira ?? 9) ||
+        ms(b) - ms(a));
+    }
+
+    function bildirimKartHtml(b, idare) {
+      const o = ONCELIK[b.oncelik] || { ad: b.oncelik };
+      const d = DURUM[b.durum] || { ad: b.durum };
+      let html = `<div class="bildirim o-${kacis(b.oncelik)} d-${kacis(b.durum)}">
+        <div class="bildirim-ust">
+          <span class="rozet rozet-${kacis(b.oncelik)}">${kacis(o.ad)}</span>
+          <span class="rozet rozet-durum-${kacis(b.durum)}">${kacis(d.ad)}</span>
+          <span class="bildirim-baslik">${kacis(b.tur)} — ${kacis(b.yer)}</span>
+        </div>
+        <div class="bildirim-aciklama">${kacis(b.aciklama)}</div>
+        <div class="bildirim-alt">${idare ? kacis(b.ogretmen_ad) + ' · ' : ''}${tarihYaz(b.tarih)}${
+          b.guncelleyen_ad ? ' · Son islem: ' + kacis(b.guncelleyen_ad) + ' ' + tarihYaz(b.guncelleme_tarihi) : ''}</div>`;
+      if (!idare && b.idare_notu) {
+        html += `<div class="idare-notu"><strong>Idare notu:</strong> ${kacis(b.idare_notu)}</div>`;
+      }
+      if (idare) {
+        html += `<div class="idare-islem">
+          <select id="durum-${b.id}">
+            ${Object.entries(DURUM).map(([k, v]) => `<option value="${k}" ${k === b.durum ? 'selected' : ''}>${v.ad}</option>`).join('')}
+          </select>
+          <input type="text" id="not-${b.id}" placeholder="Idare notu (ogretmen gorur)" value="${kacis(b.idare_notu)}">
+          <button class="btn btn-mavi btn-sm" onclick="bildirimGuncelle('${b.id}')">Kaydet</button>
+          <button class="btn btn-kirmizi btn-sm" onclick="bildirimSil('${b.id}')">Sil</button>
+        </div>`;
+      }
+      return html + '</div>';
+    }
+
+    async function bildirimlerimYukle() {
+      const container = document.getElementById('bildirimlerimListe');
+      container.innerHTML = '<div class="yukleniyor-mesaj">Yukleniyor...</div>';
+      try {
+        const snap = await getDocs(query(collection(db, 'aksakliklar'), where('ogretmen_uid', '==', aktifUid)));
+        const liste = [];
+        snap.forEach(d => liste.push({ id: d.id, ...d.data() }));
+        container.innerHTML = liste.length
+          ? siraliBildirimler(liste).map(b => bildirimKartHtml(b, false)).join('')
+          : '<div class="bos-mesaj">Henuz bildiriminiz yok</div>';
+      } catch (err) {
+        container.innerHTML = `<div class="bos-mesaj">Hata: ${kacis(err.message)}</div>`;
+      }
+    }
+
+    // ── İDARE ──
+    async function idareYukle() {
+      document.getElementById('idareListe').innerHTML = '<div class="yukleniyor-mesaj">Yukleniyor...</div>';
+      try {
+        const snap = await getDocs(collection(db, 'aksakliklar'));
+        tumBildirimler = [];
+        snap.forEach(d => tumBildirimler.push({ id: d.id, ...d.data() }));
+        ozetGoster();
+        idareListele();
+      } catch (err) {
+        document.getElementById('idareListe').innerHTML = `<div class="bos-mesaj">Hata: ${kacis(err.message)}</div>`;
+      }
+    }
+
+    function ozetGoster() {
+      const aktif = tumBildirimler.filter(b => b.durum !== 'cozuldu');
+      const say = (o) => aktif.filter(b => b.oncelik === o).length;
+      document.getElementById('idareOzet').innerHTML = `
+        <div class="ozet-kutu" style="background:#d32f2f;"><div class="sayi">${say('acil')}</div><div class="etiket">Acil (cozulmemis)</div></div>
+        <div class="ozet-kutu" style="background:#795548;"><div class="sayi">${say('oncelikli')}</div><div class="etiket">Oncelikli (cozulmemis)</div></div>
+        <div class="ozet-kutu" style="background:#2e7d32;"><div class="sayi">${say('uzun_vadeli')}</div><div class="etiket">Uzun vadeli (cozulmemis)</div></div>`;
+    }
+
+    window.idareListele = () => {
+      const durum = document.getElementById('filtreDurum').value;
+      const oncelik = document.getElementById('filtreOncelik').value;
+      const tur = document.getElementById('filtreTur').value;
+      const liste = tumBildirimler.filter(b =>
+        (durum === '' || (durum === 'aktif' ? b.durum !== 'cozuldu' : b.durum === durum)) &&
+        (!oncelik || b.oncelik === oncelik) &&
+        (!tur || b.tur === tur));
+      document.getElementById('idareListe').innerHTML = liste.length
+        ? siraliBildirimler(liste).map(b => bildirimKartHtml(b, true)).join('')
+        : '<div class="bos-mesaj">Bu filtreye uygun bildirim yok</div>';
+    };
+
+    window.bildirimGuncelle = async (id) => {
+      const durum = document.getElementById('durum-' + id).value;
+      const idare_notu = document.getElementById('not-' + id).value.trim();
+      try {
+        await updateDoc(doc(db, 'aksakliklar', id), {
+          durum, idare_notu,
+          guncelleyen_ad: aktifKullanici.ad || '',
+          guncelleme_tarihi: serverTimestamp(),
+        });
+        await idareYukle();
+      } catch (err) {
+        alert('Hata: ' + err.message);
+      }
+    };
+
+    window.bildirimSil = async (id) => {
+      if (!confirm('Bu bildirimi silmek istediginize emin misiniz?')) return;
+      try {
+        await deleteDoc(doc(db, 'aksakliklar', id));
+        await idareYukle();
+      } catch (err) {
+        alert('Hata: ' + err.message);
+      }
+    };
+
+    // ── LİSTE YÖNETİMİ ──
+    function listeleriGoster() {
+      const ciz = (alan, elId) => {
+        const el = document.getElementById(elId);
+        el.innerHTML = listeler[alan].length
+          ? listeler[alan].map((ad, i) => `<div class="liste-oge"><span>${kacis(ad)}</span>
+              <button class="btn btn-gri btn-sm" onclick="listeSil('${alan}', ${i})">Sil</button></div>`).join('')
+          : '<div class="bos-mesaj">Liste bos</div>';
+      };
+      ciz('turler', 'listeTurler');
+      ciz('yerler', 'listeYerler');
+    }
+
+    async function listeleriKaydet() {
+      await setDoc(doc(db, 'aksaklik_ayarlar', 'listeler'), {
+        turler: listeler.turler,
+        yerler: listeler.yerler,
+        guncelleme_tarihi: serverTimestamp(),
+      });
+      listeleriGoster();
+      formSecenekleriniDoldur();
+    }
+
+    window.listeSil = async (alan, i) => {
+      const onceki = [...listeler[alan]];
+      listeler[alan].splice(i, 1);
+      try {
+        await listeleriKaydet();
+        mesajGoster('listeMesaj', 'Silindi.', 'basari');
+      } catch (err) {
+        listeler[alan] = onceki;
+        mesajGoster('listeMesaj', 'Hata: ' + err.message, 'hata');
+      }
+    };
+
+    window.listeEkle = async (alan, inputId) => {
+      const input = document.getElementById(inputId);
+      const ad = input.value.trim();
+      if (!ad) return;
+      if (listeler[alan].some(x => x.toLocaleLowerCase('tr') === ad.toLocaleLowerCase('tr'))) {
+        return mesajGoster('listeMesaj', 'Bu secenek zaten listede.', 'hata');
+      }
+      listeler[alan].push(ad);
+      try {
+        await listeleriKaydet();
+        input.value = '';
+        mesajGoster('listeMesaj', 'Eklendi.', 'basari');
+      } catch (err) {
+        listeler[alan].pop();
+        mesajGoster('listeMesaj', 'Hata: ' + err.message, 'hata');
+      }
+    };
+  </script>
+</body>
+</html>

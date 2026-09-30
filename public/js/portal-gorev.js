@@ -361,7 +361,7 @@ window.siraTabGoster = (tur, el) => {
 
 function _siraTabGosterIcerik(tur, siralar, raporlar) {
   const container = document.getElementById("siraListesiIcerik");
-  const isAdmin = state.rol === "admin" || state.rol === "mudur_yardimcisi";
+  const isAdmin = state.rol === "admin" || state.rol === "mudur_yardimcisi" || state.rol === "idareci_izleyici";
 
   // Sıra kaydı olan öğretmenler bu tur için
   const siraMap = {};

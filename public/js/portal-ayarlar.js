@@ -43,6 +43,7 @@ window.ayarSekme = function (id, el) {
   else if (id === "sifre-listesi") window.sifreListesiGoster();
   else if (id === "ogrenciler") window.ogrencileriGetir();
   else if (id === "ogretmen-sifre") window.ogretmenSifreListesiGoster();
+  else if (id === "izleyici") _izleyiciListele();
 };
 
 window.ayarlarYukle = async function () {
@@ -893,5 +894,90 @@ window.nobetBildirimTest = async function () {
     }
   } catch (err) {
     mesajGoster("nobetBildirimMesaj", "Hata: " + err.message, "hata");
+  }
+};
+
+// ── SALT-OKUNUR İDARECİ HESAPLARI ──
+// Hesap Cloud Function ile acilir (izleyiciHesapOlustur); sifre users
+// koleksiyonunda tutulmadigi icin sadece olusturma aninda bir kez gosterilir.
+function _izEsc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+async function _izleyiciListele() {
+  const { db, getDocs, collection, query, where } = window.__portal;
+  const el = document.getElementById("izleyiciListe");
+  if (!el) return;
+  try {
+    const snap = await getDocs(query(collection(db, "users"), where("rol", "==", "idareci_izleyici")));
+    if (snap.empty) {
+      el.innerHTML = '<div class="bos-mesaj">Henüz görüntüleme hesabı yok.</div>';
+      return;
+    }
+    const satirlar = [];
+    snap.forEach((d) => satirlar.push({ uid: d.id, ...d.data() }));
+    satirlar.sort((a, b) => (a.ad || "").localeCompare(b.ad || "", "tr"));
+    el.innerHTML =
+      '<div style="overflow-x:auto;"><table><thead><tr><th>Ad Soyad</th><th>Görev</th><th>E-posta</th><th></th></tr></thead><tbody>' +
+      satirlar.map((u) => `<tr>
+        <td>${_izEsc(u.ad)}</td>
+        <td>${_izEsc(u.gorev || "-")}</td>
+        <td>${_izEsc(u.email)}</td>
+        <td style="text-align:right;"><button class="btn btn-kirmizi btn-sm"
+          data-uid="${_izEsc(u.uid)}" data-ad="${_izEsc(u.ad)}" onclick="izleyiciHesapSil(this)">Sil</button></td>
+      </tr>`).join("") +
+      "</tbody></table></div>";
+  } catch (err) {
+    el.innerHTML = `<div class="bos-mesaj">Liste yüklenemedi: ${_izEsc(err.message)}</div>`;
+  }
+}
+
+window.izleyiciHesapOlustur = async function () {
+  const { functions, httpsCallable } = window.__portal;
+  const ad = document.getElementById("izleyiciAd").value.trim();
+  const gorev = document.getElementById("izleyiciGorev").value;
+  const email = document.getElementById("izleyiciEmail").value.trim();
+  let sifre = document.getElementById("izleyiciSifre").value.trim();
+  const sonuc = document.getElementById("izleyiciSonuc");
+  sonuc.hidden = true;
+  if (!ad || !email) {
+    mesajGoster("izleyiciMesaj", "Ad soyad ve e-posta zorunludur.", "hata");
+    return;
+  }
+  if (!sifre) sifre = window.sifreUret();
+  if (sifre.length < 6) {
+    mesajGoster("izleyiciMesaj", "Şifre en az 6 karakter olmalı.", "hata");
+    return;
+  }
+  const btn = document.getElementById("izleyiciOlusturBtn");
+  btn.disabled = true;
+  mesajGoster("izleyiciMesaj", "Oluşturuluyor...", "bilgi");
+  try {
+    await httpsCallable(functions, "izleyiciHesapOlustur")({ ad, gorev, email, sifre });
+    document.getElementById("izleyiciMesaj").style.display = "none";
+    sonuc.innerHTML =
+      `<strong>${_izEsc(ad)}</strong> için hesap oluşturuldu.<br>` +
+      `Kullanıcı: <code>${_izEsc(email.toLowerCase())}</code> &nbsp; Şifre: <code>${_izEsc(sifre)}</code><br>` +
+      '<span style="font-size:12px;color:var(--text2);">Şifre bir daha gösterilmeyecek — şimdi not alın.</span>';
+    sonuc.hidden = false;
+    ["izleyiciAd", "izleyiciEmail", "izleyiciSifre"].forEach((id) => (document.getElementById(id).value = ""));
+    await _izleyiciListele();
+  } catch (err) {
+    mesajGoster("izleyiciMesaj", "Hata: " + err.message, "hata");
+  }
+  btn.disabled = false;
+};
+
+window.izleyiciHesapSil = async function (btn) {
+  const { functions, httpsCallable } = window.__portal;
+  if (!confirm('"' + btn.dataset.ad + '" görüntüleme hesabı silinecek. Emin misiniz?')) return;
+  btn.disabled = true;
+  try {
+    await httpsCallable(functions, "izleyiciHesapSil")({ uid: btn.dataset.uid });
+    await _izleyiciListele();
+  } catch (err) {
+    btn.disabled = false;
+    document.getElementById("izleyiciListe").insertAdjacentHTML(
+      "afterbegin", `<div class="mesaj mesaj-hata" style="display:block;">Hata: ${_izEsc(err.message)}</div>`);
   }
 };

@@ -152,6 +152,7 @@
     }
     .mesaj-basari { background: #e6f4ea; color: #1e7e34; }
     .mesaj-hata { background: #fce8e6; color: #c5221f; }
+    .mesaj-bilgi { background: #e8f0fe; color: #1a56c4; }
 
     .yukleniyor-mesaj { text-align: center; color: #666; padding: 30px; }
     .bos-mesaj { text-align: center; color: #999; padding: 30px; }
@@ -286,6 +287,7 @@
     }
   </style>
   <script>if(new URLSearchParams(location.search).get("embedded"))document.addEventListener("DOMContentLoaded",()=>document.querySelector("h1")?.remove());</script>
+  <script src="/js/salt-okunur.js"></script>
 </head>
 <body>
 
@@ -472,6 +474,13 @@
         </div>
 
         <div class="kart">
+          <h3>Haftalik Esik Asimi Raporu (Telegram)</h3>
+          <p style="font-size:13px; color:#666; margin-bottom:14px;">Her Cuma 16:00'da, o hafta (Pazartesi–Cuma) esigine ulasan ogrencilerin listesi Telegram'a otomatik gonderilir. Onceki haftalar dahil edilmez.</p>
+          <button class="btn btn-gri" id="btnHaftalikRaporGonder" onclick="haftalikEsikRaporuGonder()">Bu Haftanin Raporunu Simdi Gonder</button>
+          <div class="mesaj" id="haftalikEsikRaporMesaj"></div>
+        </div>
+
+        <div class="kart">
           <h3>Yeni Davranis Turu Ekle</h3>
           <div class="form-group">
             <label>Davranis Adi</label>
@@ -562,7 +571,7 @@
       aktifKullanici = userDoc.data();
       aktifRol = aktifKullanici.rol;
 
-      if (aktifRol !== 'admin' && aktifRol !== 'mudur_yardimcisi') {
+      if (aktifRol !== 'admin' && aktifRol !== 'mudur_yardimcisi' && aktifRol !== 'idareci_izleyici') {
         document.getElementById('menuAyarlar').style.display = 'none';
         document.getElementById('menuRaporlar').style.display = 'none';
 
@@ -621,7 +630,7 @@
       siniflarDoldur();
       davranisFilteriDoldur();
 
-      if (aktifRol === 'admin' || aktifRol === 'mudur_yardimcisi') {
+      if (aktifRol === 'admin' || aktifRol === 'mudur_yardimcisi' || aktifRol === 'idareci_izleyici') {
         raporYukle();
         davranisAyarlariniGoster();
         sablonlarGoster();
@@ -1165,6 +1174,21 @@
       if (idx !== -1) tumDavranislar[idx].aktif = !mevcutDurum;
       davranisAyarlariniGoster();
       davranislarGoster();
+    };
+
+    window.haftalikEsikRaporuGonder = async () => {
+      const btn = document.getElementById('btnHaftalikRaporGonder');
+      btn.disabled = true;
+      mesajGoster('haftalikEsikRaporMesaj', 'Gonderiliyor...', 'bilgi');
+      try {
+        const res = await httpsCallable(functions, 'disiplinHaftalikRaporTest')();
+        const d = res.data || {};
+        if (d.gonderildi === false) mesajGoster('haftalikEsikRaporMesaj', d.sebep || 'Rapor gonderilmedi.', 'bilgi');
+        else mesajGoster('haftalikEsikRaporMesaj', `Rapor gonderildi (${d.sayi || 0} esik asimi).`, 'basari');
+      } catch (err) {
+        mesajGoster('haftalikEsikRaporMesaj', 'Hata: ' + err.message, 'hata');
+      }
+      btn.disabled = false;
     };
 
     window.davranisEsikGuncelle = async (id) => {

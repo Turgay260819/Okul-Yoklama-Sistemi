@@ -166,7 +166,7 @@
         const rol = userDoc.data().rol;
 
         // Role göre yönlendir
-        if (rol === 'admin' || rol === 'mudur_yardimcisi' || rol === 'ogretmen') {
+        if (rol === 'admin' || rol === 'mudur_yardimcisi' || rol === 'idareci_izleyici' || rol === 'ogretmen') {
           window.location.href = '/portal.html';
         } else if (rol === 'ogrenci') {
           window.location.href = '/ogrenci.html';

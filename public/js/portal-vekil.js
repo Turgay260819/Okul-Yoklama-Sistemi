@@ -10,6 +10,16 @@ import { esc, mesajGoster, sor } from "./portal-utils.js";
 export function vekilAtamaSayfasiBaslat() {
   _ogretmenSecimDoldur();
   _raporListesiYukle();
+
+  const basEl = document.getElementById("vekilGecmisBaslangic");
+  const bitEl = document.getElementById("vekilGecmisBitis");
+  if (basEl && !basEl.value) {
+    const ayBas = new Date();
+    ayBas.setDate(1);
+    basEl.value = ayBas.toISOString().split("T")[0];
+  }
+  if (bitEl && !bitEl.value) bitEl.value = bugun;
+  _gecmisVekilYukle();
 }
 window.vekilAtamaSayfasiBaslat = vekilAtamaSayfasiBaslat;
 
@@ -112,6 +122,7 @@ window.vekilAta = async function (ogretmenId) {
     const fn = httpsCallable(functions, "raporluIcinVekilAta");
     const { data } = await fn({ ogretmenId });
     _sonucGuncelle(ogretmenId, data);
+    _gecmisVekilYukle();
   } catch (err) {
     if (sonucEl) sonucEl.innerHTML = `<span style="color:#ea4335;font-size:13px;">Hata: ${esc(err.message)}</span>`;
   }
@@ -121,7 +132,9 @@ window.vekilYenidenAta = async function (ogretmenId, dersId) {
   try {
     const fn = httpsCallable(functions, "raporluIcinVekilAta");
     const { data } = await fn({ dersIdListesi: [dersId] });
+    if (!data?.success) { alert(data?.message || "Atama yapilamadi."); return; }
     _sonucGuncelle(ogretmenId, data);
+    _gecmisVekilYukle();
   } catch (err) {
     alert("Hata: " + err.message);
   }
@@ -155,6 +168,7 @@ window.vekilElleAta = async function (ogretmenId, dersId) {
     }
     _sonEkranSonuclari[ogretmenId] = mevcut;
     _sonucTabloCiz(ogretmenId);
+    _gecmisVekilYukle();
   } catch (err) {
     alert("Hata: " + err.message);
   }
@@ -219,3 +233,57 @@ function _sonucTabloCiz(ogretmenId) {
   html += "</tbody></table>";
   sonucEl.innerHTML = html;
 }
+
+// ── GEÇMİŞ VEKİL ATAMALARI (Raporlar > Vekillik ile ayni veri/gorunum) ──
+async function _gecmisVekilYukle() {
+  const container = document.getElementById("vekilGecmisIcerik");
+  const bas = document.getElementById("vekilGecmisBaslangic")?.value;
+  const bit = document.getElementById("vekilGecmisBitis")?.value;
+  if (!container || !bas || !bit) return;
+  container.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
+
+  const snap = await getDocs(
+    query(collection(db, "today_lessons"), where("date", ">=", bas), where("date", "<=", bit)),
+  );
+
+  const vekilStat = {};
+  let toplamDers = 0;
+  snap.forEach((d) => {
+    const v = d.data();
+    if (!v.substitute_teacher_id) return;
+    toplamDers++;
+    if (!vekilStat[v.substitute_teacher_id]) {
+      vekilStat[v.substitute_teacher_id] = { ad: v.substitute_teacher_ad || v.substitute_teacher_id, kayitlar: [] };
+    }
+    vekilStat[v.substitute_teacher_id].kayitlar.push({
+      tarih: v.date, class_id: v.class_id, lesson_number: v.lesson_number,
+      lesson_name: v.lesson_name || "-", icin: v.substitute_for_teacher_ad || "?",
+    });
+  });
+
+  if (!toplamDers) {
+    container.innerHTML = '<div class="bos-mesaj">Bu tarih araliginda vekillik kaydi yok.</div>';
+    return;
+  }
+
+  const sirali = Object.values(vekilStat).sort(
+    (a, b) => b.kayitlar.length - a.kayitlar.length || a.ad.localeCompare(b.ad, "tr"),
+  );
+
+  let html = `<div style="font-size:12px;color:var(--text2);margin-bottom:8px;">Toplam ${toplamDers} vekillik dersi — ${sirali.length} farkli ogretmen</div>`;
+  html += '<table style="width:100%;font-size:13px;"><tbody>';
+  sirali.forEach((o) => {
+    const detay = o.kayitlar
+      .sort((a, b) => a.tarih.localeCompare(b.tarih) || a.lesson_number - b.lesson_number)
+      .map((k) => `${k.tarih} — ${esc(k.class_id)} ${esc(k.lesson_name)} (${k.lesson_number}. ders, ${esc(k.icin)} yerine)`)
+      .join("<br>");
+    html += `<tr>
+      <td style="padding:4px 6px;white-space:nowrap;"><strong>${esc(o.ad)}</strong></td>
+      <td style="padding:4px 6px;white-space:nowrap;"><strong style="color:var(--mavi)">${o.kayitlar.length}</strong></td>
+      <td style="padding:4px 6px;"><small style="color:var(--text2);">${detay}</small></td>
+    </tr>`;
+  });
+  html += "</tbody></table>";
+  container.innerHTML = html;
+}
+window.vekilGecmisYukle = _gecmisVekilYukle;

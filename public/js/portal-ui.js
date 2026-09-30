@@ -36,6 +36,7 @@ const adminMenu = [
   { id: "disiplin",       ikon: "📝", ad: "Disiplin" },
   { id: "izin",           ikon: "📄", ad: "Izin Yonetimi" },
   { id: "vekil-atama",    ikon: "🔄", ad: "Vekil Atama" },
+  { id: "aksaklik",       ikon: "🛠️", ad: "Aksaklik Bildirimleri" },
   { id: "gorev",          ikon: "👥", ad: "Gorev Dagilimi" },
   { id: "kazanimlar",     ikon: "📖", ad: "Kazanim Yonetimi" },
   { id: "raporlar",       ikon: "📅", ad: "Raporlar" },
@@ -57,6 +58,7 @@ const ogretmenKareler = [
   { sayfa: 1, id: "izin",                ikon: "📄", ad: "İzin Girişi",         renk: "#e3f2fd", metinRenk: "#1565c0" },
   { sayfa: 1, id: "gorevlerim",          ikon: "👥", ad: "Görevlerim",           renk: "#f3e8fd", metinRenk: "#6a1b9a" },
   { sayfa: 1, id: "kazanimlarim",        ikon: "📖", ad: "Kazanımlarım",         renk: "#e8f5e9", metinRenk: "#1b5e20" },
+  { sayfa: 1, id: "aksaklik",            ikon: "🛠️", ad: "Aksaklık Bildir",      renk: "#efebe9", metinRenk: "#5d4037" },
   { sayfa: 2, id: "manuel",             ikon: "✏️", ad: "Manuel Giriş",          renk: "#f5f5f5", metinRenk: "#424242" },
   { sayfa: 2, id: "nobet2",             ikon: "📅", ad: "Nöbet Programım",      renk: "#f5f5f5", metinRenk: "#424242" },
   { sayfa: 2, id: "ogrenci-profil", ikon: "👤", ad: "Öğrenci Profilleri",   renk: "#f5f5f5", metinRenk: "#424242" },
@@ -69,7 +71,7 @@ const ogretmenKareler = [
 let _ogrAktifSayfa = 0;
 
 export function menuOlustur(rol) {
-  if (rol !== "admin" && rol !== "mudur_yardimcisi") {
+  if (rol !== "admin" && rol !== "mudur_yardimcisi" && rol !== "idareci_izleyici") {
     document.body.classList.add("mod-ogretmen");
     ogretmenAnasayfaOlustur();
     return;
@@ -135,7 +137,7 @@ window.ogretmenGeri = () => {
   document.getElementById("geriBtn").style.display = "none";
 };
 
-const _iframeSayfaIdsler = ["disiplin","nobet2","yoklama-fisi","dyk-fisi","program-talebi","anket","ogrenci-profil","veri-import","geziler","gezi-kayit","kura"];
+const _iframeSayfaIdsler = ["disiplin","nobet2","yoklama-fisi","dyk-fisi","program-talebi","anket","ogrenci-profil","veri-import","geziler","gezi-kayit","kura","aksaklik"];
 
 window.sayfaGoster = (sayfaId, baslik, el) => {
   document.querySelectorAll(".sayfa").forEach((s) => s.classList.remove("aktif"));

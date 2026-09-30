@@ -269,6 +269,75 @@ exports.ogretmenRolleriniOnar = onCall(async (request) => {
 });
 
 // ===========================
+// SALT-OKUNUR İDARECİ HESABI (idareci_izleyici)
+// Admin ekranlarinin tamamini gorur ama hicbir sey yazamaz (bkz. firestore.rules
+// isIzleyici/isYazabilir). Kisinin ogretmen hesabindan tamamen ayri, ikinci bir
+// hesaptir; teachers koleksiyonuna kayit acilmaz. users koleksiyonu tum giris
+// yapmis kullanicilara acik oldugu icin sifre orada saklanmaz.
+// ===========================
+async function adminMiKontrol(request) {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Giriş yapılmamış.");
+  const callerDoc = await admin.firestore().collection("users").doc(request.auth.uid).get();
+  if (callerDoc.data()?.rol !== "admin") {
+    throw new HttpsError("permission-denied", "Bu işlemi sadece admin yapabilir.");
+  }
+}
+
+exports.izleyiciHesapOlustur = onCall(async (request) => {
+  await adminMiKontrol(request);
+
+  const ad = String(request.data?.ad || "").trim();
+  const gorev = String(request.data?.gorev || "").trim();
+  const email = String(request.data?.email || "").trim().toLowerCase();
+  const sifre = String(request.data?.sifre || "");
+  if (!ad) throw new HttpsError("invalid-argument", "Ad soyad zorunlu.");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new HttpsError("invalid-argument", "Geçerli bir e-posta girin.");
+  if (sifre.length < 6) throw new HttpsError("invalid-argument", "Şifre en az 6 karakter olmalı.");
+
+  // ogretmenOlustur'un aksine mevcut hesabi YENIDEN KULLANMIYORUZ: yanlislikla
+  // kisinin ogretmen e-postasi girilirse o hesap salt-okunura donusmesin.
+  let uid;
+  try {
+    uid = (await admin.auth().createUser({ email, password: sifre, displayName: ad })).uid;
+  } catch (err) {
+    if (err.code === "auth/email-already-exists") {
+      throw new HttpsError("already-exists", "Bu e-posta ile zaten bir hesap var. Öğretmen hesabından farklı bir e-posta kullanın.");
+    }
+    throw new HttpsError("internal", err.message);
+  }
+
+  try {
+    await admin.firestore().collection("users").doc(uid).set({
+      ad, email, gorev,
+      rol: "idareci_izleyici",
+      bildirim_aktif: false,
+      created_at: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  } catch (err) {
+    await admin.auth().deleteUser(uid).catch(() => {});
+    throw new HttpsError("internal", err.message);
+  }
+  return { success: true, uid };
+});
+
+exports.izleyiciHesapSil = onCall(async (request) => {
+  await adminMiKontrol(request);
+  const uid = String(request.data?.uid || "");
+  if (!uid) throw new HttpsError("invalid-argument", "uid zorunlu.");
+
+  const userRef = admin.firestore().collection("users").doc(uid);
+  const userSnap = await userRef.get();
+  if (!userSnap.exists || userSnap.data().rol !== "idareci_izleyici") {
+    throw new HttpsError("failed-precondition", "Bu hesap bir görüntüleme hesabı değil.");
+  }
+  await admin.auth().deleteUser(uid).catch((err) => {
+    if (err.code !== "auth/user-not-found") throw new HttpsError("internal", err.message);
+  });
+  await userRef.delete();
+  return { success: true };
+});
+
+// ===========================
 // ÖĞRENCİ OLUŞTUR
 // ===========================
 exports.ogrenciOlustur = onCall(async (request) => {
@@ -612,6 +681,12 @@ async function telegramMesajGonderKisiye(chatId, mesaj) {
 
 async function telegramMesajGonder(mesaj) {
   return telegramMesajGonderKisiye(TELEGRAM_CHAT_ID, mesaj);
+}
+
+// parse_mode "HTML" kullanildigi icin mesaja giren kullanici verisindeki
+// <, >, & karakterleri kacislanmali; yoksa Telegram mesaji reddeder.
+function htmlKacis(s) {
+  return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 // Hedef kitleden öğretmen listesi döndür (Cloud Function tarafı)
@@ -1443,10 +1518,10 @@ exports.disiplinEsikKontrol = onCall(async (request) => {
   for (const [key, veri] of Object.entries(sayimlar)) {
     const esik = turler[veri.davranis];
     if (esik && veri.sayi >= esik) {
-      const mesaj = `⚠️ *DİSİPLİN BİLDİRİMİ*\n\n` +
-        `Ogrenci: ${veri.ogrenci_ad}\n` +
-        `Sinif: ${veri.sinif}\n` +
-        `Davranis: ${veri.davranis}\n` +
+      const mesaj = `⚠️ <b>DİSİPLİN BİLDİRİMİ</b>\n\n` +
+        `Ogrenci: ${htmlKacis(veri.ogrenci_ad)}\n` +
+        `Sinif: ${htmlKacis(veri.sinif)}\n` +
+        `Davranis: ${htmlKacis(veri.davranis)}\n` +
         `Tekrar Sayisi: ${veri.sayi} (Esik: ${esik})\n` +
         `Donem: ${donem}. Donem`;
       await telegramMesajGonder(mesaj);
@@ -1484,13 +1559,161 @@ exports.disiplinKaydiYazildiginda = onDocumentCreated("disiplin_kayitlar/{kayitI
     .where("donem", "==", veri.donem).get();
   if (kayitSnap.size !== esik) return;
 
-  const mesaj = `⚠️ *DİSİPLİN BİLDİRİMİ*\n\n` +
-    `Ogrenci: ${veri.ogrenci_ad}\n` +
-    `Sinif: ${veri.sinif}\n` +
-    `Davranis: ${veri.davranis}\n` +
+  const mesaj = `⚠️ <b>DİSİPLİN BİLDİRİMİ</b>\n\n` +
+    `Ogrenci: ${htmlKacis(veri.ogrenci_ad)}\n` +
+    `Sinif: ${htmlKacis(veri.sinif)}\n` +
+    `Davranis: ${htmlKacis(veri.davranis)}\n` +
     `Tekrar Sayisi: ${kayitSnap.size} (Esik: ${esik})\n` +
     `Donem: ${veri.donem}. Donem`;
   await telegramMesajGonder(mesaj);
+});
+
+// ===========================
+// HAFTALIK DİSİPLİN RAPORU (her Cuma 16:00)
+// Bu haftanin Pazartesi 00:00'indan itibaren esigine ulasan (yani
+// disiplinKaydiYazildiginda'nin anlik bildirim gonderdigi) ogrenci/davranis
+// ciftlerini listeler. Onceki haftalarda esigi asmis olanlar dahil edilmez.
+// Liste ayri bir log tutulmadan dogrudan disiplin_kayitlar'dan hesaplanir.
+// ===========================
+async function disiplinHaftalikRaporHazirla(db) {
+  // Istanbul'a gore bugun ve bu haftanin Pazartesi'si (Turkiye sabit UTC+3)
+  const bugun = new Date().toLocaleString("sv-SE", { timeZone: "Europe/Istanbul" }).slice(0, 10);
+  const bugunUtc = new Date(bugun + "T00:00:00Z");
+  const pztUtc = new Date(bugunUtc);
+  pztUtc.setUTCDate(bugunUtc.getUTCDate() - ((bugunUtc.getUTCDay() + 6) % 7));
+  const gunStr = (ofset) => {
+    const d = new Date(pztUtc);
+    d.setUTCDate(pztUtc.getUTCDate() + ofset);
+    return d.toISOString().slice(0, 10);
+  };
+  const haftaGunleri = [0, 1, 2, 3, 4].map(gunStr);
+  const haftaBas = new Date(haftaGunleri[0] + "T00:00:00+03:00");
+  const haftaSon = new Date(gunStr(7) + "T00:00:00+03:00");
+  const trTarih = (s) => s.split("-").reverse().join(".");
+
+  const turSnap = await db.collection("disiplin_turleri").where("aktif", "==", true).get();
+  const esikler = {};
+  turSnap.forEach((d) => { esikler[d.data().ad] = d.data().esik; });
+
+  const haftaSnap = await db.collection("disiplin_kayitlar")
+    .where("tarih", ">=", haftaBas).where("tarih", "<", haftaSon).get();
+  const anahtarlar = new Map();
+  haftaSnap.forEach((d) => {
+    const k = d.data();
+    if (!k.ogrenci_no || !k.davranis || !k.donem || !esikler[k.davranis]) return;
+    anahtarlar.set(`${k.ogrenci_no}|${k.davranis}|${k.donem}`, k);
+  });
+
+  const liste = [];
+  await Promise.all([...anahtarlar.values()].map(async (k) => {
+    const esik = esikler[k.davranis];
+    const snap = await db.collection("disiplin_kayitlar")
+      .where("ogrenci_no", "==", k.ogrenci_no)
+      .where("davranis", "==", k.davranis)
+      .where("donem", "==", k.donem).get();
+    if (snap.size < esik) return;
+    const zamanlar = snap.docs.map((d) => d.data().tarih?.toMillis?.() ?? 0).sort((a, b) => a - b);
+    const esikAni = zamanlar[esik - 1];
+    if (esikAni >= haftaBas.getTime() && esikAni < haftaSon.getTime()) {
+      liste.push({ ad: k.ogrenci_ad || k.ogrenci_no, sinif: k.sinif || "-", davranis: k.davranis, sayi: snap.size, esik });
+    }
+  }));
+
+  const baslik = `📋 <b>HAFTALIK DİSİPLİN RAPORU</b>\n${trTarih(haftaGunleri[0])} – ${trTarih(haftaGunleri[4])}\n\n`;
+
+  if (!liste.length) {
+    // Tum hafta tatil / okul donemi disindaysa hic mesaj gonderme
+    let okulGunuVar = false;
+    for (const g of haftaGunleri) {
+      if (!(await okulDonemDisindaMi(db, g)) && !(await tatilKontrol(db, g))) { okulGunuVar = true; break; }
+    }
+    if (!okulGunuVar) return { gonderildi: false, sebep: "Bu hafta okul gunu yok, rapor gonderilmedi.", sayi: 0 };
+    return { mesajlar: [baslik + "Bu hafta esik asimi olmadi."], sayi: 0 };
+  }
+
+  liste.sort((a, b) =>
+    String(a.sinif).localeCompare(String(b.sinif), "tr", { numeric: true }) ||
+    String(a.ad).localeCompare(String(b.ad), "tr"));
+
+  const satirlar = [];
+  let oncekiSinif = null;
+  for (const o of liste) {
+    if (o.sinif !== oncekiSinif) {
+      if (oncekiSinif !== null) satirlar.push("");
+      satirlar.push(`<b>${htmlKacis(o.sinif)}</b>`);
+      oncekiSinif = o.sinif;
+    }
+    satirlar.push(`• ${htmlKacis(o.ad)} — ${htmlKacis(o.davranis)} (${o.sayi}/${o.esik})`);
+  }
+  const ogrenciSayisi = new Set(liste.map((o) => o.sinif + "|" + o.ad)).size;
+  satirlar.push("", `Toplam: ${ogrenciSayisi} ogrenci, ${liste.length} esik asimi`);
+
+  // Telegram mesaj siniri 4096 karakter — satir bazinda parcala
+  const mesajlar = [];
+  let parca = baslik;
+  for (const s of satirlar) {
+    if (parca.length + s.length + 1 > 4000) { mesajlar.push(parca); parca = ""; }
+    parca += s + "\n";
+  }
+  if (parca.trim()) mesajlar.push(parca);
+  return { mesajlar, sayi: liste.length };
+}
+
+async function disiplinHaftalikRaporGonder(db) {
+  const sonuc = await disiplinHaftalikRaporHazirla(db);
+  if (!sonuc.mesajlar) return sonuc;
+  for (const m of sonuc.mesajlar) {
+    const r = await telegramMesajGonder(m);
+    if (!r?.ok) throw new Error(r?.description || "Telegram mesaji gonderilemedi");
+  }
+  return { gonderildi: true, sayi: sonuc.sayi };
+}
+
+exports.disiplinHaftalikRapor = onSchedule(
+  { schedule: "0 16 * * 5", timeZone: "Europe/Istanbul" },
+  async () => {
+    const sonuc = await disiplinHaftalikRaporGonder(admin.firestore());
+    console.log("Haftalik disiplin raporu:", JSON.stringify(sonuc));
+  }
+);
+
+// Admin panelinden Cuma'yi beklemeden elle tetiklenebilir.
+exports.disiplinHaftalikRaporTest = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Giris yapilmamis.");
+
+  const callerDoc = await admin.firestore().collection("users").doc(request.auth.uid).get();
+  const callerRole = callerDoc.data()?.rol;
+  if (callerRole !== "admin" && callerRole !== "mudur_yardimcisi") {
+    throw new HttpsError("permission-denied", "Yetkiniz yok.");
+  }
+
+  try {
+    const sonuc = await disiplinHaftalikRaporGonder(admin.firestore());
+    return { success: true, ...sonuc };
+  } catch (err) {
+    throw new HttpsError("internal", err.message);
+  }
+});
+
+// ===========================
+// AKSAKLIK BİLDİRİMİ — ACİL OLANLAR TELEGRAM'A
+// Ogretmenin aksaklik.html'den gonderdigi bildirimlerden oncelik "acil"
+// olanlar aninda admin Telegram'ina iletilir; digerleri sadece panelde.
+// ===========================
+exports.aksaklikBildirildiginde = onDocumentCreated("aksakliklar/{id}", async (event) => {
+  const veri = event.data?.data();
+  if (!veri || veri.oncelik !== "acil") return;
+
+  const mesaj = `🔴 <b>ACİL AKSAKLIK BİLDİRİMİ</b>\n\n` +
+    `Tür: ${htmlKacis(veri.tur)}\n` +
+    `Yer: ${htmlKacis(veri.yer)}\n` +
+    `Bildiren: ${htmlKacis(veri.ogretmen_ad)}\n\n` +
+    `${htmlKacis(veri.aciklama)}`;
+  try {
+    await telegramMesajGonder(mesaj);
+  } catch (err) {
+    console.error("Aksaklik Telegram hatasi:", err.message);
+  }
 });
 
 exports.manuelDersOlustur = onCall(async (request) => {

@@ -73,6 +73,7 @@
       .mesaj-hata { background: #ea4335; }
       .mesaj-bilgi { background: #1a73e8; }
     </style>
+    <script src="/js/salt-okunur.js"></script>
   </head>
   <body>
     <div class="topbar">
@@ -401,7 +402,7 @@
       function _gecmisListesiGoster() {
         const c = document.getElementById("gecmisListesi");
         if (!cekilisler.length) { c.innerHTML = '<div class="bos-mesaj">Henüz çekiliş yapılmadı.</div>'; return; }
-        const yonetim = rol === "admin" || rol === "mudur_yardimcisi";
+        const yonetim = rol === "admin" || rol === "mudur_yardimcisi" || rol === "idareci_izleyici";
         let html = `<table><thead><tr>
           <th>Oturum</th><th>Torba</th><th>Öğretmen</th><th>Görev</th><th>Tarih</th><th>Çeken</th>${yonetim ? "<th></th>" : ""}
         </tr></thead><tbody>`;
@@ -436,7 +437,7 @@
       async function init() {
         document.getElementById("yukleniyor").style.display = "none";
         document.getElementById("anaIcerik").style.display = "block";
-        const yonetim = rol === "admin" || rol === "mudur_yardimcisi";
+        const yonetim = rol === "admin" || rol === "mudur_yardimcisi" || rol === "idareci_izleyici";
         document.getElementById("adminBolum").style.display = yonetim ? "block" : "none";
         await ogretmenleriYukle();
         await Promise.all([torbalariYukle(), oturumlariYukle(), gecmisiYukle()]);

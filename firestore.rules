@@ -30,6 +30,19 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Salt-okunur idareci: yonetim ekranlarini gorur, hicbir sey yazamaz.
+    function isIzleyici() {
+      return getRole() == 'idareci_izleyici';
+    }
+
+    function isYonetimOkur() {
+      return isYonetim() || isIzleyici();
+    }
+
+    function isYazabilir() {
+      return isLoggedIn() && !isIzleyici();
+    }
+
     match /users/{userId} {
       allow read: if isLoggedIn();
       allow write: if isAdmin();
@@ -57,12 +70,12 @@ service cloud.firestore {
 
     match /today_lessons/{lessonId} {
       allow read: if isLoggedIn();
-      allow write: if isLoggedIn();
+      allow write: if isYazabilir();
     }
 
     match /attendance/{attendanceId} {
       allow read: if isLoggedIn();
-      allow create: if isLoggedIn();
+      allow create: if isYazabilir();
       allow update: if isYonetim();
       allow delete: if isYonetim() || isOgretmen();
     }
@@ -73,12 +86,12 @@ service cloud.firestore {
     }
 
     match /late_entries/{entryId} {
-      allow read: if isYonetim();
-      allow write: if isLoggedIn();
+      allow read: if isYonetimOkur();
+      allow write: if isYazabilir();
     }
 
     match /notification_queue/{notifId} {
-      allow read: if isYonetim();
+      allow read: if isYonetimOkur();
       allow write: if isYonetim();
     }
 
@@ -89,7 +102,7 @@ service cloud.firestore {
 
     match /dyk_attendance/{attendanceId} {
       allow read: if isLoggedIn();
-      allow create: if isLoggedIn();
+      allow create: if isYazabilir();
       allow update: if isYonetim();
       allow delete: if isAdmin();
     }
@@ -100,22 +113,34 @@ service cloud.firestore {
     }
 
     match /system_logs/{logId} {
-      allow read: if isYonetim();
+      allow read: if isYonetimOkur();
       allow write: if isLoggedIn();
     }
 
     match /attendance_archive/{docId} {
-      allow read: if isYonetim();
+      allow read: if isYonetimOkur();
       allow write: if isAdmin();
     }
    
     match /disiplin_kayitlar/{docId} {
-      allow read: if isYonetim() || isOgretmen();
+      allow read: if isYonetimOkur() || isOgretmen();
       allow create: if isYonetim() || isOgretmen();
       allow update, delete: if isYonetim();
     }
+    match /aksakliklar/{docId} {
+      allow read: if isYonetimOkur() ||
+        (isOgretmen() && resource.data.ogretmen_uid == request.auth.uid);
+      allow create: if (isYonetim() || isOgretmen()) &&
+        request.resource.data.ogretmen_uid == request.auth.uid &&
+        request.resource.data.durum == "acik";
+      allow update, delete: if isYonetim();
+    }
+    match /aksaklik_ayarlar/{docId} {
+      allow read: if isLoggedIn();
+      allow write: if isYonetim();
+    }
     match /izinler/{docId} {
-      allow read: if isYonetim() || isOgretmen();
+      allow read: if isYonetimOkur() || isOgretmen();
       allow create: if isYonetim() || isOgretmen();
       allow update: if isYonetim() ||
         (isOgretmen() && resource.data.rehber_id != null &&
@@ -132,19 +157,19 @@ service cloud.firestore {
     }
     match /gorevler/{doc} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null;
+      allow write: if isYazabilir();
     }
     match /ogretmen_sirasi/{doc} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null;
+      allow write: if isYazabilir();
     }
     match /oncelik_kuyrugu/{doc} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null;
+      allow write: if isYazabilir();
     }
     match /takvim_kilidi/{doc} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null;
+      allow write: if isYazabilir();
     }
     match /kazanim_dersler/{docId} {
       allow read: if isLoggedIn();
@@ -171,7 +196,7 @@ service cloud.firestore {
       allow write: if isYonetim();
     }
     match /ogretmen_devam/{docId} {
-      allow read: if isYonetim();
+      allow read: if isYonetimOkur();
       allow write: if isYonetim();
     }
     match /nobet2_ayarlar/{docId} {
@@ -188,7 +213,7 @@ service cloud.firestore {
     }
     match /program_talebi_matris/{docId} {
       allow read: if isLoggedIn();
-      allow write: if isLoggedIn();
+      allow write: if isYazabilir();
     }
     match /program_talebi_ayarlar/{docId} {
       allow read: if isLoggedIn();
@@ -204,7 +229,7 @@ service cloud.firestore {
     }
     match /program_talep_matris/{docId} {
       allow read: if isLoggedIn();
-      allow write: if isLoggedIn();
+      allow write: if isYazabilir();
     }
     match /program_talep_ayarlar/{docId} {
       allow read: if isLoggedIn();
@@ -216,18 +241,19 @@ service cloud.firestore {
     }
     match /anket_yanitlar/{docId} {
       allow read: if isLoggedIn();
-      allow write: if isLoggedIn();
+      allow write: if isYazabilir();
     }
     match /anket_sablonlar/{docId} {
-      allow read, write: if isYonetim();
+      allow read: if isYonetimOkur();
+      allow write: if isYonetim();
     }
     match /ogrenci_veriler/{docId} {
       allow read: if isLoggedIn();
-      allow write: if isLoggedIn();
+      allow write: if isYazabilir();
     }
     match /ogrenci_yetenekler/{docId} {
       allow read: if isLoggedIn();
-      allow write: if isLoggedIn();
+      allow write: if isYazabilir();
     }
     match /geziler/{docId} {
       allow read: if isLoggedIn();
@@ -235,8 +261,8 @@ service cloud.firestore {
     }
     match /gezi_katilim/{docId} {
       allow read: if isLoggedIn();
-      allow create: if isLoggedIn();
-      allow update: if isLoggedIn();
+      allow create: if isYazabilir();
+      allow update: if isYazabilir();
       allow delete: if isYonetim();
     }
     match /gezi_koltuk/{docId} {
@@ -245,17 +271,17 @@ service cloud.firestore {
     }
     match /gezi_katilacaklar/{docId} {
       allow read: if isLoggedIn();
-      allow create: if isLoggedIn();
-      allow update: if isLoggedIn();
-      allow delete: if isYonetim() || (isLoggedIn() && request.auth.uid == resource.data.kullanici_id);
+      allow create: if isYazabilir();
+      allow update: if isYazabilir();
+      allow delete: if isYonetim() || (isYazabilir() && request.auth.uid == resource.data.kullanici_id);
     }
     match /bildirimler/{docId} {
       allow read: if isLoggedIn();
-      allow write: if isLoggedIn();
+      allow write: if isYazabilir();
     }
     match /ogretmen_rapor/{docId} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null;
+      allow write: if isYazabilir();
     }
     match /ders_listesi/{docId} {
       allow read: if isLoggedIn();

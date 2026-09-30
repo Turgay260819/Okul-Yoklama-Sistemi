@@ -290,6 +290,9 @@
       .hucre-x:hover {
         background: #f5b7b1;
       }
+      .matris.salt-okunur td { cursor: default; }
+      .matris.salt-okunur .hucre-bos:hover { background: white; }
+      .matris.salt-okunur .hucre-x:hover { background: #fce8e6; }
       .hucre-x-ic {
         color: #c5221f;
         font-weight: 800;
@@ -371,6 +374,7 @@
       }
     </style>
     <script>if(new URLSearchParams(location.search).get("embedded"))document.addEventListener("DOMContentLoaded",()=>{document.querySelector("h1")?.remove();const tb=document.querySelector(".topbar");if(tb){const b=document.createElement("button");b.className="btn btn-beyaz";b.style.cssText="padding:6px 14px;font-size:13px;margin-left:auto;";b.textContent="← Menüye Dön";b.onclick=()=>{try{window.parent.ogretmenGeri();}catch(e){}};tb.appendChild(b);}});</script>
+    <script src="/js/salt-okunur.js"></script>
   </head>
   <body>
     <div class="topbar">
@@ -477,7 +481,7 @@
             aktifOgretmenId = ogSnap.docs[0].id;
             aktifOgretmenAdi = ogSnap.docs[0].data().ad || "";
           }
-        } else if (aktifRol === "admin" || aktifRol === "mudur_yardimcisi") {
+        } else if (aktifRol === "admin" || aktifRol === "mudur_yardimcisi" || aktifRol === "idareci_izleyici") {
           const tumOgSnap = await getDocs(collection(db, "teachers"));
           tumOgretmenler = [];
           tumOgSnap.forEach((d) => tumOgretmenler.push({ id: d.id, ...d.data() }));
@@ -497,7 +501,7 @@
         document.getElementById("yukleniyor").style.display = "none";
         document.getElementById("anaIcerik").style.display = "block";
 
-        if (aktifRol === "admin" || aktifRol === "mudur_yardimcisi") {
+        if (aktifRol === "admin" || aktifRol === "mudur_yardimcisi" || aktifRol === "idareci_izleyici") {
           adminSayfasi();
         } else {
           ogretmenSayfasi();
@@ -629,9 +633,11 @@
           <div class="sekme-bar">
             <button class="sekme-btn aktif" onclick="ogretmenSekme('dersler', this)">📚 Derslerim</button>
             <button class="sekme-btn" onclick="ogretmenSekme('talep', this)">📐 Boş Talepler</button>
+            <button class="sekme-btn" onclick="ogretmenSekme('program', this)">📅 Ders Programım</button>
           </div>
           <div class="sekme-icerik aktif" id="osekme-dersler"></div>
-          <div class="sekme-icerik" id="osekme-talep"></div>`;
+          <div class="sekme-icerik" id="osekme-talep"></div>
+          <div class="sekme-icerik" id="osekme-program"></div>`;
         ogretmenDerslerGoster();
       }
 
@@ -642,7 +648,31 @@
         document.getElementById("osekme-" + id).classList.add("aktif");
         if (id === "dersler") ogretmenDerslerGoster();
         else if (id === "talep") ogretmenTalepGoster();
+        else if (id === "program") ogretmenProgramGoster();
       };
+
+      // Öğretmenin kendi ders programı — admin'deki 5x8 tablonun salt okunur hali
+      async function ogretmenProgramGoster() {
+        const c = document.getElementById("osekme-program");
+        if (!aktifOgretmenId) {
+          c.innerHTML = `<div class="kart"><div class="bos-mesaj">Öğretmen kaydınız bulunamadı.</div></div>`;
+          return;
+        }
+        c.innerHTML = `<div class="kart">
+          <div class="kart-baslik">Haftalık Ders Programım <span class="rozet rozet-mavi" id="ogretmenProgramToplam">—</span></div>
+          <div id="ogretmenProgramAlani"><div class="yukleniyor">Yükleniyor...</div></div>
+        </div>`;
+        try {
+          programSeciliOgretmenId = aktifOgretmenId;
+          await programOgretmenScheduleYukle();
+          programMatrisGuncelle("ogretmenProgramAlani", true);
+          document.getElementById("ogretmenProgramToplam").textContent =
+            Object.keys(programOgretmenSchedule).length + " ders saati / hafta";
+        } catch (err) {
+          document.getElementById("ogretmenProgramAlani").innerHTML =
+            `<div class="bos-mesaj">Hata: ${err.message}</div>`;
+        }
+      }
 
       function ogretmenDerslerGoster() {
         const c = document.getElementById("osekme-dersler");
@@ -1225,10 +1255,10 @@
         });
       }
 
-      function programMatrisGuncelle() {
-        const alan = document.getElementById("programMatrisAlani");
+      function programMatrisGuncelle(alanId = "programMatrisAlani", saltOkunur = false) {
+        const alan = document.getElementById(alanId);
         if (!alan) return;
-        let html = '<div class="matris-wrap"><table class="matris"><thead><tr><th>Gün \\ Ders</th>';
+        let html = `<div class="matris-wrap"><table class="matris${saltOkunur ? " salt-okunur" : ""}"><thead><tr><th>Gün \\ Ders</th>`;
         DERSLER.forEach((d) => { html += "<th>" + d + ". Ders</th>"; });
         html += "</tr></thead><tbody>";
         GUNLER.forEach((g, gi) => {
@@ -1236,7 +1266,7 @@
           DERSLER.forEach((d, di) => {
             const key = normalizeGunLocal(g) + "-" + d;
             const hucre = programOgretmenSchedule[key];
-            html += `<td class="${hucre ? "hucre-x" : "hucre-bos"}" onclick="programHucreDuzenle(${gi},${di})">`;
+            html += `<td class="${hucre ? "hucre-x" : "hucre-bos"}"${saltOkunur ? "" : ` onclick="programHucreDuzenle(${gi},${di})"`}>`;
             html += hucre
               ? `<div style="font-size:11px;font-weight:700;color:#0d47a1;line-height:1.3;">${hucre.class_id}</div><div style="font-size:10px;color:#666;line-height:1.2;">${hucre.lesson_name}</div>`
               : '<div style="color:#ccc;">—</div>';

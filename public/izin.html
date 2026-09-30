@@ -149,6 +149,7 @@
     }
   </style>
   <script>if(new URLSearchParams(location.search).get("embedded"))document.addEventListener("DOMContentLoaded",()=>document.querySelector("h1")?.remove());</script>
+  <script src="/js/salt-okunur.js"></script>
 </head>
 <body>
 
@@ -311,7 +312,7 @@
       tumOgretmenler = [];
       ogretmenlerSnap.forEach(d => tumOgretmenler.push({ id: d.id, ...d.data() }));
 
-      if (aktifRol === 'admin' || aktifRol === 'mudur_yardimcisi') {
+      if (aktifRol === 'admin' || aktifRol === 'mudur_yardimcisi' || aktifRol === 'idareci_izleyici') {
         _ogretmenSiniflar = null;
         document.getElementById('menuAdminOnay').style.display = 'block';
       } else {
@@ -552,7 +553,7 @@
       container.innerHTML = '<div class="yukleniyor-mesaj">Yukleniyor...</div>';
 
       let snap;
-      const isYonetim = aktifRol === 'admin' || aktifRol === 'mudur_yardimcisi';
+      const isYonetim = aktifRol === 'admin' || aktifRol === 'mudur_yardimcisi' || aktifRol === 'idareci_izleyici';
       if (isYonetim) {
         snap = await getDocs(collection(db, 'izinler'));
       } else {

@@ -432,6 +432,7 @@
       .gdn-gecti td { opacity: 0.45; }
     </style>
     <script>if(new URLSearchParams(location.search).get("embedded"))document.addEventListener("DOMContentLoaded",()=>document.querySelector("h1")?.remove());</script>
+    <script src="/js/salt-okunur.js"></script>
   </head>
   <body>
     <div class="topbar">
@@ -1401,7 +1402,7 @@
           return;
         }
         var rol = ud.data().rol;
-        if (rol === "admin" || rol === "mudur_yardimcisi") {
+        if (rol === "admin" || rol === "mudur_yardimcisi" || rol === "idareci_izleyici") {
           await init();
         } else if (rol === "ogretmen") {
           document.querySelector(".topbar-sag").style.display = "none";
