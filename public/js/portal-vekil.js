@@ -241,7 +241,13 @@ function _sonucTabloCiz(ogretmenId) {
   sonucEl.innerHTML = html;
 }
 
-// ── GEÇMİŞ VEKİL ATAMALARI (Raporlar > Vekillik ile ayni veri/gorunum) ──
+// ── GEÇMİŞ VEKİL DERSLERİ (Raporlar > Vekillik ile ayni kaynak: vekil_dersler) ──
+// Sayilan: derse girdigi kaydedilmis dersler. Vekil Atama'dan atanip henuz
+// onaylanmamis dersler "onay bekliyor" olarak ayrica gosterilir, toplama girmez.
+function _gecmisKayitId(tarih, sinif, dersNo) {
+  return `${tarih}_${String(sinif).replace(/[\/\s.#\[\]]/g, "-")}_${dersNo}`;
+}
+
 async function _gecmisVekilYukle() {
   const container = document.getElementById("vekilGecmisIcerik");
   const bas = document.getElementById("vekilGecmisBaslangic")?.value;
@@ -249,26 +255,43 @@ async function _gecmisVekilYukle() {
   if (!container || !bas || !bit) return;
   container.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
 
-  const snap = await getDocs(
-    query(collection(db, "today_lessons"), where("date", ">=", bas), where("date", "<=", bit)),
-  );
+  let kayitSnap, dersSnap;
+  try {
+    [kayitSnap, dersSnap] = await Promise.all([
+      getDocs(query(collection(db, "vekil_dersler"), where("tarih", ">=", bas), where("tarih", "<=", bit))),
+      getDocs(query(collection(db, "today_lessons"), where("date", ">=", bas), where("date", "<=", bit))),
+    ]);
+  } catch (err) {
+    container.innerHTML = `<div class="bos-mesaj">Yuklenemedi: ${esc(err.message)}</div>`;
+    return;
+  }
 
   const vekilStat = {};
+  const ekle = (id, ad) => (vekilStat[id] ||= { ad: ad || id, kayitlar: [], bekleyen: [] });
+  const kayitIdleri = new Set();
   let toplamDers = 0;
-  snap.forEach((d) => {
+  kayitSnap.forEach((d) => {
     const v = d.data();
-    if (!v.substitute_teacher_id) return;
+    kayitIdleri.add(d.id);
     toplamDers++;
-    if (!vekilStat[v.substitute_teacher_id]) {
-      vekilStat[v.substitute_teacher_id] = { ad: v.substitute_teacher_ad || v.substitute_teacher_id, kayitlar: [] };
-    }
-    vekilStat[v.substitute_teacher_id].kayitlar.push({
+    ekle(v.vekil_ogretmen_id, v.vekil_ogretmen_ad).kayitlar.push({
+      tarih: v.tarih, class_id: v.sinif, lesson_number: v.ders_no,
+      lesson_name: v.ders_adi || "-", icin: v.asil_ogretmen_ad || "?",
+    });
+  });
+
+  let bekleyenToplam = 0;
+  dersSnap.forEach((d) => {
+    const v = d.data();
+    if (!v.substitute_teacher_id || kayitIdleri.has(_gecmisKayitId(v.date, v.class_id, v.lesson_number))) return;
+    bekleyenToplam++;
+    ekle(v.substitute_teacher_id, v.substitute_teacher_ad).bekleyen.push({
       tarih: v.date, class_id: v.class_id, lesson_number: v.lesson_number,
       lesson_name: v.lesson_name || "-", icin: v.substitute_for_teacher_ad || "?",
     });
   });
 
-  if (!toplamDers) {
+  if (!toplamDers && !bekleyenToplam) {
     container.innerHTML = '<div class="bos-mesaj">Bu tarih araliginda vekillik kaydi yok.</div>';
     return;
   }
@@ -276,14 +299,16 @@ async function _gecmisVekilYukle() {
   const sirali = Object.values(vekilStat).sort(
     (a, b) => b.kayitlar.length - a.kayitlar.length || a.ad.localeCompare(b.ad, "tr"),
   );
+  const satir = (k) => `${k.tarih} — ${esc(k.class_id)} ${esc(k.lesson_name)} (${k.lesson_number}. ders, ${esc(k.icin)} yerine)`;
+  const sirala = (a, b) => a.tarih.localeCompare(b.tarih) || a.lesson_number - b.lesson_number;
 
-  let html = `<div style="font-size:12px;color:var(--text2);margin-bottom:8px;">Toplam ${toplamDers} vekillik dersi — ${sirali.length} farkli ogretmen</div>`;
+  let html = `<div style="font-size:12px;color:var(--text2);margin-bottom:8px;">Derse girdiği kaydedilmiş ${toplamDers} vekillik dersi — ${sirali.filter((o) => o.kayitlar.length).length} farkli ogretmen${bekleyenToplam ? ` · <span style="color:#e65100;">⏳ ${bekleyenToplam} atama onay bekliyor (sayılmaz)</span>` : ""}</div>`;
   html += '<table style="width:100%;font-size:13px;"><tbody>';
   sirali.forEach((o) => {
-    const detay = o.kayitlar
-      .sort((a, b) => a.tarih.localeCompare(b.tarih) || a.lesson_number - b.lesson_number)
-      .map((k) => `${k.tarih} — ${esc(k.class_id)} ${esc(k.lesson_name)} (${k.lesson_number}. ders, ${esc(k.icin)} yerine)`)
-      .join("<br>");
+    const detay = [
+      ...o.kayitlar.sort(sirala).map(satir),
+      ...o.bekleyen.sort(sirala).map((k) => `<span style="color:#e65100;">⏳ ${satir(k)} — onay bekliyor</span>`),
+    ].join("<br>");
     html += `<tr>
       <td style="padding:4px 6px;white-space:nowrap;"><strong>${esc(o.ad)}</strong></td>
       <td style="padding:4px 6px;white-space:nowrap;"><strong style="color:var(--mavi)">${o.kayitlar.length}</strong></td>
