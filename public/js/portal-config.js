@@ -21,12 +21,19 @@ export const FIREBASE_REGION = "europe-west1";
 export const OGRETMEN_REFRESH_MS = 5 * 60 * 1000;
 export const YOKLAMA_PENCERE_DK = 15;
 
-export const bugun = new Intl.DateTimeFormat("tr-TR", {
-  timeZone: "Europe/Istanbul",
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-}).format(new Date()).split(".").reverse().join("-");
+// Istanbul'a gore bugunun tarihi (YYYY-AA-GG), her cagrida yeniden hesaplanir.
+// `bugun` sabiti sayfa acilisindaki degerdir; portal.js gun degisince sayfayi
+// yeniler, ama tarihe hassas yerler (ör. Vekil Atama) bunu dogrudan kullanir.
+export function bugunHesapla() {
+  return new Intl.DateTimeFormat("tr-TR", {
+    timeZone: "Europe/Istanbul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date()).split(".").reverse().join("-");
+}
+
+export const bugun = bugunHesapla();
 
 export const dun = new Intl.DateTimeFormat("tr-TR", {
   timeZone: "Europe/Istanbul",

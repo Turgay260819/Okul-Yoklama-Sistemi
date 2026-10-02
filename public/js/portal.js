@@ -1,5 +1,5 @@
 import {
-  db, auth, functions, bugun,
+  db, auth, functions, bugun, bugunHesapla,
   getDocs, addDoc, updateDoc, deleteDoc, getDoc, setDoc,
   collection, query, where, orderBy, doc, serverTimestamp, Timestamp, httpsCallable,
 } from "./portal-config.js";
@@ -102,6 +102,17 @@ async function veriYukle() {
   dropdownlariGuncelle();
 }
 window.veriYenile = veriYukle;
+
+// Gun degisince yenile: `bugun` sayfa acilisinda bir kez hesaplanan bir sabit.
+// Portal gece acik kalirsa ertesi gun her yer (Vekil Atama "aktif degil",
+// Genel Durum, yoklamalar) dunun tarihiyle calisir. Sekmeye donuldugunde ve
+// dakikada bir kontrol edip gun degistiyse sayfayi yeniden yukluyoruz.
+function gunDegistiyseYenile() {
+  if (document.visibilityState === "visible" && bugunHesapla() !== bugun) location.reload();
+}
+document.addEventListener("visibilitychange", gunDegistiyseYenile);
+window.addEventListener("focus", gunDegistiyseYenile);
+setInterval(gunDegistiyseYenile, 60 * 1000);
 
 // Initialize static UI
 tarihBilgisiniGoster();

@@ -1,5 +1,5 @@
 import {
-  db, functions, bugun,
+  db, functions, bugun, bugunHesapla,
   getDocs, addDoc, deleteDoc, updateDoc,
   collection, query, where, doc, serverTimestamp, httpsCallable,
 } from "./portal-config.js";
@@ -18,7 +18,7 @@ export function vekilAtamaSayfasiBaslat() {
     ayBas.setDate(1);
     basEl.value = ayBas.toISOString().split("T")[0];
   }
-  if (bitEl && !bitEl.value) bitEl.value = bugun;
+  if (bitEl && !bitEl.value) bitEl.value = bugunHesapla();
   _gecmisVekilYukle();
 }
 window.vekilAtamaSayfasiBaslat = vekilAtamaSayfasiBaslat;
@@ -38,7 +38,7 @@ async function _raporListesiYukle() {
   const container = document.getElementById("vekilRaporListesi");
   if (!container) return;
   container.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
-  const snap = await getDocs(query(collection(db, "ogretmen_rapor"), where("bitis_tarihi", ">=", bugun)));
+  const snap = await getDocs(query(collection(db, "ogretmen_rapor"), where("bitis_tarihi", ">=", bugunHesapla())));
   _raporlarCache = [];
   snap.forEach((d) => _raporlarCache.push({ id: d.id, ...d.data() }));
   _raporlarCache.sort((a, b) => (a.baslangic_tarihi || "").localeCompare(b.baslangic_tarihi || ""));
@@ -52,9 +52,16 @@ function _raporListesiRender() {
     container.innerHTML = '<div class="bos-mesaj">Aktif veya yaklasan rapor yok.</div>';
     return;
   }
+  // Sayfa acilisindaki `bugun` sabiti yerine guncel tarih: portal onceki
+  // gunden acik kaldiysa bugun baslayan rapor "aktif degil" gorunuyordu.
+  const simdi = bugunHesapla();
+  const tarihTR = (t) => String(t || "").split("-").reverse().join(".");
   let html = "";
   _raporlarCache.forEach((r) => {
-    const aktifMi = r.baslangic_tarihi <= bugun && r.bitis_tarihi >= bugun;
+    const aktifMi = r.baslangic_tarihi <= simdi && r.bitis_tarihi >= simdi;
+    const pasifMetin = r.baslangic_tarihi > simdi
+      ? `Henüz başlamadı (${esc(tarihTR(r.baslangic_tarihi))})`
+      : "Rapor bitti";
     html += `<div class="kart" style="margin-bottom:10px;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
         <div>
@@ -64,7 +71,7 @@ function _raporListesiRender() {
         <div style="display:flex;gap:6px;align-items:center;">
           ${aktifMi
             ? `<button class="btn btn-mavi btn-sm" onclick="vekilAta('${esc(r.ogretmen_id)}')">🔄 Vekil Ata</button>`
-            : `<span class="rozet rozet-gri">Bugun aktif degil</span>`}
+            : `<span class="rozet rozet-gri">${pasifMetin}</span>`}
           <button class="btn btn-kirmizi btn-sm" onclick="vekilRaporSil('${r.id}')">Sil</button>
         </div>
       </div>
