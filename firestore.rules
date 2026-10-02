@@ -48,9 +48,26 @@ service cloud.firestore {
       return (n < 10 ? '0' : '') + string(n);
     }
 
-    function bugunTR() {
-      let t = request.time + duration.value(3, 'h');
+    function tarihTR(t) {
       return string(t.year()) + '-' + pad2(t.month()) + '-' + pad2(t.day());
+    }
+
+    function bugunTR() {
+      return tarihTR(request.time + duration.value(3, 'h'));
+    }
+
+    // Bir onceki is gunu: Pazartesi -> Cuma (3 gun), Pazar -> Cuma (2),
+    // digerleri -> dun (1). Tatiller ayrica atlanmaz. dayOfWeek: 1=Pzt..7=Paz.
+    // portal-vekil-ders.js oncekiIsGunu() ile ayni mantik.
+    function oncekiIsGunuTR() {
+      let t = request.time + duration.value(3, 'h');
+      let geri = t.dayOfWeek() == 1 ? 3 : (t.dayOfWeek() == 7 ? 2 : 1);
+      return tarihTR(t - duration.value(geri * 24, 'h'));
+    }
+
+    // Ogretmenin vekil ders kaydi girebilecegi tarihler.
+    function ogretmenTarihi(tarih) {
+      return tarih == bugunTR() || tarih == oncekiIsGunuTR();
     }
 
     function kendiOgretmenDocu(teacherId) {
@@ -318,19 +335,19 @@ service cloud.firestore {
     }
     // Vekil ders ucret kayitlari. Belge kimligi tarih_sinif_saat oldugu icin
     // bir sinif-saate tek kayit acilir; ogretmen update yapamadigi icin mevcut
-    // kaydin ustune yazamaz (ilk giren alir). Ogretmen sadece bugune, kendi
-    // adina yazabilir; gecmis tarihleri yonetim girer.
+    // kaydin ustune yazamaz (ilk giren alir). Ogretmen sadece bugune ve bir
+    // onceki is gunune, kendi adina yazabilir; daha eskisini yonetim girer.
     match /vekil_dersler/{docId} {
       allow read: if isLoggedIn();
       allow create: if isYonetim() ||
         (isOgretmen() &&
-         request.resource.data.tarih == bugunTR() &&
+         ogretmenTarihi(request.resource.data.tarih) &&
          request.resource.data.kaynak in ['sistem_onay', 'ogretmen'] &&
          kendiOgretmenDocu(request.resource.data.vekil_ogretmen_id));
       allow update: if isYonetim();
       allow delete: if isYonetim() ||
         (isOgretmen() &&
-         resource.data.tarih == bugunTR() &&
+         ogretmenTarihi(resource.data.tarih) &&
          kendiOgretmenDocu(resource.data.vekil_ogretmen_id));
     }
     // Telefon bildirimi cihaz anahtarlari. Istemci sadece kendi uid'iyle yazar

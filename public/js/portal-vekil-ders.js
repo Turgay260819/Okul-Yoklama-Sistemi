@@ -1,5 +1,5 @@
 import {
-  db, auth, bugun,
+  db, auth, bugun, bugunHesapla,
   getDocs, getDoc, setDoc, deleteDoc,
   collection, query, where, doc, serverTimestamp,
 } from "./portal-config.js";
@@ -10,7 +10,8 @@ import { esc, mesajGoster, sor, normalizeGun, gunAdiGetir } from "./portal-utils
 // vekil_dersler: "kim hangi derse girdi" sorusunun tek kaydi. Belge kimligi
 // tarih_sinif_saat oldugu icin bir sinif-saate tek kayit acilir (ilk giren
 // alir; firestore.rules ogretmenin mevcut kaydin ustune yazmasina izin vermez).
-// Ogretmen sadece bugune kendi adina yazar; gecmis tarihleri yonetim girer.
+// Ogretmen bugune ve bir onceki is gunune kendi adina yazar; daha eskisini
+// yonetim girer (firestore.rules ogretmenTarihi ile ayni sinir).
 
 const KAYNAK_ETIKET = { sistem_onay: "Atama onayı", ogretmen: "Öğretmen girdi", admin: "İdare girdi" };
 
@@ -69,8 +70,30 @@ async function kayitOlustur(ders, vekilId, kaynak) {
 
 // ═══════════════ ÖĞRETMEN: VEKİL DERSLERİM ═══════════════
 
-let _bugunDersler = [];
-let _bugunKayitlar = {};
+const GUN_ADLARI = ["Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi"];
+
+// Bir onceki is gunu: Pzt -> Cuma, Paz -> Cuma, Cmt -> Cuma, digerleri -> dun.
+// firestore.rules oncekiIsGunuTR() ile ayni mantik; degisirse ikisi birlikte.
+export function oncekiIsGunu(tarih) {
+  const d = new Date(tarih + "T12:00:00");
+  const gun = d.getDay();
+  d.setDate(d.getDate() - (gun === 1 ? 3 : gun === 0 ? 2 : 1));
+  return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, "0"), String(d.getDate()).padStart(2, "0")].join("-");
+}
+
+function gunEtiketi(tarih) {
+  const [, m, g] = tarih.split("-");
+  return `${g}.${m} ${GUN_ADLARI[new Date(tarih + "T12:00:00").getDay()]}`;
+}
+
+let _seciliTarih = null;   // null = bugun
+let _bugunDersler = [];    // secili gunun dersleri
+let _bugunKayitlar = {};   // secili gunun vekil_dersler kayitlari
+
+window.vekilGunSec = (secim) => {
+  _seciliTarih = secim === "onceki" ? oncekiIsGunu(bugunHesapla()) : null;
+  vekilDerslerimYukle();
+};
 
 export async function vekilDerslerimYukle() {
   const kok = document.getElementById("vekilDerslerimIcerik");
@@ -79,10 +102,15 @@ export async function vekilDerslerimYukle() {
   if (!ben) { kok.innerHTML = '<div class="bos-mesaj">Öğretmen kaydınız bulunamadı.</div>'; return; }
   kok.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
 
+  const bugunTarih = bugunHesapla();
+  const onceki = oncekiIsGunu(bugunTarih);
+  if (_seciliTarih && _seciliTarih !== onceki) _seciliTarih = null; // gun degistiyse
+  const tarih = _seciliTarih || bugunTarih;
+
   try {
     const [dersSnap, kayitSnap, benimSnap] = await Promise.all([
-      getDocs(query(collection(db, "today_lessons"), where("date", "==", bugun))),
-      getDocs(query(collection(db, "vekil_dersler"), where("tarih", "==", bugun))),
+      getDocs(query(collection(db, "today_lessons"), where("date", "==", tarih))),
+      getDocs(query(collection(db, "vekil_dersler"), where("tarih", "==", tarih))),
       getDocs(query(collection(db, "vekil_dersler"), where("vekil_ogretmen_id", "==", ben.id))),
     ]);
     _bugunDersler = [];
@@ -92,10 +120,12 @@ export async function vekilDerslerimYukle() {
     const benimKayitlar = [];
     benimSnap.forEach((d) => benimKayitlar.push({ id: d.id, ...d.data() }));
 
+    const bugunMu = tarih === bugunTarih;
     kok.innerHTML =
-      _atananlarHtml(ben) +
-      _elleEkleHtml() +
-      _buAyHtml(benimKayitlar.filter((k) => k.tarih >= ayBasi(bugun) && k.tarih <= bugun));
+      _gunSeciciHtml(bugunTarih, onceki, bugunMu) +
+      _atananlarHtml(ben, tarih, bugunMu) +
+      _elleEkleHtml(tarih, bugunMu) +
+      _buAyHtml(benimKayitlar.filter((k) => k.tarih >= ayBasi(bugunTarih) && k.tarih <= bugunTarih));
     _saatSecenekleriniDoldur();
   } catch (err) {
     kok.innerHTML = `<div class="bos-mesaj">Yüklenemedi: ${esc(err.message)}</div>`;
@@ -103,15 +133,22 @@ export async function vekilDerslerimYukle() {
 }
 window.vekilDerslerimYukle = vekilDerslerimYukle;
 
-function _atananlarHtml(ben) {
+function _gunSeciciHtml(bugunTarih, onceki, bugunMu) {
+  return `<div class="sekme-bar" style="margin-bottom:12px;">
+    <button class="sekme-btn${bugunMu ? " aktif" : ""}" onclick="vekilGunSec('bugun')">Bugün (${esc(gunEtiketi(bugunTarih))})</button>
+    <button class="sekme-btn${bugunMu ? "" : " aktif"}" onclick="vekilGunSec('onceki')">Önceki iş günü (${esc(gunEtiketi(onceki))})</button>
+  </div>`;
+}
+
+function _atananlarHtml(ben, tarih, bugunMu) {
   const atananlar = _bugunDersler
     .filter((d) => d.substitute_teacher_id === ben.id)
     .sort((a, b) => a.lesson_number - b.lesson_number);
   let html = `<div class="kart">
-    <div class="kart-baslik">Bugün Size Atanan Vekil Dersler</div>
-    <p style="font-size:13px;color:var(--text2);margin-bottom:10px;">Ücret, sadece burada "Derse girdim" ile onayladığınız veya aşağıdan eklediğiniz dersler için ödenir. Kayıt sadece bugün yapılabilir.</p>`;
+    <div class="kart-baslik">${bugunMu ? "Bugün" : esc(gunEtiketi(tarih))} Size Atanan Vekil Dersler</div>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:10px;">Ücret, sadece burada "Derse girdim" ile onayladığınız veya aşağıdan eklediğiniz dersler için ödenir. Kayıt bugün ve bir önceki iş günü için yapılabilir; daha eski tarihler için idareye başvurun.</p>`;
   if (!atananlar.length) {
-    html += '<div class="bos-mesaj">Bugün size atanmış vekil ders yok.</div></div>';
+    html += `<div class="bos-mesaj">${bugunMu ? "Bugün" : "Bu gün"} size atanmış vekil ders yok.</div></div>`;
     return html;
   }
   html += atananlar.map((d) => {
@@ -135,10 +172,10 @@ function _atananlarHtml(ben) {
   return html + '<div class="mesaj" id="vekilAtananMesaj" style="margin-top:8px;"></div></div>';
 }
 
-function _elleEkleHtml() {
+function _elleEkleHtml(tarih, bugunMu) {
   return `<div class="kart">
-    <div class="kart-baslik">Atanmamış Bir Derse Girdim</div>
-    <p style="font-size:13px;color:var(--text2);margin-bottom:10px;">Size sistemden atanmadığı halde bugün başka bir öğretmenin yerine derse girdiyseniz buradan ekleyin.</p>
+    <div class="kart-baslik">Atanmamış Bir Derse Girdim${bugunMu ? "" : ` — ${esc(gunEtiketi(tarih))}`}</div>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:10px;">Size sistemden atanmadığı halde ${bugunMu ? "bugün" : esc(gunEtiketi(tarih)) + " günü"} başka bir öğretmenin yerine derse girdiyseniz buradan ekleyin.</p>
     <div class="form-grid">
       <div class="form-group"><label>Ders Saati</label>
         <select id="vekilElleSaat" onchange="vekilElleSaatSecildi()"><option value="">Seçin</option></select></div>
@@ -167,7 +204,7 @@ function _saatSecenekleriniDoldur() {
   if (!sel) return;
   const saatler = [...new Set(_bugunDersler.map((d) => d.lesson_number))].sort((a, b) => a - b);
   sel.innerHTML = '<option value="">Seçin</option>' + saatler.map((s) => `<option value="${s}">${s}. Ders</option>`).join("");
-  if (!saatler.length) sel.innerHTML = '<option value="">Bugün ders programı yok</option>';
+  if (!saatler.length) sel.innerHTML = '<option value="">Bu gün için ders programı yok</option>';
 }
 
 window.vekilElleSaatSecildi = () => {
