@@ -325,7 +325,11 @@ function _listeCiz(el) {
 
 function _onaysizCiz(el, onaysizlar) {
   if (!onaysizlar.length) { el.innerHTML = '<div class="bos-mesaj">Onay bekleyen atama yok.</div>'; return; }
-  el.innerHTML = `<div style="overflow-x:auto;"><table><thead><tr>
+  el.innerHTML = `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+      <button class="btn btn-yesil" id="vdTopluOnayBtn" onclick="vekilAtamalariTopluOnayla()">✓ Listedeki ${onaysizlar.length} atamanın tümünü onayla</button>
+      <span id="vdTopluOnayDurum" style="font-size:13px;color:var(--text2);"></span>
+    </div>
+    <div style="overflow-x:auto;"><table><thead><tr>
     <th>Tarih</th><th>Saat</th><th>Sınıf / Ders</th><th>Asıl Öğretmen</th><th>Atanan Vekil</th><th></th></tr></thead><tbody>
     ${onaysizlar.map((v, i) => `<tr>
       <td style="white-space:nowrap;">${esc(tarihGoster(v.date))}</td>
@@ -349,6 +353,43 @@ window.vekilAtamaOnayla = async (btn) => {
     btn.disabled = false;
     mesajGoster("vdMesaj", err.message, "hata");
   }
+};
+
+// Listedeki (mevcut tarih/ogretmen filtresine uyan) tum onaysiz atamalari
+// "derse girdi" olarak kaydeder. writeBatch yerine kayitOlustur: admin'in
+// update izni oldugu icin batch, liste yuklendikten sonra baskasinin girdigi
+// bir kaydin ustune yazabilirdi; kayitOlustur once var mi diye bakar.
+window.vekilAtamalariTopluOnayla = async () => {
+  const liste = [...(window._vdOnaysizlar || [])];
+  if (!liste.length) return;
+  if (!await sor(
+    "Toplu Onay",
+    `${liste.length} atama, atanan vekil öğretmen derse girmiş sayılarak ücret listesine eklenecek. Derse girilmediğini bildiğiniz atamalar varsa toplu onay yerine diğerlerini tek tek onaylayın.`,
+    "Tümünü onayla", "btn-yesil",
+  )) return;
+
+  const btn = document.getElementById("vdTopluOnayBtn");
+  const durum = document.getElementById("vdTopluOnayDurum");
+  btn.disabled = true;
+  let tamam = 0;
+  const atlanan = [];
+  for (let i = 0; i < liste.length; i += 10) {
+    await Promise.all(liste.slice(i, i + 10).map(async (v) => {
+      try {
+        await kayitOlustur(v, v.substitute_teacher_id, "sistem_onay");
+        tamam++;
+      } catch (err) {
+        atlanan.push(`${tarihGoster(v.date)} ${v.lesson_number}. ders ${v.class_id}: ${err.message}`);
+      }
+    }));
+    durum.textContent = `${tamam + atlanan.length} / ${liste.length} işlendi...`;
+  }
+
+  await window.vekilDerslerListele();
+  mesajGoster("vdMesaj",
+    `${tamam} atama onaylandı.` + (atlanan.length ? ` ${atlanan.length} atama atlandı (ayrıntı konsolda).` : ""),
+    atlanan.length ? "hata" : "basari");
+  if (atlanan.length) console.warn("Toplu onayda atlananlar:\n" + atlanan.join("\n"));
 };
 
 window.vekilDersSil = async (btn) => {
