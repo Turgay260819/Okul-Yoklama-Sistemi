@@ -10,6 +10,7 @@ import { anasayfaYukle } from "./portal-admin.js";
 import { dersleriniYukle, ogretmenGorevleriniYukle, nobetBugunKontrolEt, vekaletBugunKontrolEt, idareGoreviKontrolEt } from "./portal-teacher.js";
 import { gorevSayfasiBaslat } from "./portal-gorev.js";
 import { vekilAtamaSayfasiBaslat } from "./portal-vekil.js";
+import { vekilDerslerimYukle, vekilDerslerAdminYukle } from "./portal-vekil-ders.js";
 import { kazanimSayfasiYukle, kazanimlarimYukle } from "./portal-kazanim.js";
 import { bildirimleriYukle } from "./portal-bildirim.js";
 import "./portal-yoklama.js";
@@ -53,6 +54,8 @@ window.sayfaYukle = (id) => {
   else if (id === "aksaklik")       _iframeYukle("aksaklik",       "/aksaklik.html");
   else if (id === "gorev")        gorevSayfasiBaslat();
   else if (id === "vekil-atama")  vekilAtamaSayfasiBaslat();
+  else if (id === "vekil-dersler")   vekilDerslerAdminYukle();
+  else if (id === "vekil-derslerim") vekilDerslerimYukle();
   else if (id === "gorevlerim")   ogretmenGorevleriniYukle();
   else if (id === "kazanimlar")   kazanimSayfasiYukle();
   else if (id === "kazanimlarim") kazanimlarimYukle();

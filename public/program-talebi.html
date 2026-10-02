@@ -897,12 +897,14 @@
       <button class="sekme-btn" onclick="adminSekme('isi', this)">Isı Haritası</button>
       <button class="sekme-btn" onclick="adminSekme('acmaz', this)">Açmaz Analizi</button>
       <button class="sekme-btn" onclick="adminSekme('programDuzenle', this)">📐 Ders Programını Düzenle</button>
+      <button class="sekme-btn" onclick="adminSekme('sinifProgram', this)">🏫 Sınıf Programları</button>
       <button class="sekme-btn" onclick="adminSekme('ayarlar', this)">Ayarlar</button>
     </div>
     <div class="sekme-icerik aktif" id="asekme-tanim"></div>
     <div class="sekme-icerik" id="asekme-isi"></div>
     <div class="sekme-icerik" id="asekme-acmaz"></div>
     <div class="sekme-icerik" id="asekme-programDuzenle"></div>
+    <div class="sekme-icerik" id="asekme-sinifProgram"></div>
     <div class="sekme-icerik" id="asekme-ayarlar"></div>
   `;
         adminTanimGoster();
@@ -921,6 +923,7 @@
         else if (id === "isi") adminIsiGoster();
         else if (id === "acmaz") adminAcmazGoster();
         else if (id === "programDuzenle") adminProgramDuzenleGoster();
+        else if (id === "sinifProgram") adminSinifProgramGoster();
         else if (id === "ayarlar") adminAyarlarGoster();
       };
 
@@ -1355,6 +1358,186 @@
         document.getElementById("programHucreOverlay")?.remove();
         await programOgretmenScheduleYukle();
         programMatrisGuncelle();
+      };
+
+      // ── SINIF PROGRAMLARI (admin) ──
+      // "Ders Programını Düzenle" ile ayni schedule verisi, sinif bazli gorunum.
+      // Bir hucrede birden fazla kayit olabilir (grup dersleri); hepsi listelenir.
+      let sinifProgSecili = null;
+      let sinifProgSchedule = {}; // { "gun-ders": [{ id, teacher_id, lesson_name }] }
+
+      function escHtml(s) {
+        return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+      }
+
+      function ogretmenAdi(id) {
+        return tumOgretmenler.find((o) => o.id === id)?.ad || "(bilinmiyor)";
+      }
+
+      function adminSinifProgramGoster() {
+        const c = document.getElementById("asekme-sinifProgram");
+        const sinifOptions = [...tumSiniflar]
+          .sort((a, b) => String(a.class_name).localeCompare(String(b.class_name), "tr", { numeric: true }))
+          .map((s) => `<option value="${escHtml(s.class_name)}"${s.class_name === sinifProgSecili ? " selected" : ""}>${escHtml(s.class_name)}</option>`)
+          .join("");
+        c.innerHTML = `<div class="kart">
+          <div class="kart-baslik">Sınıf Programları</div>
+          <p style="font-size:13px;color:#888;margin-bottom:14px;">Bir sınıf seçip hücrelere tıklayarak o saatteki dersi ve öğretmenini değiştirebilir veya boşaltabilirsiniz. Öğretmenin aynı saatte başka sınıfta dersi varsa kayıt engellenir. Değişiklikler bir sonraki günün ders oluşturma işleminden (gece 03:00) itibaren geçerli olur; bugünü de düzeltmek için Genel Durum'daki "Bugünün Derslerini Oluştur" kullanılmalı.</p>
+          <div class="form-group" style="max-width:320px;">
+            <label>Sınıf</label>
+            <select id="sinifProgSec" onchange="sinifProgSecildi()"><option value="">Seçin</option>${sinifOptions}</select>
+          </div>
+          <div id="sinifProgAlani"></div>
+        </div>`;
+        if (sinifProgSecili) sinifProgSecildi();
+      }
+
+      window.sinifProgSecildi = async () => {
+        sinifProgSecili = document.getElementById("sinifProgSec").value || null;
+        const alan = document.getElementById("sinifProgAlani");
+        if (!sinifProgSecili) { alan.innerHTML = ""; return; }
+        alan.innerHTML = '<div class="yukleniyor">Yükleniyor...</div>';
+        await sinifProgYukle();
+        sinifProgCiz();
+      };
+
+      async function sinifProgYukle() {
+        const snap = await getDocs(query(collection(db, "schedule"), where("class_id", "==", sinifProgSecili)));
+        sinifProgSchedule = {};
+        snap.forEach((d) => {
+          const v = d.data();
+          const key = normalizeGunLocal(v.day) + "-" + v.lesson_number;
+          (sinifProgSchedule[key] ||= []).push({ id: d.id, teacher_id: v.teacher_id || "", lesson_name: v.lesson_name || "" });
+        });
+      }
+
+      function sinifProgCiz() {
+        const alan = document.getElementById("sinifProgAlani");
+        if (!alan) return;
+        let html = '<div class="matris-wrap"><table class="matris"><thead><tr><th>Gün \\ Ders</th>';
+        DERSLER.forEach((d) => { html += "<th>" + d + ". Ders</th>"; });
+        html += "</tr></thead><tbody>";
+        GUNLER.forEach((g, gi) => {
+          html += "<tr><td>" + g + "</td>";
+          DERSLER.forEach((d, di) => {
+            const kayitlar = sinifProgSchedule[normalizeGunLocal(g) + "-" + d] || [];
+            html += `<td class="${kayitlar.length ? "hucre-x" : "hucre-bos"}" onclick="sinifHucreDuzenle(${gi},${di})">`;
+            html += kayitlar.length
+              ? kayitlar.map((k) => `<div style="font-size:11px;font-weight:700;color:#0d47a1;line-height:1.3;">${escHtml(k.lesson_name)}</div><div style="font-size:10px;color:#666;line-height:1.2;">${escHtml(ogretmenAdi(k.teacher_id))}</div>`).join('<div style="border-top:1px dashed #ccc;margin:2px 0;"></div>')
+              : '<div style="color:#ccc;">—</div>';
+            html += "</td>";
+          });
+          html += "</tr>";
+        });
+        html += "</tbody></table></div>";
+        alan.innerHTML = html;
+      }
+
+      // duzenlenenId: guncellenecek schedule kaydi; null ise yeni kayit eklenir,
+      // verilmezse hucrede tek kayit varsa o secilir.
+      window.sinifHucreDuzenle = (gi, di, duzenlenenId) => {
+        const gun = GUNLER[gi];
+        const dersNo = DERSLER[di];
+        const kayitlar = sinifProgSchedule[normalizeGunLocal(gun) + "-" + dersNo] || [];
+        if (duzenlenenId === undefined) duzenlenenId = kayitlar.length === 1 ? kayitlar[0].id : null;
+        const mevcut = kayitlar.find((k) => k.id === duzenlenenId) || null;
+        document.getElementById("programHucreOverlay")?.remove();
+
+        const ogretmenOptions = tumOgretmenler
+          .map((o) => `<option value="${escHtml(o.id)}"${mevcut && mevcut.teacher_id === o.id ? " selected" : ""}>${escHtml(o.ad || "(isimsiz)")}</option>`)
+          .join("");
+        const dersOptions = tumDersListesi
+          .map((d) => `<option value="${escHtml(d.ders_adi)}"${mevcut && mevcut.lesson_name === d.ders_adi ? " selected" : ""}>${escHtml(d.ders_adi)}</option>`)
+          .join("");
+        const liste = kayitlar.length > 1
+          ? `<div style="margin-bottom:12px;">${kayitlar.map((k) => `
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #eee;font-size:13px;">
+                <span><strong>${escHtml(k.lesson_name)}</strong> — ${escHtml(ogretmenAdi(k.teacher_id))}</span>
+                <span style="display:flex;gap:6px;">
+                  <button class="btn btn-gri btn-sm" onclick="sinifHucreDuzenle(${gi},${di},'${k.id}')">Düzenle</button>
+                  <button class="btn btn-kirmizi btn-sm" onclick="sinifHucreSil('${k.id}')">Sil</button>
+                </span>
+              </div>`).join("")}</div>`
+          : "";
+
+        const overlay = document.createElement("div");
+        overlay.id = "programHucreOverlay";
+        overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;";
+        overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+        overlay.innerHTML = `<div class="kart" style="max-width:440px;width:100%;">
+          <div class="kart-baslik">${escHtml(sinifProgSecili)} — ${gun} ${dersNo}. Ders
+            <button class="btn btn-gri btn-sm" onclick="document.getElementById('programHucreOverlay').remove()">Kapat</button>
+          </div>
+          ${liste}
+          <div style="font-size:12px;color:#888;margin-bottom:8px;">${mevcut ? "Seçili kaydı düzenliyorsunuz." : kayitlar.length ? "Bu saate ayrı bir kayıt (grup dersi) ekliyorsunuz." : "Bu saate ders ekliyorsunuz."}</div>
+          <div class="form-group">
+            <label>Öğretmen</label>
+            <select id="sinifHucreOgretmen"><option value="">Seçin</option>${ogretmenOptions}</select>
+          </div>
+          <div class="form-group">
+            <label>Ders Adı</label>
+            <select id="sinifHucreDers"><option value="">Seçin</option>${dersOptions}</select>
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <button class="btn btn-yesil" onclick="sinifHucreKaydet(${gi},${di},${mevcut ? `'${mevcut.id}'` : "null"})">💾 Kaydet</button>
+            ${mevcut ? `<button class="btn btn-kirmizi" onclick="sinifHucreSil('${mevcut.id}')">Boşalt</button>` : ""}
+            ${mevcut ? `<button class="btn btn-gri" onclick="sinifHucreDuzenle(${gi},${di},null)">+ Ayrı kayıt ekle</button>` : ""}
+          </div>
+          <div class="mesaj" id="sinifHucreMesaj" style="margin-top:10px;"></div>
+        </div>`;
+        document.body.appendChild(overlay);
+      };
+
+      window.sinifHucreKaydet = async (gi, di, duzenlenenId) => {
+        const gun = GUNLER[gi];
+        const dersNo = DERSLER[di];
+        const ogretmenId = document.getElementById("sinifHucreOgretmen").value;
+        const dersAdi = document.getElementById("sinifHucreDers").value;
+        if (!ogretmenId || !dersAdi) { mesajGoster("sinifHucreMesaj", "Öğretmen ve ders adını seçin.", "hata"); return; }
+        try {
+          // Cakisma: ogretmenin ayni gun/saatte baska bir sinifta dersi var mi?
+          const ogrSnap = await getDocs(query(collection(db, "schedule"), where("teacher_id", "==", ogretmenId)));
+          const cakisan = ogrSnap.docs.find((d) => {
+            const v = d.data();
+            return d.id !== duzenlenenId &&
+              normalizeGunLocal(v.day) === normalizeGunLocal(gun) &&
+              Number(v.lesson_number) === dersNo &&
+              v.class_id !== sinifProgSecili;
+          });
+          if (cakisan) {
+            mesajGoster("sinifHucreMesaj", `${ogretmenAdi(ogretmenId)} öğretmeninin bu saatte ${cakisan.data().class_id} sınıfında dersi var.`, "hata");
+            return;
+          }
+          if (duzenlenenId) {
+            await updateDoc(doc(db, "schedule", duzenlenenId), { teacher_id: ogretmenId, lesson_name: dersAdi });
+          } else {
+            await addDoc(collection(db, "schedule"), {
+              teacher_id: ogretmenId,
+              day: gun,
+              lesson_number: dersNo,
+              class_id: sinifProgSecili,
+              lesson_name: dersAdi,
+              created_at: serverTimestamp(),
+            });
+          }
+          document.getElementById("programHucreOverlay")?.remove();
+          await sinifProgYukle();
+          sinifProgCiz();
+        } catch (err) {
+          mesajGoster("sinifHucreMesaj", "Hata: " + err.message, "hata");
+        }
+      };
+
+      window.sinifHucreSil = async (kayitId) => {
+        if (!confirm("Bu ders kaydını silmek istiyor musunuz?")) return;
+        try {
+          await deleteDoc(doc(db, "schedule", kayitId));
+          document.getElementById("programHucreOverlay")?.remove();
+          await sinifProgYukle();
+          sinifProgCiz();
+        } catch (err) {
+          mesajGoster("sinifHucreMesaj", "Hata: " + err.message, "hata");
+        }
       };
 
       function adminAyarlarGoster() {

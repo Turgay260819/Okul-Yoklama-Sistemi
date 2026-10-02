@@ -43,6 +43,20 @@ service cloud.firestore {
       return isLoggedIn() && !isIzleyici();
     }
 
+    // Istanbul'a gore bugunun tarihi (YYYY-AA-GG). Turkiye sabit UTC+3.
+    function pad2(n) {
+      return (n < 10 ? '0' : '') + string(n);
+    }
+
+    function bugunTR() {
+      let t = request.time + duration.value(3, 'h');
+      return string(t.year()) + '-' + pad2(t.month()) + '-' + pad2(t.day());
+    }
+
+    function kendiOgretmenDocu(teacherId) {
+      return get(/databases/$(database)/documents/teachers/$(teacherId)).data.uid == request.auth.uid;
+    }
+
     match /users/{userId} {
       allow read: if isLoggedIn();
       allow write: if isAdmin();
@@ -301,6 +315,23 @@ service cloud.firestore {
     }
     match /nobet_gorulme/{docId} {
       allow read, write: if isLoggedIn();
+    }
+    // Vekil ders ucret kayitlari. Belge kimligi tarih_sinif_saat oldugu icin
+    // bir sinif-saate tek kayit acilir; ogretmen update yapamadigi icin mevcut
+    // kaydin ustune yazamaz (ilk giren alir). Ogretmen sadece bugune, kendi
+    // adina yazabilir; gecmis tarihleri yonetim girer.
+    match /vekil_dersler/{docId} {
+      allow read: if isLoggedIn();
+      allow create: if isYonetim() ||
+        (isOgretmen() &&
+         request.resource.data.tarih == bugunTR() &&
+         request.resource.data.kaynak in ['sistem_onay', 'ogretmen'] &&
+         kendiOgretmenDocu(request.resource.data.vekil_ogretmen_id));
+      allow update: if isYonetim();
+      allow delete: if isYonetim() ||
+        (isOgretmen() &&
+         resource.data.tarih == bugunTR() &&
+         kendiOgretmenDocu(resource.data.vekil_ogretmen_id));
     }
     match /vekalet_gorulme/{docId} {
       allow read, write: if isLoggedIn();

@@ -444,6 +444,61 @@
               </div>
             </div>
 
+            <!-- VEKİL DERS KAYITLARI (ADMIN) -->
+            <div class="sayfa" id="sayfa-vekil-dersler">
+              <div class="kart yazdirma-gizle">
+                <div class="kart-baslik">Vekil Ders Kayıtları</div>
+                <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">
+                  Vekil ders ücretleri bu kayıtlara göre hesaplanır. Öğretmenler sadece o günün kaydını girebilir; geçmiş tarihleri buradan siz girersiniz.
+                  Bir sınıfın bir saatine tek kayıt açılır.
+                </p>
+                <div class="form-grid">
+                  <div class="form-group"><label>Başlangıç</label><input type="date" id="vdBaslangic" /></div>
+                  <div class="form-group"><label>Bitiş</label><input type="date" id="vdBitis" /></div>
+                  <div class="form-group"><label>Vekil Öğretmen</label><select id="vdOgretmen"><option value="">Tüm öğretmenler</option></select></div>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                  <button class="btn btn-mavi" onclick="vekilDerslerListele()">Listele</button>
+                  <button class="btn btn-gri" onclick="vekilDersYazdir()">🖨 Yazdır</button>
+                </div>
+                <div class="mesaj" id="vdMesaj" style="margin-top:8px;"></div>
+              </div>
+              <div class="kart">
+                <div class="kart-baslik">Öğretmen Bazında Vekil Ders Sayısı</div>
+                <div id="vdOzet"></div>
+              </div>
+              <div class="kart">
+                <div class="kart-baslik">Kayıtlar</div>
+                <div id="vdListe"></div>
+              </div>
+              <div class="kart yazdirma-gizle">
+                <div class="kart-baslik">Onay Bekleyen Atamalar</div>
+                <p style="font-size:13px;color:var(--text2);margin-bottom:10px;">Vekil Atama'dan yapılmış ama derse girdiği henüz kaydedilmemiş dersler. Ücret listesine girmesi için onaylayın.</p>
+                <div id="vdOnaysiz"></div>
+              </div>
+              <div class="kart yazdirma-gizle">
+                <div class="kart-baslik">Kayıt Ekle (Geçmiş Tarih)</div>
+                <div class="form-grid">
+                  <div class="form-group"><label>Tarih</label><input type="date" id="vdEkleTarih" onchange="vdEkleDersleriYukle()" /></div>
+                  <div class="form-group"><label>Ders Saati</label>
+                    <select id="vdEkleSaat" onchange="vdEkleDersleriYukle()">
+                      <option value="">Seçin</option>
+                      <option value="1">1. Ders</option><option value="2">2. Ders</option><option value="3">3. Ders</option><option value="4">4. Ders</option>
+                      <option value="5">5. Ders</option><option value="6">6. Ders</option><option value="7">7. Ders</option><option value="8">8. Ders</option>
+                    </select></div>
+                  <div class="form-group"><label>Ders (Sınıf — Ders — Öğretmen)</label><select id="vdEkleDers"><option value="">Önce tarih ve saat seçin</option></select></div>
+                  <div class="form-group"><label>Derse Giren (Vekil)</label><select id="vdEkleVekil"><option value="">Seçin</option></select></div>
+                </div>
+                <button class="btn btn-yesil" onclick="vdEkleKaydet()">Kaydet</button>
+                <div class="mesaj" id="vdEkleMesaj" style="margin-top:8px;"></div>
+              </div>
+            </div>
+
+            <!-- ÖĞRETMENİN VEKİL DERSLERİM -->
+            <div class="sayfa" id="sayfa-vekil-derslerim">
+              <div id="vekilDerslerimIcerik"><div class="yukleniyor">Yukleniyor...</div></div>
+            </div>
+
             <!-- ÖĞRETMENİN GÖREVLERİM -->
             <div class="sayfa" id="sayfa-gorevlerim">
               <div class="kart">

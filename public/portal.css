@@ -1016,6 +1016,9 @@ tr:last-child td {
     padding: 0;
     overflow: visible;
   }
+  .yazdirma-gizle {
+    display: none !important;
+  }
 }
 .menu-rozet {
   background: var(--kirmizi);
