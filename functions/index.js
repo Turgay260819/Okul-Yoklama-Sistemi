@@ -1164,10 +1164,10 @@ async function nobetGunlukBildirimCalistir(db) {
     mesaj += "Bugün ara boşluğu olan öğretmen yok.\n";
   }
 
-  // ── Raporlu öğretmenlerin bugünkü kapsanmamış dersleri (bilgi amaçlı) ──
-  // Vekil ataması artık burada otomatik yapılmıyor — admin "Vekil Atama"
-  // ekranından nöbetçi-öncelikli manuel atamayı tetikler (raporluIcinVekilAta).
-  mesaj += "\n📌 <b>Raporlu Öğretmenlerin Kapsanmamış Dersleri</b>\n";
+  // ── Raporlu öğretmenlerin bugünkü dersleri ──
+  // Vekiller 07:00'de raporluOtomatikVekilAta ile atanir; burada atananlar ve
+  // atanamayanlar listelenir.
+  mesaj += "\n📌 <b>Raporlu Öğretmenlerin Dersleri</b>\n";
   const raporSnap = await db.collection("ogretmen_rapor").where("baslangic_tarihi", "<=", bugun).get();
   const bugunRaporluIds = new Set();
   raporSnap.forEach((d) => {
@@ -1178,19 +1178,22 @@ async function nobetGunlukBildirimCalistir(db) {
   if (!bugunRaporluIds.size) {
     mesaj += "Bugün raporlu öğretmen yok.\n";
   } else {
-    const kapsanmamis = [];
+    const raporluDersler = [];
     lessonsSnap.forEach((d) => {
       const data = d.data();
-      if (bugunRaporluIds.has(data.teacher_id) && !data.substitute_teacher_id) kapsanmamis.push(data);
+      if (bugunRaporluIds.has(data.teacher_id)) raporluDersler.push(data);
     });
-    kapsanmamis.sort((a, b) => a.lesson_number - b.lesson_number);
+    raporluDersler.sort((a, b) => a.lesson_number - b.lesson_number);
 
-    if (!kapsanmamis.length) {
-      mesaj += "Raporlu öğretmenlerin kapsanmamış dersi yok.\n";
+    if (!raporluDersler.length) {
+      mesaj += "Raporlu öğretmenlerin bugün dersi yok.\n";
     } else {
-      kapsanmamis.forEach((data) => {
+      raporluDersler.forEach((data) => {
         const raporluAd = ogretmenAdMap[data.teacher_id] || data.teacher_id;
-        mesaj += `⚠️ ${data.class_id} ${data.lesson_name || "-"} (${data.lesson_number}. ders): ${raporluAd} — vekil atanmadı (Vekil Atama sekmesinden atayın)\n`;
+        const ders = `${data.class_id} ${data.lesson_name || "-"} (${data.lesson_number}. ders): ${raporluAd}`;
+        mesaj += data.substitute_teacher_id
+          ? `✅ ${ders} → vekil: ${data.substitute_teacher_ad || ogretmenAdMap[data.substitute_teacher_id] || "?"}\n`
+          : `⚠️ ${ders} — vekil atanamadı (Vekil Atama sekmesinden atayın)\n`;
       });
     }
   }
@@ -1231,11 +1234,13 @@ exports.nobetGunlukBildirimTest = onCall(async (request) => {
 });
 
 // ===========================
-// RAPORLU ÖĞRETMEN İÇİN VEKİL ATA (admin panelinden manuel tetiklenir)
+// RAPORLU ÖĞRETMEN İÇİN VEKİL ATA
 // Once bugun nobetci olup o saatte bos olan ogretmenleri (Tier 1), yoksa
 // diger bos ogretmenleri (Tier 2) dener. Zaten vekili atanmis dersler
 // varsayilan olarak atlanir; dersIdListesi verilirse sadece o ders(ler)
 // icin zorla (mevcut atamayi degistirerek) yeniden atama yapilir.
+// Admin panelinden (raporluIcinVekilAta) ve her okul sabahi otomatik
+// (raporluOtomatikVekilAta) ayni fonksiyonla calisir.
 // ===========================
 exports.raporluIcinVekilAta = onCall(async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Giriş yapılmamış.");
@@ -1245,14 +1250,15 @@ exports.raporluIcinVekilAta = onCall(async (request) => {
   if (callerRole !== "admin" && callerRole !== "mudur_yardimcisi") {
     throw new HttpsError("permission-denied", "Yetkiniz yok.");
   }
+  return raporluVekilAtaCalistir(admin.firestore(), request.data || {});
+});
 
-  const { ogretmenId, dersIdListesi } = request.data || {};
+async function raporluVekilAtaCalistir(db, { ogretmenId, dersIdListesi } = {}) {
   const zorlaMod = Array.isArray(dersIdListesi) && dersIdListesi.length > 0;
   if (!ogretmenId && !zorlaMod) {
     throw new HttpsError("invalid-argument", "ogretmenId veya dersIdListesi gerekli.");
   }
 
-  const db = admin.firestore();
   const bugun = new Date().toLocaleString("sv-SE", { timeZone: "Europe/Istanbul" }).slice(0, 10);
   const jsDay = new Date(bugun + "T12:00:00").getDay();
   if (jsDay === 0 || jsDay === 6) return { success: false, message: "Bugün hafta sonu." };
@@ -1368,7 +1374,51 @@ exports.raporluIcinVekilAta = onCall(async (request) => {
   }
 
   return { success: true, raporluAd, sonuclar };
-});
+}
+
+// ===========================
+// RAPORLU ÖĞRETMENLERE OTOMATİK VEKİL ATA (her okul sabahı 07:00)
+// 03:00'te bugunun dersleri olustuktan sonra, 07:30 nobet bildiriminden once
+// calisir. Raporu bugunu kapsayan her ogretmen icin "Vekil Ata" ile ayni
+// kurali uygular. Ogretmenler SIRAYLA islenir: her cagri today_lessons'i
+// yeniden okuyup onceki atamalari dolu saat saydigi icin ayni vekil ayni
+// saatte iki derse atanmaz. Vekili zaten olan dersler (elle atamalar) korunur.
+// ===========================
+exports.raporluOtomatikVekilAta = onSchedule(
+  { schedule: "0 7 * * 1-5", timeZone: "Europe/Istanbul" },
+  async () => {
+    const db = admin.firestore();
+    const bugun = new Date().toLocaleString("sv-SE", { timeZone: "Europe/Istanbul" }).slice(0, 10);
+    const raporSnap = await db.collection("ogretmen_rapor").where("baslangic_tarihi", "<=", bugun).get();
+    const raporluIds = [...new Set(
+      raporSnap.docs.map((d) => d.data()).filter((r) => r.bitis_tarihi >= bugun).map((r) => r.ogretmen_id),
+    )];
+    if (!raporluIds.length) {
+      console.log("Otomatik vekil: bugun raporlu ogretmen yok.");
+      return;
+    }
+
+    let atanan = 0, atanamayan = 0;
+    for (const ogretmenId of raporluIds) {
+      try {
+        const r = await raporluVekilAtaCalistir(db, { ogretmenId });
+        if (!r.success) {
+          // Hafta sonu / tatil / donem disi: hicbir ogretmen icin calismaz.
+          console.log(`Otomatik vekil atlandi: ${r.message}`);
+          return;
+        }
+        const s = r.sonuclar || [];
+        const a = s.filter((x) => x.atandi).length;
+        atanan += a;
+        atanamayan += s.length - a;
+        console.log(`Otomatik vekil: ${r.raporluAd} — ${a} atandi, ${s.length - a} atanamadi`);
+      } catch (err) {
+        console.error(`Otomatik vekil hatasi (${ogretmenId}):`, err);
+      }
+    }
+    console.log(`Otomatik vekil ozeti: ${raporluIds.length} raporlu ogretmen, ${atanan} ders atandi, ${atanamayan} ders atanamadi.`);
+  },
+);
 
 // ===========================
 // VEKİL DERS TELEFON BİLDİRİMİ
