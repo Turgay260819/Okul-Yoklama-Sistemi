@@ -581,30 +581,52 @@ window.vekillikRaporGetir = async function () {
   }
   container.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
 
-  const snap = await getDocs(
-    query(collection(db, "today_lessons"), where("date", ">=", bas), where("date", "<=", bit)),
-  );
+  // Ucret kaynagi vekil_dersler (bkz. portal-vekil-ders.js). today_lessons
+  // sadece "atanmis ama derse girdigi kaydedilmemis" dersleri uyarmak icin okunur.
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const kayitId = (tarih, sinif, dersNo) => `${tarih}_${String(sinif).replace(/[\/\s.#\[\]]/g, "-")}_${dersNo}`;
+
+  let kayitSnap, dersSnap;
+  try {
+    [kayitSnap, dersSnap] = await Promise.all([
+      getDocs(query(collection(db, "vekil_dersler"), where("tarih", ">=", bas), where("tarih", "<=", bit))),
+      getDocs(query(collection(db, "today_lessons"), where("date", ">=", bas), where("date", "<=", bit))),
+    ]);
+  } catch (err) {
+    container.innerHTML = `<div class="bos-mesaj">Rapor yuklenemedi: ${esc(err.message)}</div>`;
+    return;
+  }
 
   const vekilStat = {};
+  const kayitIdleri = new Set();
   let toplamDers = 0;
-  snap.forEach((d) => {
+  kayitSnap.forEach((d) => {
     const v = d.data();
-    if (!v.substitute_teacher_id) return;
+    kayitIdleri.add(d.id);
     toplamDers++;
-    if (!vekilStat[v.substitute_teacher_id]) {
-      vekilStat[v.substitute_teacher_id] = { ad: v.substitute_teacher_ad || v.substitute_teacher_id, kayitlar: [] };
+    if (!vekilStat[v.vekil_ogretmen_id]) {
+      vekilStat[v.vekil_ogretmen_id] = { ad: v.vekil_ogretmen_ad || v.vekil_ogretmen_id, kayitlar: [] };
     }
-    vekilStat[v.substitute_teacher_id].kayitlar.push({
-      tarih: v.date,
-      class_id: v.class_id,
-      lesson_number: v.lesson_number,
-      lesson_name: v.lesson_name || "-",
-      icin: v.substitute_for_teacher_ad || "?",
+    vekilStat[v.vekil_ogretmen_id].kayitlar.push({
+      tarih: v.tarih,
+      class_id: v.sinif,
+      lesson_number: v.ders_no,
+      lesson_name: v.ders_adi || "-",
+      icin: v.asil_ogretmen_ad || "?",
     });
   });
 
+  let onaysiz = 0;
+  dersSnap.forEach((d) => {
+    const v = d.data();
+    if (v.substitute_teacher_id && !kayitIdleri.has(kayitId(v.date, v.class_id, v.lesson_number))) onaysiz++;
+  });
+  const onaysizUyari = onaysiz
+    ? `<div class="mesaj mesaj-hata" style="display:block;margin-bottom:16px;">⚠️ Bu aralıkta Vekil Atama'dan atanmış ama derse girdiği kaydedilmemiş ${onaysiz} ders var; bu rapora dahil değil. Yönetim → Vekil Ders Kayitlari → "Onay Bekleyen Atamalar" bölümünden onaylayabilirsiniz.</div>`
+    : "";
+
   if (!toplamDers) {
-    container.innerHTML = '<div class="bos-mesaj">Bu tarih araliginda vekillik kaydi yok.</div>';
+    container.innerHTML = onaysizUyari + '<div class="bos-mesaj">Bu tarih araliginda vekillik kaydi yok.</div>';
     return;
   }
 
@@ -612,7 +634,7 @@ window.vekillikRaporGetir = async function () {
     (a, b) => b.kayitlar.length - a.kayitlar.length || a.ad.localeCompare(b.ad, "tr"),
   );
 
-  let html = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px;">
+  let html = onaysizUyari + `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px;">
     <div class="stat-kart"><div class="stat-sayi">${toplamDers}</div><div class="stat-etiket">Toplam Vekillik Dersi</div></div>
     <div class="stat-kart"><div class="stat-sayi" style="color:var(--mavi)">${sirali.length}</div><div class="stat-etiket">Farkli Vekil Ogretmen</div></div>
   </div>
@@ -622,10 +644,10 @@ window.vekillikRaporGetir = async function () {
   sirali.forEach((o) => {
     const detay = o.kayitlar
       .sort((a, b) => a.tarih.localeCompare(b.tarih) || a.lesson_number - b.lesson_number)
-      .map((k) => `${k.tarih} — ${k.class_id} ${k.lesson_name} (${k.lesson_number}. ders, ${k.icin} yerine)`)
+      .map((k) => `${esc(k.tarih)} — ${esc(k.class_id)} ${esc(k.lesson_name)} (${esc(k.lesson_number)}. ders, ${esc(k.icin)} yerine)`)
       .join("<br>");
     html += `<tr>
-      <td><strong>${o.ad}</strong></td>
+      <td><strong>${esc(o.ad)}</strong></td>
       <td><strong style="color:var(--mavi)">${o.kayitlar.length}</strong></td>
       <td><small style="color:var(--text2);">${detay}</small></td>
     </tr>`;
