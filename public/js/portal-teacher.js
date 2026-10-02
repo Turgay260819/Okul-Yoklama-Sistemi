@@ -5,6 +5,7 @@ import {
 } from "./portal-config.js";
 import { state } from "./portal-state.js";
 import { esc, mesajGoster, haftaNoHesapla, normalizeGun, gunAdiGetir } from "./portal-utils.js";
+import { kayitId, kayitOlustur } from "./portal-vekil-ders.js";
 
 const GUNLER = ["Pazar", "Pazartesi", "Sali", "Carsamba", "Persembe", "Cuma", "Cumartesi"];
 
@@ -83,6 +84,20 @@ export async function dersleriniYukle() {
     } catch {}
   }
 
+  // Vekil dersler: ucret kaydi (vekil_dersler) durumu
+  const benId = state.ogretmenDoc?.id;
+  const vekilMi = (d) => !!benId && d.substitute_teacher_id === benId;
+  const vekilKayitlari = {};
+  if (dersler.some(vekilMi)) {
+    try {
+      const vkSnap = await getDocs(query(collection(db, "vekil_dersler"), where("tarih", "==", bugun)));
+      vkSnap.forEach((d) => (vekilKayitlari[d.id] = d.data()));
+    } catch (e) {
+      console.warn("Vekil kayitlari okunamadi:", e);
+    }
+  }
+  _derslerimVekilDersler = new Map(dersler.filter(vekilMi).map((d) => [d.id, d]));
+
   // Yoklama durumları
   const yoklamaSnap = await getDocs(
     query(collection(db, "attendance"), where("date", "==", bugun)),
@@ -125,7 +140,8 @@ export async function dersleriniYukle() {
   // Ders kartları
   const gruplar = new Map();
   dersler.forEach((d) => {
-    const key = d.class_id + "|" + d.lesson_name;
+    // Vekil dersler kendi dersleriyle ayni kartta birlesmesin.
+    const key = d.class_id + "|" + d.lesson_name + (vekilMi(d) ? "|vekil" : "");
     if (!gruplar.has(key)) gruplar.set(key, []);
     gruplar.get(key).push(d);
   });
@@ -154,21 +170,59 @@ export async function dersleriniYukle() {
       kartSinif = "ders-kart eksik";
     }
 
-    html += `<div class="${kartSinif}">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+    const vekil = vekilMi(ilkDers);
+    let vekilHtml = "";
+    if (vekil) {
+      const yerine = ilkDers.substitute_for_teacher_ad || state.ogretmenler.find((o) => o.id === ilkDers.teacher_id)?.ad || "?";
+      const durumlar = grup.slice().sort((a, b) => a.lesson_number - b.lesson_number).map((d) => {
+        const kayit = vekilKayitlari[kayitId(d.date, d.class_id, d.lesson_number)];
+        const on = grup.length > 1 ? `${d.lesson_number}. ders: ` : "";
+        if (!kayit) {
+          return `<button class="btn btn-yesil btn-sm" data-ders="${esc(d.id)}" onclick="derslerimVekilGirdim(this)">${on}Derse girdim</button>`;
+        }
+        return kayit.vekil_ogretmen_id === benId
+          ? `<span class="rozet rozet-yesil">${on}✓ Derse girdiğiniz kaydedildi</span>`
+          : `<span class="rozet rozet-turuncu">${on}${esc(kayit.vekil_ogretmen_ad)} girmiş</span>`;
+      }).join(" ");
+      vekilHtml = `<div style="margin-top:6px;font-size:13px;font-weight:700;color:#1565c0;">🔄 Vekil Ders — ${esc(yerine)} yerine</div>
+        <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;">${durumlar}</div>`;
+    }
+
+    html += `<div class="${kartSinif}"${vekil ? ' style="border-left:6px solid #1565c0;"' : ""}>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex:1;min-width:0;">
         <div style="flex:1;min-width:0;">
           <div class="ders-bilgi-baslik">${esc(sinif)} — ${esc(dersAdi)}</div>
           <div class="ders-bilgi-alt" style="margin-top:4px;">${dersNoStr}</div>
+          ${vekilHtml}
         </div>
         <div>${rozetHtml}</div>
       </div>
     </div>`;
+  }
+  if (_derslerimVekilDersler.size) {
+    html += '<div class="mesaj" id="derslerimVekilMesaj"></div>';
   }
 
   if (!html) html = '<div class="bos-mesaj">Bugun icin atanmis dersiniz yok.</div>';
   container.innerHTML = html;
 }
 window.dersleriniYukle = dersleriniYukle;
+
+// Derslerim'deki vekil ders kartlarindan dogrudan ucret kaydi: Vekil Derslerim
+// sayfasindaki "Derse girdim" ile ayni kayit (kayitOlustur, kaynak sistem_onay).
+let _derslerimVekilDersler = new Map();
+window.derslerimVekilGirdim = async (btn) => {
+  const ders = _derslerimVekilDersler.get(btn.dataset.ders);
+  if (!ders || !state.ogretmenDoc) return;
+  btn.disabled = true;
+  try {
+    await kayitOlustur(ders, state.ogretmenDoc.id, "sistem_onay");
+    await dersleriniYukle();
+  } catch (err) {
+    btn.disabled = false;
+    mesajGoster("derslerimVekilMesaj", err.message, "hata");
+  }
+};
 
 // ── YOKLAMALARİM — zaman kilitli ──
 window.yoklamalarimYukle = async function () {

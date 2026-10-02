@@ -15,7 +15,7 @@ import { esc, mesajGoster, sor, normalizeGun, gunAdiGetir } from "./portal-utils
 
 const KAYNAK_ETIKET = { sistem_onay: "Atama onayı", ogretmen: "Öğretmen girdi", admin: "İdare girdi" };
 
-function kayitId(tarih, sinif, dersNo) {
+export function kayitId(tarih, sinif, dersNo) {
   return `${tarih}_${String(sinif).replace(/[\/\s.#\[\]]/g, "-")}_${dersNo}`;
 }
 
@@ -52,7 +52,7 @@ function kayitVerisi(ders, vekilId, kaynak) {
 
 // Kayit zaten varsa kimin girdigini soyler; yoksa yazar. Yaris durumunda
 // kural reddeder (update izni yok) — o da ayni mesaja cevrilir.
-async function kayitOlustur(ders, vekilId, kaynak) {
+export async function kayitOlustur(ders, vekilId, kaynak) {
   const id = kayitId(ders.date, ders.class_id, ders.lesson_number);
   const ref = doc(db, "vekil_dersler", id);
   const mevcut = await getDoc(ref);
