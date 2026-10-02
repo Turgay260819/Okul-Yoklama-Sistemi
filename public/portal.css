@@ -1474,3 +1474,19 @@ tr:last-child td {
   outline: none;
 }
 .ggm-input:focus { border-color: var(--mavi); }
+
+/* ── TELEFON BİLDİRİMİ ŞERİDİ (öğretmen ana ekranı) ── */
+.push-serit {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.push-serit-bilgi { background: #e8f0fe; color: #1a56c4; border: 1px solid #c6dafc; }
+.push-serit-basari { background: #e6f4ea; color: #1e7e34; border: 1px solid #b7dfb9; }
+.push-serit-uyari { background: #fff3cd; color: #7a5b00; border: 1px solid #f0d78c; }

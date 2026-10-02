@@ -5,6 +5,7 @@ import {
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { state } from "./portal-state.js";
 import { menuOlustur } from "./portal-ui.js";
+import { pushAnahtariniSil } from "./portal-push.js";
 
 export function authBaslat(onGiris) {
   onAuthStateChanged(auth, async (user) => {
@@ -70,4 +71,7 @@ window.girisYap = async () => {
   }
 };
 
-window.cikisYap = async () => { await signOut(auth); };
+window.cikisYap = async () => {
+  await pushAnahtariniSil();
+  await signOut(auth);
+};

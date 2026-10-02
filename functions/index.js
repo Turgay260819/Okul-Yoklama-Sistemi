@@ -1370,6 +1370,100 @@ exports.raporluIcinVekilAta = onCall(async (request) => {
   return { success: true, raporluAd, sonuclar };
 });
 
+// ===========================
+// VEKİL DERS TELEFON BİLDİRİMİ
+// Okul saatlerinde dakikada bir calisir. Bugun vekil atanmis ve dersi 5 dk
+// icinde baslayacak (ya da gec atandigi icin en fazla 15 dk once baslamis)
+// derslerin vekil ogretmenine push_tokenlari'ndaki cihazlarina bildirim ve
+// zile (bildirimler) kayit gonderir. Ayni ders/vekil icin bir kez gonderilir;
+// vekil degisirse yeni vekile tekrar gider.
+// ===========================
+const VEKIL_BILDIRIM_ONCE_DK = 5;
+const VEKIL_BILDIRIM_GEC_DK = 15;
+const PORTAL_URL = "https://okul-yoklama-sistemi-8081f.web.app/portal.html";
+
+exports.vekilDersBildirimi = onSchedule(
+  { schedule: "* 7-17 * * 1-5", timeZone: "Europe/Istanbul" },
+  async () => {
+    const db = admin.firestore();
+    const simdi = new Date();
+    const bugun = simdi.toLocaleString("sv-SE", { timeZone: "Europe/Istanbul" }).slice(0, 10);
+    const [ss, dd] = simdi.toLocaleString("sv-SE", { timeZone: "Europe/Istanbul" }).slice(11, 16).split(":").map(Number);
+    const simdiDk = ss * 60 + dd;
+
+    const [saatDoc, dersSnap] = await Promise.all([
+      db.collection("ders_saatleri").doc("varsayilan").get(),
+      db.collection("today_lessons").where("date", "==", bugun).get(),
+    ]);
+    const saatler = saatDoc.exists ? (saatDoc.data().saatler || {}) : {};
+
+    const gonderilecek = [];
+    dersSnap.forEach((d) => {
+      const v = d.data();
+      if (!v.substitute_teacher_id || v.vekil_bildirim_gonderilen === v.substitute_teacher_id) return;
+      const bas = String(saatler[v.lesson_number] || "");
+      if (!/^\d{1,2}:\d{2}$/.test(bas)) return;
+      const [h, m] = bas.split(":").map(Number);
+      const kalan = h * 60 + m - simdiDk;
+      if (kalan > VEKIL_BILDIRIM_ONCE_DK || kalan < -VEKIL_BILDIRIM_GEC_DK) return;
+      gonderilecek.push({ ref: d.ref, id: d.id, v, kalan });
+    });
+    if (!gonderilecek.length) return;
+
+    for (const { ref, id, v, kalan } of gonderilecek) {
+      const ogretmenId = v.substitute_teacher_id;
+      const zaman = kalan > 0 ? `${kalan} dk sonra` : kalan === 0 ? "Şimdi" : "Şu an (ders başladı)";
+      const baslik = "🔄 Vekil dersiniz var";
+      const govde = `${zaman}: ${v.lesson_number}. ders — ${v.class_id} ${v.lesson_name || ""} (${v.substitute_for_teacher_ad || "?"} yerine)`;
+
+      const tokenSnap = await db.collection("push_tokenlari").where("teacher_id", "==", ogretmenId).get();
+      const tokenlar = tokenSnap.docs.map((t) => t.id);
+      let basarili = 0;
+      if (tokenlar.length) {
+        try {
+          const sonuc = await admin.messaging().sendEachForMulticast({
+            tokens: tokenlar,
+            webpush: {
+              notification: { title: baslik, body: govde, icon: "/icon.svg", tag: id, requireInteraction: true },
+              fcmOptions: { link: PORTAL_URL },
+            },
+            data: { tag: id },
+          });
+          basarili = sonuc.successCount;
+          // Gecersiz/silinmis cihaz anahtarlarini temizle.
+          await Promise.all(sonuc.responses.map((r, i) => {
+            const kod = r.error?.code || "";
+            if (kod === "messaging/registration-token-not-registered" || kod === "messaging/invalid-registration-token") {
+              return db.collection("push_tokenlari").doc(tokenlar[i]).delete().catch(() => {});
+            }
+            if (r.error) console.warn(`Push gonderilemedi (${ogretmenId}): ${kod} ${r.error.message}`);
+            return null;
+          }));
+        } catch (err) {
+          console.error(`Push hatasi (${ogretmenId}):`, err);
+        }
+      }
+
+      await Promise.all([
+        db.collection("bildirimler").add({
+          alici_id: ogretmenId,
+          tip: "vekil_ders",
+          baslik,
+          mesaj: govde,
+          okundu: false,
+          tarih: admin.firestore.FieldValue.serverTimestamp(),
+        }),
+        ref.update({
+          vekil_bildirim_gonderilen: ogretmenId,
+          vekil_bildirim_zamani: admin.firestore.FieldValue.serverTimestamp(),
+          vekil_bildirim_cihaz: basarili,
+        }),
+      ]);
+      console.log(`Vekil bildirimi: ${v.substitute_teacher_ad || ogretmenId} ${v.lesson_number}. ders ${v.class_id} — ${basarili}/${tokenlar.length} cihaz`);
+    }
+  },
+);
+
 // Verilen YYYY-MM-DD tarihinin ait oldugu haftanin Pazartesi'sini dondurur
 // (public/nobet2.html pazartesiyeYuvarla ile ayni mantik, sunucu kopyasi).
 function nobet2PazartesiyeYuvarla(tarihStr) {

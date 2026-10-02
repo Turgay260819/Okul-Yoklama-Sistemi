@@ -13,6 +13,7 @@ import { vekilAtamaSayfasiBaslat } from "./portal-vekil.js";
 import { vekilDerslerimYukle, vekilDerslerAdminYukle } from "./portal-vekil-ders.js";
 import { kazanimSayfasiYukle, kazanimlarimYukle } from "./portal-kazanim.js";
 import { bildirimleriYukle } from "./portal-bildirim.js";
+import { pushHazirla } from "./portal-push.js";
 import "./portal-yoklama.js";
 
 // Backward-compat namespace for portal-raporlar.js and portal-ayarlar.js
@@ -158,6 +159,7 @@ authBaslat(async (user, rol) => {
     nobetBugunKontrolEt().catch((e) => console.warn("Nobet kontrolu basarisiz:", e));
     vekaletBugunKontrolEt().catch((e) => console.warn("Vekalet kontrolu basarisiz:", e));
     idareGoreviKontrolEt().catch((e) => console.warn("Idare gorevi kontrolu basarisiz:", e));
+    pushHazirla().catch((e) => console.warn("Bildirim hazirligi basarisiz:", e));
   }
 
   // Go to teacher grid home

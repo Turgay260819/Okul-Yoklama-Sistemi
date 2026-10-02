@@ -333,6 +333,13 @@ service cloud.firestore {
          resource.data.tarih == bugunTR() &&
          kendiOgretmenDocu(resource.data.vekil_ogretmen_id));
     }
+    // Telefon bildirimi cihaz anahtarlari. Istemci sadece kendi uid'iyle yazar
+    // ve kendi anahtarini siler; okumayi sadece sunucu (Admin SDK) yapar. Ayni
+    // cihaza baska kullanici girerse anahtar yeni kullaniciya gecebilir.
+    match /push_tokenlari/{tokenId} {
+      allow create, update: if isYazabilir() && request.resource.data.uid == request.auth.uid;
+      allow delete: if isLoggedIn() && resource.data.uid == request.auth.uid;
+    }
     match /vekalet_gorulme/{docId} {
       allow read, write: if isLoggedIn();
     }
