@@ -4,6 +4,7 @@ import {
   collection, query, where, doc,
 } from "./portal-config.js";
 import { state } from "./portal-state.js";
+import { esc } from "./portal-utils.js";
 
 export async function bildirimleriYukle() {
   if (!state.ogretmenDoc) return;
@@ -29,6 +30,8 @@ export async function bildirimleriYukle() {
     console.warn("Bildirim yukleme hatasi:", e);
   }
 }
+
+window.bildirimleriYukle = bildirimleriYukle;
 
 function _bildirimRozetGuncelle() {
   const rozet = document.getElementById("bildirimRozet");
@@ -56,13 +59,13 @@ function _bildirimPanelIcerikGoster() {
     panel.innerHTML = `<div class="bildirim-bos">🔔 Okunmamis bildirim yok.</div>`;
     return;
   }
-  const tipIkonu = { anket: "📋", gorev: "📌", duyuru: "📢", kura: "🎲" };
+  const tipIkonu = { anket: "📋", gorev: "📌", duyuru: "📢", kura: "🎲", idare_mesaji: "📢", idare_gorevi: "📌", vekil_ders: "🔄" };
   let html = `<div class="bildirim-panel-baslik"><span>BİLDİRİMLER (${state.bildirimler.length})</span></div>`;
   state.bildirimler.forEach((b) => {
     const ikon = tipIkonu[b.tip] || "🔔";
     html += `<div class="bildirim-item" onclick="bildirimOku('${b.id}','${b.tip}','${b.referans_id || ''}')">
-      <div class="bildirim-item-baslik">${ikon} ${b.baslik}</div>
-      ${b.mesaj ? `<div class="bildirim-item-mesaj">${b.mesaj}</div>` : ""}
+      <div class="bildirim-item-baslik">${ikon} ${esc(b.baslik)}</div>
+      ${b.mesaj ? `<div class="bildirim-item-mesaj">${esc(b.mesaj.length > 120 ? b.mesaj.slice(0, 117) + "..." : b.mesaj)}</div>` : ""}
     </div>`;
   });
   html += `<div class="bildirim-tumunu-oku"><button onclick="tumBildirimleriOku()">Tumunu okundu isaretle</button></div>`;
@@ -70,6 +73,7 @@ function _bildirimPanelIcerikGoster() {
 }
 
 window.bildirimOku = async (bildirimId, tip, referansId) => {
+  const bildirim = state.bildirimler.find((b) => b.id === bildirimId);
   try {
     await updateDoc(doc(db, "bildirimler", bildirimId), { okundu: true });
   } catch (e) {}
@@ -77,7 +81,9 @@ window.bildirimOku = async (bildirimId, tip, referansId) => {
   _bildirimRozetGuncelle();
   document.getElementById("bildirimPanel")?.classList.remove("acik");
 
-  if (tip === "anket") {
+  if (tip === "idare_mesaji" && bildirim) {
+    window.idareMesajlariniGoster?.([bildirim]);
+  } else if (tip === "anket") {
     window.location.href = "/anket.html" + (referansId ? "?id=" + referansId : "");
   } else if (tip === "gorev") {
     window.sayfaGoster("gorevlerim", "Görevlerim", document.getElementById("menu-gorevlerim"));

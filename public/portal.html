@@ -445,6 +445,40 @@
               </div>
             </div>
 
+            <!-- BİLDİRİM GÖNDER (ADMIN) -->
+            <div class="sayfa" id="sayfa-bildirim-gonder">
+              <div class="kart">
+                <div class="kart-baslik">📢 Yeni Bildirim</div>
+                <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">
+                  Bildirim seçtiğiniz öğretmenlerin zil paneline düşer, portala girişte pencere olarak açılır; telefon bildirimini açmış öğretmenlerin telefonuna da gider.
+                </p>
+                <div class="form-group">
+                  <label>Başlık <small id="duyuruBaslikSayac" style="color:var(--text2);font-weight:400;">0 / 100</small></label>
+                  <input type="text" id="duyuruBaslik" maxlength="100" placeholder="Ör. Öğretmenler Kurulu Toplantısı" oninput="duyuruSayac()" />
+                </div>
+                <div class="form-group">
+                  <label>Mesaj <small id="duyuruMesajSayac" style="color:var(--text2);font-weight:400;">0 / 1000</small></label>
+                  <textarea id="duyuruMesaj" maxlength="1000" rows="5" placeholder="Mesajınızı yazın..." oninput="duyuruSayac()"></textarea>
+                </div>
+                <div class="form-group">
+                  <label>Kime</label>
+                  <div class="sekme-bar" style="margin-bottom:8px;">
+                    <button type="button" class="sekme-btn aktif" id="duyuruHedef-hepsi" onclick="duyuruHedefSec('hepsi')">Tüm öğretmenler</button>
+                    <button type="button" class="sekme-btn" id="duyuruHedef-zumre" onclick="duyuruHedefSec('zumre')">Zümre</button>
+                    <button type="button" class="sekme-btn" id="duyuruHedef-secili" onclick="duyuruHedefSec('secili')">Seçili öğretmenler</button>
+                  </div>
+                  <div id="duyuruHedefDetay"></div>
+                </div>
+                <div id="duyuruOzet" style="margin-bottom:12px;"></div>
+                <button class="btn btn-mavi" id="duyuruGonderBtn" onclick="duyuruGonder()">📢 Gönder</button>
+                <div class="mesaj" id="duyuruSonuc" style="margin-top:10px;"></div>
+              </div>
+              <div class="kart">
+                <div class="kart-baslik">Gönderilen Bildirimler</div>
+                <div id="duyuruGecmis"><div class="yukleniyor">Yukleniyor...</div></div>
+              </div>
+            </div>
+
             <!-- VEKİL DERS KAYITLARI (ADMIN) -->
             <div class="sayfa" id="sayfa-vekil-dersler">
               <div class="kart yazdirma-gizle">
@@ -1135,6 +1169,18 @@
         <p id="idareGoreviListe" style="color:var(--text2);margin:12px 0 20px;font-weight:600;text-align:left;"></p>
         <div class="modal-butonlar">
           <button class="btn btn-mavi" onclick="idareGoreviModalKapat()">Tamam</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- İDAREDEN MESAJ MODAL (Bildirim Gönder) -->
+    <div class="modal-zemin" id="idareMesajiModal">
+      <div class="modal-kutu" style="text-align:center;">
+        <div style="font-size:48px;margin-bottom:8px;">📢</div>
+        <div class="modal-baslik" style="font-size:20px;">İdareden Mesaj</div>
+        <div id="idareMesajiListe" style="text-align:left;margin:12px 0 20px;max-height:55vh;overflow-y:auto;"></div>
+        <div class="modal-butonlar">
+          <button class="btn btn-mavi" onclick="idareMesajiModalKapat()">Okudum</button>
         </div>
       </div>
     </div>

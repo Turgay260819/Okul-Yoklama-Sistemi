@@ -1490,3 +1490,21 @@ tr:last-child td {
 .push-serit-bilgi { background: #e8f0fe; color: #1a56c4; border: 1px solid #c6dafc; }
 .push-serit-basari { background: #e6f4ea; color: #1e7e34; border: 1px solid #b7dfb9; }
 .push-serit-uyari { background: #fff3cd; color: #7a5b00; border: 1px solid #f0d78c; }
+
+/* ── BİLDİRİM GÖNDER (admin) ── */
+.duyuru-chipler { display: flex; flex-wrap: wrap; gap: 6px; }
+.duyuru-chip {
+  border: 1px solid var(--border); background: white; border-radius: 999px;
+  padding: 5px 12px; font-size: 13px; cursor: pointer;
+}
+.duyuru-chip.secili { background: #e8f0fe; border-color: #1a73e8; color: #1a56c4; font-weight: 600; }
+.duyuru-ogretmen-liste {
+  max-height: 320px; overflow-y: auto; border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px 10px;
+}
+.duyuru-grup-baslik { font-size: 12px; font-weight: 700; color: var(--text2); margin: 8px 0 2px; }
+.duyuru-ogretmen { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 14px; cursor: pointer; }
+.duyuru-gecmis-satir { padding: 10px 0; border-bottom: 1px solid var(--border); }
+.duyuru-gecmis-satir:last-child { border-bottom: none; }
+.idare-mesaji-oge { padding: 10px 0; border-bottom: 1px solid var(--border); }
+.idare-mesaji-oge:last-child { border-bottom: none; }

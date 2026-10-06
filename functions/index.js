@@ -1428,9 +1428,110 @@ exports.raporluOtomatikVekilAta = onSchedule(
 // zile (bildirimler) kayit gonderir. Ayni ders/vekil icin bir kez gonderilir;
 // vekil degisirse yeni vekile tekrar gider.
 // ===========================
+const PORTAL_URL = "https://okul-yoklama-sistemi-8081f.web.app/portal.html";
+
+// Verilen ogretmenlerin kayitli cihazlarina (push_tokenlari) telefon bildirimi
+// gonderir; gecersiz/silinmis anahtarlari temizler. Firestore "in" sorgusu en
+// fazla 30 deger aldigi icin anahtarlar 30'arli, FCM cagrisi 500'lu gruplarla.
+// kalici: bildirim kullanici kapatana kadar ekranda kalsin (requireInteraction).
+async function ogretmenlerePushGonder(db, ogretmenIds, { baslik, govde, tag, kalici = false }) {
+  const idler = [...new Set(ogretmenIds)].filter(Boolean);
+  const tokenlar = [];
+  for (let i = 0; i < idler.length; i += 30) {
+    const snap = await db.collection("push_tokenlari").where("teacher_id", "in", idler.slice(i, i + 30)).get();
+    snap.forEach((t) => tokenlar.push(t.id));
+  }
+  let basarili = 0;
+  for (let i = 0; i < tokenlar.length; i += 500) {
+    const grup = tokenlar.slice(i, i + 500);
+    try {
+      const sonuc = await admin.messaging().sendEachForMulticast({
+        tokens: grup,
+        webpush: {
+          notification: { title: baslik, body: govde, icon: "/icon.svg", tag, requireInteraction: kalici },
+          fcmOptions: { link: PORTAL_URL },
+        },
+        data: { tag: tag || "" },
+      });
+      basarili += sonuc.successCount;
+      await Promise.all(sonuc.responses.map((r, j) => {
+        const kod = r.error?.code || "";
+        if (kod === "messaging/registration-token-not-registered" || kod === "messaging/invalid-registration-token") {
+          return db.collection("push_tokenlari").doc(grup[j]).delete().catch(() => {});
+        }
+        if (r.error) console.warn(`Push gonderilemedi: ${kod} ${r.error.message}`);
+        return null;
+      }));
+    } catch (err) {
+      console.error("Push hatasi:", err);
+    }
+  }
+  return { cihaz: tokenlar.length, basarili };
+}
+
+// ===========================
+// İDARE MESAJI GÖNDER (admin "Bildirim Gönder" sayfası)
+// Secilen ogretmenlere zil bildirimi (bildirimler, tip idare_mesaji) yazar,
+// kayitli cihazlarina telefon bildirimi gonderir ve idare_mesajlari'na arsiv
+// kaydi birakir. Hedef (tumu/zumre/secili) istemcide ogretmen id'lerine
+// cozulur; burada teachers ile dogrulanir.
+// ===========================
+exports.idareMesajiGonder = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Giriş yapılmamış.");
+  const db = admin.firestore();
+  const callerDoc = await db.collection("users").doc(request.auth.uid).get();
+  const caller = callerDoc.data() || {};
+  if (caller.rol !== "admin" && caller.rol !== "mudur_yardimcisi") {
+    throw new HttpsError("permission-denied", "Yetkiniz yok.");
+  }
+
+  const baslik = String(request.data?.baslik || "").trim();
+  const mesaj = String(request.data?.mesaj || "").trim();
+  const hedefOzet = String(request.data?.hedefOzet || "").trim().slice(0, 300);
+  const istenen = Array.isArray(request.data?.ogretmenIds) ? request.data.ogretmenIds.map(String) : [];
+  if (!baslik || baslik.length > 100) throw new HttpsError("invalid-argument", "Başlık 1-100 karakter olmalı.");
+  if (!mesaj || mesaj.length > 1000) throw new HttpsError("invalid-argument", "Mesaj 1-1000 karakter olmalı.");
+
+  const teachersSnap = await db.collection("teachers").get();
+  const gecerli = new Set(teachersSnap.docs.map((d) => d.id));
+  const alicilar = [...new Set(istenen)].filter((id) => gecerli.has(id));
+  if (!alicilar.length) throw new HttpsError("invalid-argument", "Geçerli alıcı öğretmen yok.");
+
+  const mesajRef = db.collection("idare_mesajlari").doc();
+  const gonderenAd = caller.ad || "İdare";
+  await mesajRef.set({
+    baslik, mesaj, hedef_ozet: hedefOzet,
+    alici_ids: alicilar, alici_sayisi: alicilar.length,
+    gonderen_uid: request.auth.uid, gonderen_ad: gonderenAd,
+    tarih: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  for (let i = 0; i < alicilar.length; i += 400) {
+    const batch = db.batch();
+    alicilar.slice(i, i + 400).forEach((ogretmenId) => {
+      batch.set(db.collection("bildirimler").doc(), {
+        alici_id: ogretmenId,
+        tip: "idare_mesaji",
+        baslik,
+        mesaj,
+        gonderen_ad: gonderenAd,
+        referans_id: mesajRef.id,
+        okundu: false,
+        tarih: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    });
+    await batch.commit();
+  }
+
+  const govde = mesaj.length > 150 ? mesaj.slice(0, 147) + "..." : mesaj;
+  const push = await ogretmenlerePushGonder(db, alicilar, { baslik: "📢 " + baslik, govde, tag: mesajRef.id });
+  await mesajRef.update({ push_cihaz: push.cihaz, push_basarili: push.basarili });
+  console.log(`Idare mesaji: "${baslik}" -> ${alicilar.length} ogretmen, push ${push.basarili}/${push.cihaz}`);
+  return { success: true, alici: alicilar.length, cihaz: push.cihaz, basarili: push.basarili };
+});
+
 const VEKIL_BILDIRIM_ONCE_DK = 5;
 const VEKIL_BILDIRIM_GEC_DK = 15;
-const PORTAL_URL = "https://okul-yoklama-sistemi-8081f.web.app/portal.html";
 
 exports.vekilDersBildirimi = onSchedule(
   { schedule: "* 7-17 * * 1-5", timeZone: "Europe/Istanbul" },
@@ -1466,33 +1567,9 @@ exports.vekilDersBildirimi = onSchedule(
       const baslik = "🔄 Vekil dersiniz var";
       const govde = `${zaman}: ${v.lesson_number}. ders — ${v.class_id} ${v.lesson_name || ""} (${v.substitute_for_teacher_ad || "?"} yerine)`;
 
-      const tokenSnap = await db.collection("push_tokenlari").where("teacher_id", "==", ogretmenId).get();
-      const tokenlar = tokenSnap.docs.map((t) => t.id);
-      let basarili = 0;
-      if (tokenlar.length) {
-        try {
-          const sonuc = await admin.messaging().sendEachForMulticast({
-            tokens: tokenlar,
-            webpush: {
-              notification: { title: baslik, body: govde, icon: "/icon.svg", tag: id, requireInteraction: true },
-              fcmOptions: { link: PORTAL_URL },
-            },
-            data: { tag: id },
-          });
-          basarili = sonuc.successCount;
-          // Gecersiz/silinmis cihaz anahtarlarini temizle.
-          await Promise.all(sonuc.responses.map((r, i) => {
-            const kod = r.error?.code || "";
-            if (kod === "messaging/registration-token-not-registered" || kod === "messaging/invalid-registration-token") {
-              return db.collection("push_tokenlari").doc(tokenlar[i]).delete().catch(() => {});
-            }
-            if (r.error) console.warn(`Push gonderilemedi (${ogretmenId}): ${kod} ${r.error.message}`);
-            return null;
-          }));
-        } catch (err) {
-          console.error(`Push hatasi (${ogretmenId}):`, err);
-        }
-      }
+      const { cihaz: tokenSayisi, basarili } = await ogretmenlerePushGonder(db, [ogretmenId], {
+        baslik, govde, tag: id, kalici: true,
+      });
 
       await Promise.all([
         db.collection("bildirimler").add({
@@ -1509,7 +1586,7 @@ exports.vekilDersBildirimi = onSchedule(
           vekil_bildirim_cihaz: basarili,
         }),
       ]);
-      console.log(`Vekil bildirimi: ${v.substitute_teacher_ad || ogretmenId} ${v.lesson_number}. ders ${v.class_id} — ${basarili}/${tokenlar.length} cihaz`);
+      console.log(`Vekil bildirimi: ${v.substitute_teacher_ad || ogretmenId} ${v.lesson_number}. ders ${v.class_id} — ${basarili}/${tokenSayisi} cihaz`);
     }
   },
 );

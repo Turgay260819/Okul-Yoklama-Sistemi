@@ -989,6 +989,58 @@ export async function idareGoreviKontrolEt() {
   }
 }
 
+// ── İDAREDEN MESAJ KONTROLÜ (admin "Bildirim Gönder") ──
+// Okunmamis idare_mesaji bildirimlerini giriste pencerede gosterir; "Okudum"
+// ile okundu isaretlenir (idare gorevi kontroluyle ayni desen).
+export async function idareMesajiKontrolEt() {
+  if (!state.ogretmenDoc) return;
+  try {
+    const snap = await getDocs(
+      query(
+        collection(db, "bildirimler"),
+        where("alici_id", "==", state.ogretmenDoc.id),
+        where("okundu", "==", false),
+      ),
+    );
+    const mesajlar = [];
+    snap.forEach((d) => {
+      const data = d.data();
+      if (data.tip === "idare_mesaji") mesajlar.push({ id: d.id, ...data });
+    });
+    if (!mesajlar.length) return;
+    idareMesajlariniGoster(mesajlar);
+  } catch (e) {
+    console.warn("Idare mesaji kontrolu basarisiz:", e);
+  }
+}
+
+// Zil panelinden tek bir mesaj acmak icin de kullanilir (portal-bildirim.js).
+export function idareMesajlariniGoster(mesajlar) {
+  mesajlar.sort((a, b) => (b.tarih?.toMillis?.() || 0) - (a.tarih?.toMillis?.() || 0));
+  document.getElementById("idareMesajiListe").innerHTML = mesajlar.map((m) => {
+    const t = m.tarih?.toDate ? m.tarih.toDate().toLocaleString("tr-TR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
+    return `<div class="idare-mesaji-oge">
+      <div style="font-weight:700;font-size:16px;">${esc(m.baslik)}</div>
+      <div style="font-size:12px;color:var(--text2);margin:2px 0 6px;">${esc(m.gonderen_ad || "İdare")}${t ? " · " + esc(t) : ""}</div>
+      <div style="white-space:pre-wrap;line-height:1.5;">${esc(m.mesaj)}</div>
+    </div>`;
+  }).join("");
+  const modal = document.getElementById("idareMesajiModal");
+  modal.dataset.ids = mesajlar.map((m) => m.id).join(",");
+  modal.classList.add("aktif");
+}
+window.idareMesajlariniGoster = idareMesajlariniGoster;
+
+window.idareMesajiModalKapat = async () => {
+  const modal = document.getElementById("idareMesajiModal");
+  const ids = (modal.dataset.ids || "").split(",").filter(Boolean);
+  modal.classList.remove("aktif");
+  await Promise.all(
+    ids.map((id) => updateDoc(doc(db, "bildirimler", id), { okundu: true }).catch(() => {})),
+  );
+  window.bildirimleriYukle?.();
+};
+
 window.idareGoreviModalKapat = async () => {
   const modal = document.getElementById("idareGoreviModal");
   const ids = (modal.dataset.ids || "").split(",").filter(Boolean);
