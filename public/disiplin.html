@@ -368,7 +368,9 @@
               </select>
             </div>
             <button class="btn btn-mavi" onclick="kayitlariGetir()">Filtrele</button>
+            <button class="btn btn-yesil" id="btnDisiplinExcel" onclick="disiplinExcel()">📊 Excel'e aktar</button>
           </div>
+          <div class="mesaj" id="kayitlarExcelMesaj"></div>
           <div id="kayitlarListesi"><div class="yukleniyor-mesaj">Yukleniyor...</div></div>
         </div>
       </div>
@@ -528,6 +530,7 @@
       collection, query, where, orderBy, serverTimestamp, limit, Timestamp
     } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
     import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
+    import { xlsxYukle, sayfaOlustur, dosyaAdi, TARIH_SAAT_BICIMI } from "/js/portal-excel.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyAHTCiicd4b94rG1-jN0STRbwcrLmkYudo",
@@ -858,6 +861,102 @@
       });
       html += '</tbody></table>';
       container.innerHTML = html;
+    };
+
+
+    // ── EXCEL ÇIKTISI (Kayitlar) ──
+    // Ekrandaki liste admin icin son 300 kayitla sinirli; Excel icin ayri, sinirsiz
+    // sorgu yapilir. Admin: aktif donemin tum kayitlari. Ogretmen: ekrandaki gibi
+    // sadece kendi siniflari. Sinif/davranis filtresi her iki durumda uygulanir.
+    window.disiplinExcel = async () => {
+      const btn = document.getElementById('btnDisiplinExcel');
+      const eski = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Hazirlaniyor...';
+      try {
+        const sinifFiltre = document.getElementById('filtreKayitSinif').value;
+        const davranisFiltre = document.getElementById('filtreKayitDavranis').value;
+        const [XLSX, snap] = await Promise.all([
+          xlsxYukle(),
+          (async () => {
+            if (_ogretmenSiniflar === null) {
+              return getDocs(query(collection(db, 'disiplin_kayitlar'), where('donem', '==', aktifDonem)));
+            }
+            const hedef = sinifFiltre
+              ? (_ogretmenSiniflar.has(sinifFiltre) ? [sinifFiltre] : [])
+              : Array.from(_ogretmenSiniflar);
+            if (!hedef.length) return { docs: [] };
+            // "in" en fazla 30 deger alir
+            const parcalar = [];
+            for (let i = 0; i < hedef.length; i += 30) {
+              parcalar.push(getDocs(query(collection(db, 'disiplin_kayitlar'), where('sinif', 'in', hedef.slice(i, i + 30)))));
+            }
+            const sonuclar = await Promise.all(parcalar);
+            return { docs: sonuclar.flatMap((s) => s.docs) };
+          })(),
+        ]);
+
+        let kayitlar = snap.docs.map((d) => d.data());
+        // Dosya donem adiyla adlandiriliyor; ogretmen sorgusu donemsiz oldugu icin burada da suzulur.
+        kayitlar = kayitlar.filter((k) => String(k.donem || "") === String(aktifDonem));
+        if (sinifFiltre) kayitlar = kayitlar.filter((k) => k.sinif === sinifFiltre);
+        if (davranisFiltre) kayitlar = kayitlar.filter((k) => k.davranis === davranisFiltre);
+        const zaman = (k) => (k.tarih?.toDate ? k.tarih.toDate() : null);
+        kayitlar.sort((a, b) => (zaman(b) || 0) - (zaman(a) || 0));
+        if (!kayitlar.length) { mesajGoster('kayitlarExcelMesaj', 'Dışa aktarılacak kayıt yok.', 'hata'); return; }
+
+        const sinifSirala = (a, b) => String(a).localeCompare(String(b), 'tr', { numeric: true });
+
+        // 1) Kayitlar
+        const s1 = [['Tarih', 'Öğrenci No', 'Ad Soyad', 'Sınıf', 'Davranış', 'Öğretmen', 'Not', 'Dönem'],
+          ...kayitlar.map((k) => [zaman(k) || '', Number(k.ogrenci_no) || k.ogrenci_no || '', k.ogrenci_ad || '', k.sinif || '',
+            k.davranis || '', k.ogretmen_ad || '', k.not || '', k.donem ? k.donem + '. Dönem' : ''])];
+
+        // 2) Ogrenci ozeti: ogrenci basina toplam ve davranis bazinda sayi
+        const davranislar = [...new Set(kayitlar.map((k) => k.davranis || '-'))].sort((a, b) => a.localeCompare(b, 'tr'));
+        const ogr = {};
+        kayitlar.forEach((k) => {
+          const anahtar = k.ogrenci_id || k.ogrenci_no;
+          const o = (ogr[anahtar] ||= { no: k.ogrenci_no, ad: k.ogrenci_ad, sinif: k.sinif, toplam: 0, d: {} });
+          o.toplam++;
+          o.d[k.davranis || '-'] = (o.d[k.davranis || '-'] || 0) + 1;
+        });
+        const s2 = [['Sınıf', 'Öğrenci No', 'Ad Soyad', 'Toplam', ...davranislar],
+          ...Object.values(ogr)
+            .sort((a, b) => sinifSirala(a.sinif, b.sinif) || Number(a.no) - Number(b.no))
+            .map((o) => [o.sinif, Number(o.no) || o.no, o.ad, o.toplam, ...davranislar.map((d) => o.d[d] || '')])];
+
+        // 3) Sinif ozeti
+        const sinif = {};
+        kayitlar.forEach((k) => {
+          const s = (sinif[k.sinif || '-'] ||= { kayit: 0, ogrenci: new Set() });
+          s.kayit++;
+          s.ogrenci.add(k.ogrenci_id || k.ogrenci_no);
+        });
+        const s3 = [['Sınıf', 'Kayıt Sayısı', 'Kaydı Olan Öğrenci'],
+          ...Object.entries(sinif).sort((a, b) => sinifSirala(a[0], b[0])).map(([s, v]) => [s, v.kayit, v.ogrenci.size]),
+          [], ['Toplam', kayitlar.length, Object.keys(ogr).length]];
+
+        const wb = XLSX.utils.book_new();
+        const ws1 = sayfaOlustur(XLSX, s1, [16, 10, 26, 8, 28, 22, 50, 10]);
+        const r1 = XLSX.utils.decode_range(ws1['!ref']);
+        for (let r = 1; r <= r1.e.r; r++) {
+          const h = ws1[XLSX.utils.encode_cell({ r, c: 0 })];
+          if (h && h.t === 'd') h.z = TARIH_SAAT_BICIMI;
+        }
+        XLSX.utils.book_append_sheet(wb, ws1, 'Kayıtlar');
+        XLSX.utils.book_append_sheet(wb, sayfaOlustur(XLSX, s2, [8, 10, 26, 8, ...davranislar.map((d) => Math.min(Math.max(d.length, 8), 28))]), 'Öğrenci Özeti');
+        XLSX.utils.book_append_sheet(wb, sayfaOlustur(XLSX, s3, [10, 14, 18]), 'Sınıf Özeti');
+
+        const ek = [sinifFiltre, davranisFiltre].filter(Boolean).join(' ');
+        const bugunTr = new Date().toLocaleDateString('tr-TR').replace(/\./g, '-');
+        XLSX.writeFile(wb, dosyaAdi(`Disiplin Kayitlari ${aktifDonem}. Donem${ek ? ' ' + ek : ''} ${bugunTr}`) + '.xlsx');
+      } catch (err) {
+        mesajGoster('kayitlarExcelMesaj', 'Hata: ' + err.message, 'hata');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = eski;
+      }
     };
 
     // ── ÖĞRENCİ SORGULA ──
