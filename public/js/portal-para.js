@@ -84,6 +84,9 @@ function _ciz() {
       <div><span class="para-ozet-sayi" id="paraOzetToplam">${esc(tl(toplamTutar))}</span><span class="para-ozet-etiket">Toplanan</span></div>
       ${t.varsayilan_tutar ? `<div><span class="para-ozet-sayi">${esc(tl(t.varsayilan_tutar))}</span><span class="para-ozet-etiket">Varsayılan tutar</span></div>` : ""}
     </div>
+    <div class="yazdirma-gizle" style="margin-top:10px;">
+      <button class="btn btn-yesil btn-sm" id="paraExcelBtn" onclick="paraExcel()">📊 Excel'e aktar</button>
+    </div>
     <div class="sekme-bar yazdirma-gizle" style="margin-top:12px;">
       <button class="sekme-btn${_sekme === "giris" ? " aktif" : ""}" onclick="paraSekme('giris')">Öğrenci Listesi</button>
       <button class="sekme-btn${_sekme === "verenler" ? " aktif" : ""}" onclick="paraSekme('verenler')">Para Verenler</button>
@@ -388,4 +391,88 @@ function _siniflarHtml() {
 window.paraSinifAc = (btn) => {
   _acikSinif = _acikSinif === btn.dataset.sinif ? null : btn.dataset.sinif;
   _sekmeCiz();
+};
+
+// ── Excel çıktısı ──
+// SheetJS sadece butona basilinca yuklenir (CSP: cdnjs izinli). Dosyada uc
+// sayfa: Para Verenler, Siniflara Gore, Tum Ogrenciler (verdi/vermedi).
+const XLSX_URL = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+
+function xlsxYukle() {
+  if (window.XLSX) return Promise.resolve(window.XLSX);
+  return new Promise((resolve, reject) => {
+    const sc = document.createElement("script");
+    sc.src = XLSX_URL;
+    sc.onload = () => (window.XLSX ? resolve(window.XLSX) : reject(new Error("Excel kütüphanesi yüklenemedi.")));
+    sc.onerror = () => reject(new Error("Excel kütüphanesi yüklenemedi (internet bağlantısını kontrol edin)."));
+    document.head.appendChild(sc);
+  });
+}
+
+function sayfaOlustur(XLSX, satirlar, genislikler, tutarSutunlari) {
+  const ws = XLSX.utils.aoa_to_sheet(satirlar);
+  ws["!cols"] = genislikler.map((w) => ({ wch: w }));
+  const aralik = XLSX.utils.decode_range(ws["!ref"]);
+  for (let r = 1; r <= aralik.e.r; r++) {
+    tutarSutunlari.forEach((c) => {
+      const h = ws[XLSX.utils.encode_cell({ r, c })];
+      if (h && typeof h.v === "number") h.z = '#,##0.00 "₺"';
+    });
+  }
+  return ws;
+}
+
+window.paraExcel = async () => {
+  const t = secili();
+  if (!t) return;
+  const btn = document.getElementById("paraExcelBtn");
+  const eski = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Hazırlanıyor...";
+  try {
+    const XLSX = await xlsxYukle();
+    const num = (n) => Number(n || 0);
+    const noSirala = (a, b) => Number(a) - Number(b);
+
+    // 1) Para verenler
+    const verenler = [..._odemeler.values()].sort((a, b) => sinifSirala(a.sinif, b.sinif) || noSirala(a.ogrenci_no, b.ogrenci_no));
+    const toplam = verenler.reduce((s, o) => s + num(o.tutar), 0);
+    const s1 = [["Sınıf", "No", "Ad Soyad", "Tutar", "Tarih"]];
+    verenler.forEach((o) => s1.push([o.sinif, Number(o.ogrenci_no) || o.ogrenci_no, o.ogrenci_ad, num(o.tutar),
+      o.tarih?.toDate ? o.tarih.toDate().toLocaleDateString("tr-TR") : ""]));
+    s1.push([], ["", "", `Toplam (${verenler.length} öğrenci)`, toplam, ""]);
+
+    // 2) Siniflara gore
+    const s2 = [["Sınıf", "Veren", "Mevcut", "Vermeyen", "Toplam"]];
+    siniflar().forEach((sf) => {
+      const mevcut = _ogrenciler.filter((o) => o.class_id === sf);
+      const veren = mevcut.filter((o) => _odemeler.has(o.id));
+      s2.push([sf, veren.length, mevcut.length, mevcut.length - veren.length,
+        veren.reduce((s, o) => s + num(_odemeler.get(o.id).tutar), 0)]);
+    });
+    const bilinen = new Set(_ogrenciler.map((o) => o.id));
+    const yetim = [..._odemeler.values()].filter((o) => !bilinen.has(o.ogrenci_id));
+    if (yetim.length) s2.push(["Diğer (kaydı değişmiş öğrenci)", yetim.length, "", "", yetim.reduce((s, o) => s + num(o.tutar), 0)]);
+    s2.push([], ["Genel Toplam", _odemeler.size, _ogrenciler.length, "", toplam]);
+
+    // 3) Tum ogrenciler
+    const s3 = [["Sınıf", "No", "Ad Soyad", "Durum", "Tutar"]];
+    _ogrenciler.forEach((o) => {
+      const od = _odemeler.get(o.id);
+      s3.push([o.class_id, Number(o.student_number) || o.student_number, o.name, od ? "Verdi" : "Vermedi", od ? num(od.tutar) : ""]);
+    });
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, sayfaOlustur(XLSX, s1, [10, 8, 30, 14, 12], [3]), "Para Verenler");
+    XLSX.utils.book_append_sheet(wb, sayfaOlustur(XLSX, s2, [30, 8, 8, 10, 14], [4]), "Sınıflara Göre");
+    XLSX.utils.book_append_sheet(wb, sayfaOlustur(XLSX, s3, [10, 8, 30, 10, 14], [4]), "Tüm Öğrenciler");
+
+    const bugun = new Date().toLocaleDateString("tr-TR").replace(/\./g, "-");
+    const ad = String(t.ad).replace(/[\/:*?"<>|]/g, "-").trim() || "Para Toplama";
+    XLSX.writeFile(wb, `${ad} - ${bugun}.xlsx`);
+  } catch (err) {
+    mesajGoster("paraMesaj", err.message, "hata");
+  }
+  btn.disabled = false;
+  btn.textContent = eski;
 };
