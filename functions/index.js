@@ -1,7 +1,7 @@
 const { setGlobalOptions } = require("firebase-functions/v2");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
-const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { onDocumentCreated, onDocumentCreatedWithAuthContext, onDocumentDeletedWithAuthContext } = require("firebase-functions/v2/firestore");
 const admin = require("firebase-admin");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { getAuth } = require("firebase-admin/auth");
@@ -1468,6 +1468,56 @@ async function ogretmenlerePushGonder(db, ogretmenIds, { baslik, govde, tag, kal
   }
   return { cihaz: tokenlar.length, basarili };
 }
+
+// ===========================
+// VEKİL DERS ONAY GEÇMİŞİ
+// vekil_dersler'e her kayit acilisi (atama onayi / elle giris) ve silinmesi
+// vekil_ders_gecmis'e degistirilemez bir satir olarak yazilir. Islemi yapan
+// kisi tetikleyicinin auth baglamindan (authId) alinir; boylece silmeyi
+// ogretmenin mi idarenin mi yaptigi da gorunur.
+// ===========================
+async function vekilGecmisYaz(db, event, islem) {
+  const v = event.data?.data();
+  if (!v) return;
+  const uid = event.authType === "system" ? null : (event.authId || (islem !== "silindi" ? v.olusturan_uid : null));
+  let yapanAd = "", yapanRol = "";
+  if (uid) {
+    const u = await db.collection("users").doc(uid).get().catch(() => null);
+    yapanAd = u?.data()?.ad || "";
+    yapanRol = u?.data()?.rol || "";
+  }
+  // Ogretmenin kendi gecmisini sorgulayabilmesi icin vekilin hesap kimligi.
+  let vekilUid = null;
+  if (v.vekil_ogretmen_id) {
+    const t = await db.collection("teachers").doc(v.vekil_ogretmen_id).get().catch(() => null);
+    vekilUid = t?.data()?.uid || null;
+  }
+  await db.collection("vekil_ders_gecmis").add({
+    islem, // "onay" | "elle" | "silindi"
+    kayit_id: event.params.kayitId,
+    tarih: v.tarih || "",
+    ders_no: v.ders_no ?? null,
+    sinif: v.sinif || "",
+    ders_adi: v.ders_adi || "",
+    asil_ogretmen_ad: v.asil_ogretmen_ad || "",
+    vekil_ogretmen_id: v.vekil_ogretmen_id || "",
+    vekil_ogretmen_ad: v.vekil_ogretmen_ad || "",
+    vekil_uid: vekilUid,
+    yapan_uid: uid,
+    yapan_ad: yapanAd || (uid ? "" : "Sistem"),
+    yapan: !uid ? "sistem" : yapanRol === "ogretmen" ? "ogretmen" : "idare",
+    zaman: admin.firestore.FieldValue.serverTimestamp(),
+  });
+}
+
+exports.vekilDersOlusturuldu = onDocumentCreatedWithAuthContext("vekil_dersler/{kayitId}", async (event) => {
+  const kaynak = event.data?.data()?.kaynak;
+  await vekilGecmisYaz(admin.firestore(), event, kaynak === "ogretmen" ? "elle" : "onay");
+});
+
+exports.vekilDersSilindi = onDocumentDeletedWithAuthContext("vekil_dersler/{kayitId}", async (event) => {
+  await vekilGecmisYaz(admin.firestore(), event, "silindi");
+});
 
 // ===========================
 // İZİN GİRİLİNCE REHBER ÖĞRETMENE BİLDİRİM

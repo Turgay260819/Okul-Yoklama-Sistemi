@@ -108,6 +108,33 @@ export async function kaydimiSil(id) {
   return true;
 }
 
+// ── Onay geçmişi (vekil_ders_gecmis, sunucu yazar) ──
+const ISLEM_ETIKET = { onay: "✅ Atamayı onayladı", elle: "✏️ Elle girdi", silindi: "🗑 Kayıt silindi" };
+
+function gecmisZaman(z) {
+  return z?.toDate ? z.toDate().toLocaleString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "-";
+}
+
+function gecmisYapan(g, benimGorunum) {
+  if (g.islem !== "silindi") return "";
+  if (g.yapan === "sistem") return " (sistem)";
+  if (g.yapan === "idare") return ` (idare: ${g.yapan_ad || "?"})`;
+  return benimGorunum ? " (sizin tarafınızdan)" : " (öğretmenin kendisi)";
+}
+
+function gecmisTabloHtml(liste, benimGorunum) {
+  if (!liste.length) return '<div class="bos-mesaj">Henüz geçmiş kaydı yok.</div>';
+  return `<div style="overflow-x:auto;"><table><thead><tr>
+    <th>Ne zaman</th>${benimGorunum ? "" : "<th>Öğretmen</th>"}<th>İşlem</th><th>Ders</th></tr></thead><tbody>
+    ${liste.map((g) => `<tr${g.islem === "silindi" ? ' style="color:var(--text2);"' : ""}>
+      <td style="white-space:nowrap;font-size:12px;">${esc(gecmisZaman(g.zaman))}</td>
+      ${benimGorunum ? "" : `<td>${esc(g.vekil_ogretmen_ad)}</td>`}
+      <td style="white-space:nowrap;">${esc((ISLEM_ETIKET[g.islem] || g.islem) + gecmisYapan(g, benimGorunum))}</td>
+      <td>${esc(tarihGoster(g.tarih))} · ${esc(g.ders_no)}. ders · ${esc(g.sinif)} ${esc(g.ders_adi)}${g.asil_ogretmen_ad ? ` <span style="color:var(--text2);font-size:12px;">(${esc(g.asil_ogretmen_ad)} yerine)</span>` : ""}</td>
+    </tr>`).join("")}
+    </tbody></table></div>`;
+}
+
 // ═══════════════ ÖĞRETMEN: VEKİL DERSLERİM ═══════════════
 
 let _seciliTarih = null;   // null = bugun
@@ -151,13 +178,30 @@ export async function vekilDerslerimYukle() {
       _gunSeciciHtml(bugunTarih, onceki, bugunMu) +
       _atananlarHtml(ben, tarih, bugunMu) +
       _elleEkleHtml(tarih, bugunMu) +
-      _kayitlarimHtml(benimKayitlar.filter((k) => k.tarih >= listeBas && k.tarih <= bugunTarih));
+      _kayitlarimHtml(benimKayitlar.filter((k) => k.tarih >= listeBas && k.tarih <= bugunTarih)) +
+      `<div class="kart"><div class="kart-baslik">Onay Geçmişim</div>
+        <p style="font-size:13px;color:var(--text2);margin-bottom:10px;">Yaptığınız her onay, elle giriş ve silme burada tarih-saatiyle tutulur (son 50 işlem).</p>
+        <div id="vekilGecmisim"><div class="yukleniyor">Yukleniyor...</div></div></div>`;
     _saatSecenekleriniDoldur();
+    _gecmisimYukle();
   } catch (err) {
     kok.innerHTML = `<div class="bos-mesaj">Yüklenemedi: ${esc(err.message)}</div>`;
   }
 }
 window.vekilDerslerimYukle = vekilDerslerimYukle;
+
+async function _gecmisimYukle() {
+  const el = document.getElementById("vekilGecmisim");
+  if (!el || !auth.currentUser) return;
+  try {
+    const snap = await getDocs(query(collection(db, "vekil_ders_gecmis"), where("vekil_uid", "==", auth.currentUser.uid)));
+    const liste = snap.docs.map((d) => d.data())
+      .sort((a, b) => (b.zaman?.toMillis?.() || 0) - (a.zaman?.toMillis?.() || 0)).slice(0, 50);
+    el.innerHTML = gecmisTabloHtml(liste, true);
+  } catch (err) {
+    el.innerHTML = `<div class="bos-mesaj">Geçmiş yüklenemedi: ${esc(err.message)}</div>`;
+  }
+}
 
 function _gunSeciciHtml(bugunTarih, onceki, bugunMu) {
   return `<div class="sekme-bar" style="margin-bottom:12px;">
@@ -349,6 +393,7 @@ window.vekilDerslerListele = async function vekilDerslerListele() {
     _ozetCiz(ozetEl, bas, bit);
     _listeCiz(listeEl);
     _onaysizCiz(onaysizEl, onaysizlar);
+    _adminGecmisYukle(bas, bit, ogrFiltre);
   } catch (err) {
     ozetEl.innerHTML = `<div class="bos-mesaj">Yüklenemedi: ${esc(err.message)}</div>`;
     listeEl.innerHTML = onaysizEl.innerHTML = "";
@@ -398,6 +443,22 @@ function _onaysizCiz(el, onaysizlar) {
       <td>${esc(v.substitute_teacher_ad || ogretmenAd(v.substitute_teacher_id))}</td>
     </tr>`).join("")}
     </tbody></table></div>`;
+}
+
+// Ders tarihi secili aralikta olan tum onay/giris/silme islemleri.
+async function _adminGecmisYukle(bas, bit, ogrFiltre) {
+  const el = document.getElementById("vdGecmis");
+  if (!el) return;
+  el.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
+  try {
+    const snap = await getDocs(query(collection(db, "vekil_ders_gecmis"), where("tarih", ">=", bas), where("tarih", "<=", bit)));
+    const liste = snap.docs.map((d) => d.data())
+      .filter((g) => !ogrFiltre || g.vekil_ogretmen_id === ogrFiltre)
+      .sort((a, b) => (b.zaman?.toMillis?.() || 0) - (a.zaman?.toMillis?.() || 0));
+    el.innerHTML = gecmisTabloHtml(liste, false);
+  } catch (err) {
+    el.innerHTML = `<div class="bos-mesaj">Geçmiş yüklenemedi: ${esc(err.message)}</div>`;
+  }
 }
 
 window.vekilDersSil = async (btn) => {
