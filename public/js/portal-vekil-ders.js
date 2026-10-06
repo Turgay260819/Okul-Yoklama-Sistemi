@@ -5,6 +5,7 @@ import {
 } from "./portal-config.js";
 import { state } from "./portal-state.js";
 import { esc, mesajGoster, sor } from "./portal-utils.js";
+import { xlsxYukle, sayfaOlustur, isoTarih, dosyaAdi, TARIH_SAAT_BICIMI } from "./portal-excel.js";
 
 // ── VEKİL DERS KAYITLARI (ücret) ──
 // vekil_dersler: "kim hangi derse girdi" sorusunun tek kaydi. SADECE ogretmen
@@ -339,6 +340,9 @@ window.vekilKaydimiSil = async (btn) => {
 // Sadece goruntuleme ve hatali kaydi silme. Kayit acma yok.
 
 let _adminKayitlar = [];
+let _adminOnaysizlar = [];
+let _adminGecmis = [];
+let _adminFiltre = { bas: "", bit: "", ogretmen: "" }; // Excel ciktisi ekrandakiyle ayni olsun
 
 export function vekilDerslerAdminYukle() {
   const bas = document.getElementById("vdBaslangic");
@@ -389,6 +393,8 @@ window.vekilDerslerListele = async function vekilDerslerListele() {
       onaysizlar.push(v);
     });
     onaysizlar.sort((a, b) => a.date.localeCompare(b.date) || a.lesson_number - b.lesson_number);
+    _adminOnaysizlar = onaysizlar;
+    _adminFiltre = { bas, bit, ogretmen: ogrFiltre };
 
     _ozetCiz(ozetEl, bas, bit);
     _listeCiz(listeEl);
@@ -455,6 +461,7 @@ async function _adminGecmisYukle(bas, bit, ogrFiltre) {
     const liste = snap.docs.map((d) => d.data())
       .filter((g) => !ogrFiltre || g.vekil_ogretmen_id === ogrFiltre)
       .sort((a, b) => (b.zaman?.toMillis?.() || 0) - (a.zaman?.toMillis?.() || 0));
+    _adminGecmis = liste;
     el.innerHTML = gecmisTabloHtml(liste, false);
   } catch (err) {
     el.innerHTML = `<div class="bos-mesaj">Geçmiş yüklenemedi: ${esc(err.message)}</div>`;
@@ -474,3 +481,63 @@ window.vekilDersSil = async (btn) => {
 };
 
 window.vekilDersYazdir = () => window.print();
+
+// ── Excel çıktısı (admin) ──
+// Ekranda listelenen veri (tarih araligi + ogretmen filtresi) dort sayfa halinde:
+// Ogretmen Toplamlari (ucret listesi), Kayitlar, Onaylanmamis Atamalar, Onay Gecmisi.
+window.vekilDersExcel = async () => {
+  const btn = document.getElementById("vdExcelBtn");
+  const { bas, bit, ogretmen } = _adminFiltre;
+  if (!bas) { mesajGoster("vdMesaj", "Önce Listele'ye basın.", "hata"); return; }
+  const eski = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Hazırlanıyor...";
+  try {
+    const XLSX = await xlsxYukle();
+    const zaman = (z) => (z?.toDate ? z.toDate() : "");
+
+    const sayac = {};
+    _adminKayitlar.forEach((k) => {
+      (sayac[k.vekil_ogretmen_id] ||= { ad: k.vekil_ogretmen_ad, sayi: 0 }).sayi++;
+    });
+    const toplamlar = Object.values(sayac).sort((a, b) => a.ad.localeCompare(b.ad, "tr"));
+    const s1 = [["Öğretmen", "Vekil Ders Sayısı"], ...toplamlar.map((t) => [t.ad, t.sayi]),
+      [], ["Toplam", _adminKayitlar.length],
+      [], [`Dönem: ${tarihGoster(bas)} – ${tarihGoster(bit)}${ogretmen ? " · " + ogretmenAd(ogretmen) : ""}`]];
+
+    const s2 = [["Tarih", "Saat", "Sınıf", "Ders", "Asıl Öğretmen", "Vekil Öğretmen", "Nasıl", "Kayıt Zamanı"],
+      ..._adminKayitlar.map((k) => [isoTarih(k.tarih), k.ders_no, k.sinif, k.ders_adi, k.asil_ogretmen_ad || "",
+        k.vekil_ogretmen_ad, KAYNAK_ETIKET[k.kaynak] || k.kaynak || "", zaman(k.olusturma)])];
+
+    const s3 = [["Tarih", "Saat", "Sınıf", "Ders", "Asıl Öğretmen", "Atanan Vekil"],
+      ..._adminOnaysizlar.map((v) => [isoTarih(v.date), v.lesson_number, v.class_id, v.lesson_name || "",
+        v.substitute_for_teacher_ad || ogretmenAd(v.teacher_id), v.substitute_teacher_ad || ogretmenAd(v.substitute_teacher_id)])];
+
+    const s4 = [["Ne Zaman", "Öğretmen", "İşlem", "Yapan", "Ders Tarihi", "Saat", "Sınıf", "Ders", "Asıl Öğretmen"],
+      ..._adminGecmis.map((g) => [zaman(g.zaman), g.vekil_ogretmen_ad, (ISLEM_ETIKET[g.islem] || g.islem).replace(/^\S+\s/, ""),
+        g.yapan === "idare" ? "İdare: " + (g.yapan_ad || "?") : g.yapan === "sistem" ? "Sistem" : "Öğretmen",
+        isoTarih(g.tarih), g.ders_no, g.sinif, g.ders_adi, g.asil_ogretmen_ad || ""])];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, sayfaOlustur(XLSX, s1, [32, 18]), "Öğretmen Toplamları");
+    const ws2 = sayfaOlustur(XLSX, s2, [12, 6, 8, 20, 24, 24, 14, 18], [], [0]);
+    XLSX.utils.book_append_sheet(wb, ws2, "Kayıtlar");
+    XLSX.utils.book_append_sheet(wb, sayfaOlustur(XLSX, s3, [12, 6, 8, 20, 24, 24], [], [0]), "Onaylanmamış Atamalar");
+    const ws4 = sayfaOlustur(XLSX, s4, [18, 24, 20, 20, 12, 6, 8, 20, 24], [], [4]);
+    XLSX.utils.book_append_sheet(wb, ws4, "Onay Geçmişi");
+    // Kayit zamani / islem zamani: tarih + saat bicimi
+    [[ws2, 7], [ws4, 0]].forEach(([ws, c]) => {
+      const r = XLSX.utils.decode_range(ws["!ref"]);
+      for (let i = 1; i <= r.e.r; i++) {
+        const h = ws[XLSX.utils.encode_cell({ r: i, c })];
+        if (h && h.t === "d") h.z = TARIH_SAAT_BICIMI;
+      }
+    });
+
+    XLSX.writeFile(wb, dosyaAdi(`Vekil Ders Kayitlari ${tarihGoster(bas)}-${tarihGoster(bit)}${ogretmen ? " " + ogretmenAd(ogretmen) : ""}`) + ".xlsx");
+  } catch (err) {
+    mesajGoster("vdMesaj", err.message, "hata");
+  }
+  btn.disabled = false;
+  btn.textContent = eski;
+};

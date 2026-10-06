@@ -5,6 +5,7 @@ import {
 } from "./portal-config.js";
 import { state } from "./portal-state.js";
 import { esc, mesajGoster, sor } from "./portal-utils.js";
+import { xlsxYukle, sayfaOlustur, dosyaAdi } from "./portal-excel.js";
 
 // ── PARA TOPLAMA (admin) ──
 // para_toplamalar: amac bazinda toplamalar (kermes, gezi...).
@@ -394,34 +395,8 @@ window.paraSinifAc = (btn) => {
 };
 
 // ── Excel çıktısı ──
-// SheetJS sadece butona basilinca yuklenir (CSP: cdnjs izinli). Dosyada uc
-// sayfa: Para Verenler, Siniflara Gore, Tum Ogrenciler (verdi/vermedi).
-const XLSX_URL = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
-
-function xlsxYukle() {
-  if (window.XLSX) return Promise.resolve(window.XLSX);
-  return new Promise((resolve, reject) => {
-    const sc = document.createElement("script");
-    sc.src = XLSX_URL;
-    sc.onload = () => (window.XLSX ? resolve(window.XLSX) : reject(new Error("Excel kütüphanesi yüklenemedi.")));
-    sc.onerror = () => reject(new Error("Excel kütüphanesi yüklenemedi (internet bağlantısını kontrol edin)."));
-    document.head.appendChild(sc);
-  });
-}
-
-function sayfaOlustur(XLSX, satirlar, genislikler, tutarSutunlari) {
-  const ws = XLSX.utils.aoa_to_sheet(satirlar);
-  ws["!cols"] = genislikler.map((w) => ({ wch: w }));
-  const aralik = XLSX.utils.decode_range(ws["!ref"]);
-  for (let r = 1; r <= aralik.e.r; r++) {
-    tutarSutunlari.forEach((c) => {
-      const h = ws[XLSX.utils.encode_cell({ r, c })];
-      if (h && typeof h.v === "number") h.z = '#,##0.00 "₺"';
-    });
-  }
-  return ws;
-}
-
+// Ortak yardimcilar portal-excel.js'te. Dosyada uc sayfa: Para Verenler,
+// Siniflara Gore, Tum Ogrenciler (verdi/vermedi).
 window.paraExcel = async () => {
   const t = secili();
   if (!t) return;
@@ -468,7 +443,7 @@ window.paraExcel = async () => {
     XLSX.utils.book_append_sheet(wb, sayfaOlustur(XLSX, s3, [10, 8, 30, 10, 14], [4]), "Tüm Öğrenciler");
 
     const bugun = new Date().toLocaleDateString("tr-TR").replace(/\./g, "-");
-    const ad = String(t.ad).replace(/[\/:*?"<>|]/g, "-").trim() || "Para Toplama";
+    const ad = dosyaAdi(t.ad) || "Para Toplama";
     XLSX.writeFile(wb, `${ad} - ${bugun}.xlsx`);
   } catch (err) {
     mesajGoster("paraMesaj", err.message, "hata");
