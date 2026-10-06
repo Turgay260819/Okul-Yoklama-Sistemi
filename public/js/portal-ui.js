@@ -38,6 +38,7 @@ const adminMenu = [
   { id: "vekil-atama",    ikon: "🔄", ad: "Vekil Atama" },
   { id: "vekil-dersler",  ikon: "💰", ad: "Vekil Ders Kayitlari" },
   { id: "bildirim-gonder", ikon: "📢", ad: "Bildirim Gonder" },
+  { id: "para-toplama",   ikon: "💵", ad: "Para Toplama" },
   { id: "aksaklik",       ikon: "🛠️", ad: "Aksaklik Bildirimleri" },
   { id: "gorev",          ikon: "👥", ad: "Gorev Dagilimi" },
   { id: "kazanimlar",     ikon: "📖", ad: "Kazanim Yonetimi" },

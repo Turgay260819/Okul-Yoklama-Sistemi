@@ -1508,3 +1508,17 @@ tr:last-child td {
 .duyuru-gecmis-satir:last-child { border-bottom: none; }
 .idare-mesaji-oge { padding: 10px 0; border-bottom: 1px solid var(--border); }
 .idare-mesaji-oge:last-child { border-bottom: none; }
+
+/* ── PARA TOPLAMA (admin) ── */
+.para-ozet { display: flex; gap: 24px; flex-wrap: wrap; }
+.para-ozet > div { display: flex; flex-direction: column; }
+.para-ozet-sayi { font-size: 22px; font-weight: 800; color: var(--mavi); }
+.para-ozet-etiket { font-size: 12px; color: var(--text2); }
+.para-tablo { width: 100%; }
+.para-tablo tr.para-verdi td { background: #f1faf3; }
+.para-tablo tr.para-bos-sinif td { color: var(--text2); }
+.para-tablo tr.para-toplam td { font-weight: 800; border-top: 2px solid var(--border); }
+.para-detay { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; font-size: 13px; line-height: 1.6; }
+@media (max-width: 600px) { .para-detay { grid-template-columns: 1fr; } }
+.para-yazdir-baslik { display: none; font-size: 18px; font-weight: 800; margin-bottom: 8px; }
+@media print { .para-yazdir-baslik { display: block; } }

@@ -9,6 +9,7 @@ import { authBaslat } from "./portal-auth.js";
 import { anasayfaYukle } from "./portal-admin.js";
 import { dersleriniYukle, ogretmenGorevleriniYukle, nobetBugunKontrolEt, vekaletBugunKontrolEt, idareGoreviKontrolEt, idareMesajiKontrolEt } from "./portal-teacher.js";
 import { bildirimGonderYukle } from "./portal-duyuru.js";
+import { paraToplamaYukle } from "./portal-para.js";
 import { gorevSayfasiBaslat } from "./portal-gorev.js";
 import { vekilAtamaSayfasiBaslat } from "./portal-vekil.js";
 import { vekilDerslerimYukle, vekilDerslerAdminYukle } from "./portal-vekil-ders.js";
@@ -59,6 +60,7 @@ window.sayfaYukle = (id) => {
   else if (id === "vekil-dersler")   vekilDerslerAdminYukle();
   else if (id === "vekil-derslerim") vekilDerslerimYukle();
   else if (id === "bildirim-gonder") bildirimGonderYukle();
+  else if (id === "para-toplama")   paraToplamaYukle();
   else if (id === "gorevlerim")   ogretmenGorevleriniYukle();
   else if (id === "kazanimlar")   kazanimSayfasiYukle();
   else if (id === "kazanimlarim") kazanimlarimYukle();
