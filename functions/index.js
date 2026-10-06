@@ -1470,6 +1470,36 @@ async function ogretmenlerePushGonder(db, ogretmenIds, { baslik, govde, tag, kal
 }
 
 // ===========================
+// İZİN GİRİLİNCE REHBER ÖĞRETMENE BİLDİRİM
+// Izin rehber onayina dustugunde (durum beklemede_rehber) sinifin rehber
+// ogretmenine zil bildirimi (tip izin_onay) yazar ve telefonuna bildirim
+// gonderir. Portala girisinde ayrica "Onay Bekleyen Izin Talepleri" penceresi
+// acilir (portal-teacher.js rehberIzinKontrolEt). Rehber onaylayinca/
+// reddedince zil kaydi izin.html'de okundu yapilir.
+// ===========================
+exports.izinRehbereBildir = onDocumentCreated("izinler/{izinId}", async (event) => {
+  const v = event.data?.data();
+  if (!v || v.durum !== "beklemede_rehber" || !v.rehber_id) return;
+  const db = admin.firestore();
+  const tr = (t) => (t ? String(t).split("-").reverse().join(".") : "");
+  const aralik = v.baslangic_tarih === v.bitis_tarih ? tr(v.baslangic_tarih) : `${tr(v.baslangic_tarih)} – ${tr(v.bitis_tarih)}`;
+  const baslik = "📄 Onay bekleyen izin";
+  const govde = `${v.ogrenci_ad || "Öğrenci"} (${v.sinif || "?"}) — ${aralik} izin talebi onayınızı bekliyor. Giren: ${v.olusturan_ogretmen_ad || "?"}`;
+
+  await db.collection("bildirimler").add({
+    alici_id: v.rehber_id,
+    tip: "izin_onay",
+    baslik,
+    mesaj: govde,
+    referans_id: event.params.izinId,
+    okundu: false,
+    tarih: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  const push = await ogretmenlerePushGonder(db, [v.rehber_id], { baslik, govde, tag: "izin_" + event.params.izinId });
+  console.log(`Izin bildirimi: ${v.rehber_ad || v.rehber_id} <- ${v.ogrenci_ad} (${v.sinif}), push ${push.basarili}/${push.cihaz}`);
+});
+
+// ===========================
 // İDARE MESAJI GÖNDER (admin "Bildirim Gönder" sayfası)
 // Secilen ogretmenlere zil bildirimi (bildirimler, tip idare_mesaji) yazar,
 // kayitli cihazlarina telefon bildirimi gonderir ve idare_mesajlari'na arsiv

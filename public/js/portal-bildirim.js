@@ -59,7 +59,7 @@ function _bildirimPanelIcerikGoster() {
     panel.innerHTML = `<div class="bildirim-bos">🔔 Okunmamis bildirim yok.</div>`;
     return;
   }
-  const tipIkonu = { anket: "📋", gorev: "📌", duyuru: "📢", kura: "🎲", idare_mesaji: "📢", idare_gorevi: "📌", vekil_ders: "🔄" };
+  const tipIkonu = { anket: "📋", gorev: "📌", duyuru: "📢", kura: "🎲", idare_mesaji: "📢", idare_gorevi: "📌", vekil_ders: "🔄", izin_onay: "📄" };
   let html = `<div class="bildirim-panel-baslik"><span>BİLDİRİMLER (${state.bildirimler.length})</span></div>`;
   state.bildirimler.forEach((b) => {
     const ikon = tipIkonu[b.tip] || "🔔";
@@ -81,7 +81,9 @@ window.bildirimOku = async (bildirimId, tip, referansId) => {
   _bildirimRozetGuncelle();
   document.getElementById("bildirimPanel")?.classList.remove("acik");
 
-  if (tip === "idare_mesaji" && bildirim) {
+  if (tip === "izin_onay") {
+    window.rehberIzinOnayaGit?.();
+  } else if (tip === "idare_mesaji" && bildirim) {
     window.idareMesajlariniGoster?.([bildirim]);
   } else if (tip === "anket") {
     window.location.href = "/anket.html" + (referansId ? "?id=" + referansId : "");

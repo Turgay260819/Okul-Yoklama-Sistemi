@@ -1000,6 +1000,55 @@ export async function idareGoreviKontrolEt() {
   }
 }
 
+// ── REHBER ÖĞRETMEN: ONAY BEKLEYEN İZİN KONTROLÜ ──
+// "Bugun Nobetcisiniz" uyarisi gibi giriste acilir. izinler'den okunur (zil
+// bildiriminden degil); izin onaylanana/reddedilene kadar her giriste cikar.
+export async function rehberIzinKontrolEt() {
+  if (!state.ogretmenDoc) return;
+  try {
+    const snap = await getDocs(
+      query(
+        collection(db, "izinler"),
+        where("rehber_id", "==", state.ogretmenDoc.id),
+        where("durum", "==", "beklemede_rehber"),
+      ),
+    );
+    if (snap.empty) return;
+    const tr = (t) => (t ? String(t).split("-").reverse().join(".") : "");
+    const izinler = snap.docs.map((d) => d.data())
+      .sort((a, b) => String(a.baslangic_tarih || "").localeCompare(String(b.baslangic_tarih || "")));
+    document.getElementById("rehberIzinListe").innerHTML = izinler.map((k) => {
+      const aralik = k.baslangic_tarih === k.bitis_tarih ? tr(k.baslangic_tarih) : `${tr(k.baslangic_tarih)} – ${tr(k.bitis_tarih)}`;
+      return `<div class="idare-mesaji-oge">
+        <div style="font-weight:700;">${esc(k.ogrenci_ad)} <span style="font-weight:400;color:var(--text2);font-size:12px;">No: ${esc(k.ogrenci_no)} · ${esc(k.sinif)}</span></div>
+        <div style="font-size:13px;margin-top:2px;">${esc(aralik)}${k.tur === "gun_ici" ? " (gün içi)" : ""}</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:2px;">Giren: ${esc(k.olusturan_ogretmen_ad || "?")}</div>
+      </div>`;
+    }).join("");
+    document.getElementById("rehberIzinModal").classList.add("aktif");
+  } catch (e) {
+    console.warn("Rehber izin kontrolu basarisiz:", e);
+  }
+}
+
+window.rehberIzinModalKapat = () => {
+  document.getElementById("rehberIzinModal").classList.remove("aktif");
+};
+
+// Izin sayfasini dogrudan Rehber Onayi sekmesiyle acar. Iframe henuz yoksa
+// sekme parametresiyle olusturulur; varsa adresi degistirilir.
+window.rehberIzinOnayaGit = () => {
+  window.rehberIzinModalKapat();
+  const kap = document.getElementById("sayfa-izin");
+  const src = "/izin.html?embedded=1&sekme=rehber-onay";
+  if (kap) {
+    const iframe = kap.querySelector("iframe");
+    if (iframe) iframe.src = src;
+    else kap.innerHTML = `<iframe src="${src}" style="width:100%;height:85vh;border:none;border-radius:12px;"></iframe>`;
+  }
+  window.ogretmenKareTikla("izin", "İzin Girişi");
+};
+
 // ── İDAREDEN MESAJ KONTROLÜ (admin "Bildirim Gönder") ──
 // Okunmamis idare_mesaji bildirimlerini giriste pencerede gosterir; "Okudum"
 // ile okundu isaretlenir (idare gorevi kontroluyle ayni desen).

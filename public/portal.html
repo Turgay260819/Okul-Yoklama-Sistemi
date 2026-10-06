@@ -1162,6 +1162,20 @@
       </div>
     </div>
 
+    <!-- REHBER: ONAY BEKLEYEN İZİN TALEPLERİ MODAL -->
+    <div class="modal-zemin" id="rehberIzinModal">
+      <div class="modal-kutu" style="text-align:center;">
+        <div style="font-size:48px;margin-bottom:8px;">📄</div>
+        <div class="modal-baslik" style="font-size:20px;">Onay Bekleyen İzin Talepleri</div>
+        <p style="color:var(--text2);margin:8px 0 4px;font-size:13px;">Rehber öğretmeni olduğunuz sınıftan onayınızı bekleyen izinler var.</p>
+        <div id="rehberIzinListe" style="text-align:left;margin:8px 0 20px;max-height:50vh;overflow-y:auto;"></div>
+        <div class="modal-butonlar">
+          <button class="btn btn-gri" onclick="rehberIzinModalKapat()">Sonra</button>
+          <button class="btn btn-mavi" onclick="rehberIzinOnayaGit()">İzinleri Onayla</button>
+        </div>
+      </div>
+    </div>
+
     <!-- İDAREDEN MESAJ MODAL (Bildirim Gönder) -->
     <div class="modal-zemin" id="idareMesajiModal">
       <div class="modal-kutu" style="text-align:center;">

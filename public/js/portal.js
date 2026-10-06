@@ -7,7 +7,7 @@ import { state } from "./portal-state.js";
 import { tarihBilgisiniGoster, baslangicDegerleriniAyarla } from "./portal-ui.js";
 import { authBaslat } from "./portal-auth.js";
 import { anasayfaYukle } from "./portal-admin.js";
-import { dersleriniYukle, ogretmenGorevleriniYukle, nobetBugunKontrolEt, vekaletBugunKontrolEt, idareGoreviKontrolEt, idareMesajiKontrolEt } from "./portal-teacher.js";
+import { dersleriniYukle, ogretmenGorevleriniYukle, nobetBugunKontrolEt, vekaletBugunKontrolEt, idareGoreviKontrolEt, idareMesajiKontrolEt, rehberIzinKontrolEt } from "./portal-teacher.js";
 import { bildirimGonderYukle } from "./portal-duyuru.js";
 import { paraToplamaYukle } from "./portal-para.js";
 import { gorevSayfasiBaslat } from "./portal-gorev.js";
@@ -164,6 +164,7 @@ authBaslat(async (user, rol) => {
     vekaletBugunKontrolEt().catch((e) => console.warn("Vekalet kontrolu basarisiz:", e));
     idareGoreviKontrolEt().catch((e) => console.warn("Idare gorevi kontrolu basarisiz:", e));
     idareMesajiKontrolEt().catch((e) => console.warn("Idare mesaji kontrolu basarisiz:", e));
+    rehberIzinKontrolEt().catch((e) => console.warn("Rehber izin kontrolu basarisiz:", e));
     pushHazirla().catch((e) => console.warn("Bildirim hazirligi basarisiz:", e));
   }
 

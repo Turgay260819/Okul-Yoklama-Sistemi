@@ -349,7 +349,25 @@
 
       if (aktifOgretmenRehberSube) rehberOnayGetir();
       kayitlariGetir();
+
+      // Portaldaki "Onay Bekleyen Izin Talepleri" penceresinden gelindiyse
+      // dogrudan Rehber Onayi sekmesini ac.
+      if (new URLSearchParams(location.search).get('sekme') === 'rehber-onay' && aktifOgretmenRehberSube) {
+        sayfaGoster('rehber-onay', document.getElementById('menuRehberOnay'));
+      }
     });
+
+    // Rehber onaylayinca/reddedince bu izne ait zil bildirimini (izin_onay) kapat.
+    async function izinBildiriminiKapat(izinId) {
+      try {
+        const snap = await getDocs(query(collection(db, 'bildirimler'), where('referans_id', '==', izinId)));
+        await Promise.all(snap.docs
+          .filter(d => d.data().tip === 'izin_onay' && !d.data().okundu)
+          .map(d => updateDoc(d.ref, { okundu: true }).catch(() => {})));
+      } catch (e) {
+        console.warn('Izin bildirimi kapatilamadi:', e);
+      }
+    }
 
     window.sayfaGoster = (sayfaId, menuItem) => {
       document.querySelectorAll('.sayfa').forEach(s => s.classList.remove('aktif'));
@@ -521,6 +539,7 @@
     window.izinOnayla = async (id, asama) => {
       if (asama === 'rehber') {
         await updateDoc(doc(db, 'izinler', id), { durum: 'beklemede_admin', rehber_onay_tarihi: serverTimestamp() });
+        izinBildiriminiKapat(id);
         rehberOnayGetir();
       } else {
         await updateDoc(doc(db, 'izinler', id), {
@@ -542,7 +561,7 @@
         red_asama: asama,
         red_tarihi: serverTimestamp()
       });
-      if (asama === 'rehber') rehberOnayGetir(); else adminOnayGetir();
+      if (asama === 'rehber') { izinBildiriminiKapat(id); rehberOnayGetir(); } else adminOnayGetir();
       kayitlariGetir();
     };
 
