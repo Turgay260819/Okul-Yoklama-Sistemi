@@ -51,23 +51,26 @@ const adminMenu = [
   { id: "ayarlar",        ikon: "⚙️", ad: "Ayarlar" },
 ];
 
+// Liste sirasi = ekrandaki sira (iki sutun, soldan saga). gizli: true olanlar
+// menude gorunmez ama sayfalari ve yonlendirmeleri yerinde kalir.
 const ogretmenKareler = [
-  { sayfa: 1, id: "derslerim",           ikon: "📋", ad: "Derslerim",           renk: "#e8f0fe", metinRenk: "#1a73e8" },
-  { sayfa: 1, id: "yoklamalarim",        ikon: "✅", ad: "Yoklamalarım",         renk: "#e6f4ea", metinRenk: "#2e7d32" },
-  { sayfa: 1, id: "dyk",                 ikon: "📚", ad: "DYK Yoklama",          renk: "#fce8e6", metinRenk: "#c62828" },
-  { sayfa: 1, id: "disiplin",            ikon: "📝", ad: "Disiplin Kaydı",       renk: "#fff8e1", metinRenk: "#e65100" },
-  { sayfa: 1, id: "izin",                ikon: "📄", ad: "İzin Girişi",         renk: "#e3f2fd", metinRenk: "#1565c0" },
-  { sayfa: 1, id: "gorevlerim",          ikon: "👥", ad: "Görevlerim",           renk: "#f3e8fd", metinRenk: "#6a1b9a" },
-  { sayfa: 1, id: "kazanimlarim",        ikon: "📖", ad: "Kazanımlarım",         renk: "#e8f5e9", metinRenk: "#1b5e20" },
-  { sayfa: 1, id: "aksaklik",            ikon: "🛠️", ad: "Aksaklık Bildir",      renk: "#efebe9", metinRenk: "#5d4037" },
-  { sayfa: 2, id: "vekil-derslerim",    ikon: "🔄", ad: "Vekil Derslerim",      renk: "#e3f2fd", metinRenk: "#1565c0" },
-  { sayfa: 2, id: "manuel",             ikon: "✏️", ad: "Manuel Giriş",          renk: "#f5f5f5", metinRenk: "#424242" },
-  { sayfa: 2, id: "nobet2",             ikon: "📅", ad: "Nöbet Programım",      renk: "#f5f5f5", metinRenk: "#424242" },
-  { sayfa: 2, id: "ogrenci-profil", ikon: "👤", ad: "Öğrenci Profilleri",   renk: "#f5f5f5", metinRenk: "#424242" },
-  { sayfa: 2, id: "program-talebi", ikon: "📐", ad: "Program Talebi",       renk: "#f5f5f5", metinRenk: "#424242" },
-  { sayfa: 2, id: "anket",          ikon: "📋", ad: "Anket & Formlar",      renk: "#f5f5f5", metinRenk: "#424242" },
-  { sayfa: 2, id: "gezi-kayit",    ikon: "🚌", ad: "Gezi Kaydı",           renk: "#f5f5f5", metinRenk: "#424242" },
-  { sayfa: 2, id: "kura",          ikon: "🎲", ad: "Kura Sonuçları",       renk: "#f5f5f5", metinRenk: "#424242" },
+  { sayfa: 1, id: "derslerim",       ikon: "📋", ad: "Derslerim",          renk: "#e8f0fe", metinRenk: "#1a73e8" },
+  { sayfa: 1, id: "yoklamalarim",    ikon: "✅", ad: "Yoklamalarım",       renk: "#e6f4ea", metinRenk: "#2e7d32" },
+  { sayfa: 1, id: "disiplin",        ikon: "📝", ad: "Disiplin Kaydı",     renk: "#fff8e1", metinRenk: "#e65100" },
+  { sayfa: 1, id: "nobet2",          ikon: "📅", ad: "Nöbet Programım",    renk: "#f5f5f5", metinRenk: "#424242" },
+  { sayfa: 1, id: "vekil-derslerim", ikon: "🔄", ad: "Vekil Derslerim",    renk: "#e3f2fd", metinRenk: "#1565c0" },
+  { sayfa: 1, id: "manuel",          ikon: "✏️", ad: "Manuel Giriş",        renk: "#f5f5f5", metinRenk: "#424242" },
+  { sayfa: 2, id: "izin",            ikon: "📄", ad: "İzin Girişi",        renk: "#e3f2fd", metinRenk: "#1565c0" },
+  { sayfa: 2, id: "aksaklik",        ikon: "🛠️", ad: "Aksaklık Bildir",    renk: "#efebe9", metinRenk: "#5d4037" },
+  { sayfa: 2, id: "program-talebi",  ikon: "📐", ad: "Program Talebi",     renk: "#f5f5f5", metinRenk: "#424242" },
+  { sayfa: 2, id: "anket",           ikon: "📋", ad: "Anket & Formlar",    renk: "#f5f5f5", metinRenk: "#424242" },
+  { sayfa: 2, id: "ogrenci-profil",  ikon: "👤", ad: "Öğrenci Profilleri", renk: "#f5f5f5", metinRenk: "#424242" },
+  { sayfa: 2, id: "gorevlerim",      ikon: "👥", ad: "Görevlerim",         renk: "#f3e8fd", metinRenk: "#6a1b9a" },
+  // Simdilik gizli
+  { sayfa: 2, id: "dyk",             ikon: "📚", ad: "DYK Yoklama",        renk: "#fce8e6", metinRenk: "#c62828", gizli: true },
+  { sayfa: 2, id: "kazanimlarim",    ikon: "📖", ad: "Kazanımlarım",       renk: "#e8f5e9", metinRenk: "#1b5e20", gizli: true },
+  { sayfa: 2, id: "gezi-kayit",      ikon: "🚌", ad: "Gezi Kaydı",         renk: "#f5f5f5", metinRenk: "#424242", gizli: true },
+  { sayfa: 2, id: "kura",            ikon: "🎲", ad: "Kura Sonuçları",     renk: "#f5f5f5", metinRenk: "#424242", gizli: true },
 ];
 
 let _ogrAktifSayfa = 0;
@@ -95,7 +98,7 @@ function ogretmenAnasayfaOlustur() {
   if (!s1 || !s2) return;
   s1.innerHTML = "";
   s2.innerHTML = "";
-  ogretmenKareler.forEach((k) => {
+  ogretmenKareler.filter((k) => !k.gizli).forEach((k) => {
     const hedef = k.sayfa === 1 ? s1 : s2;
     const onclick = k.dis
       ? `window.open('${k.dis}','_blank')`
