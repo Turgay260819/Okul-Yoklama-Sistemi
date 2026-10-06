@@ -335,16 +335,18 @@ service cloud.firestore {
     }
     // Vekil ders ucret kayitlari. Belge kimligi tarih_sinif_saat oldugu icin
     // bir sinif-saate tek kayit acilir; ogretmen update yapamadigi icin mevcut
-    // kaydin ustune yazamaz (ilk giren alir). Ogretmen sadece bugune ve bir
-    // onceki is gunune, kendi adina yazabilir; daha eskisini yonetim girer.
+    // kaydin ustune yazamaz (ilk giren alir). Kaydi SADECE ogretmen, kendi
+    // adina, bugune veya bir onceki is gunune acar; idare kayit acamaz ve
+    // degistiremez, hatali kaydi silebilir. Ogretmen ayni sure icinde kendi
+    // kaydini silebilir.
     match /vekil_dersler/{docId} {
       allow read: if isLoggedIn();
-      allow create: if isYonetim() ||
-        (isOgretmen() &&
+      allow create: if isOgretmen() &&
          ogretmenTarihi(request.resource.data.tarih) &&
          request.resource.data.kaynak in ['sistem_onay', 'ogretmen'] &&
-         kendiOgretmenDocu(request.resource.data.vekil_ogretmen_id));
-      allow update: if isYonetim();
+         request.resource.data.olusturan_uid == request.auth.uid &&
+         kendiOgretmenDocu(request.resource.data.vekil_ogretmen_id);
+      allow update: if false;
       allow delete: if isYonetim() ||
         (isOgretmen() &&
          ogretmenTarihi(resource.data.tarih) &&

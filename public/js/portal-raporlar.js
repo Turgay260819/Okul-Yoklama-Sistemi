@@ -622,7 +622,7 @@ window.vekillikRaporGetir = async function () {
     if (v.substitute_teacher_id && !kayitIdleri.has(kayitId(v.date, v.class_id, v.lesson_number))) onaysiz++;
   });
   const onaysizUyari = onaysiz
-    ? `<div class="mesaj mesaj-hata" style="display:block;margin-bottom:16px;">⚠️ Bu aralıkta Vekil Atama'dan atanmış ama derse girdiği kaydedilmemiş ${onaysiz} ders var; bu rapora dahil değil. Yönetim → Vekil Ders Kayitlari → "Onay Bekleyen Atamalar" bölümünden onaylayabilirsiniz.</div>`
+    ? `<div class="mesaj mesaj-hata" style="display:block;margin-bottom:16px;">⚠️ Bu aralıkta Vekil Atama'dan atanmış ama derse girdiği kaydedilmemiş ${onaysiz} ders var; bu rapora dahil değil. Ücrete girmesi için öğretmenin kendi sayfasından "Derse girdim" ile onaylaması gerekir (liste: Yönetim → Vekil Ders Kayitlari).</div>`
     : "";
 
   if (!toplamDers) {

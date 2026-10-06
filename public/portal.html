@@ -489,8 +489,8 @@
               <div class="kart yazdirma-gizle">
                 <div class="kart-baslik">Vekil Ders Kayıtları</div>
                 <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">
-                  Vekil ders ücretleri bu kayıtlara göre hesaplanır. Öğretmenler sadece o günün kaydını girebilir; geçmiş tarihleri buradan siz girersiniz.
-                  Bir sınıfın bir saatine tek kayıt açılır.
+                  Vekil ders ücretleri bu kayıtlara göre hesaplanır. Listede sadece öğretmenlerin kendi sayfalarından onayladığı veya girdiği dersler bulunur;
+                  idare kayıt ekleyemez, hatalı bir kaydı silebilir. Bir sınıfın bir saatine tek kayıt açılır.
                 </p>
                 <div class="form-grid">
                   <div class="form-group"><label>Başlangıç</label><input type="date" id="vdBaslangic" /></div>
@@ -512,25 +512,9 @@
                 <div id="vdListe"></div>
               </div>
               <div class="kart yazdirma-gizle">
-                <div class="kart-baslik">Onay Bekleyen Atamalar</div>
-                <p style="font-size:13px;color:var(--text2);margin-bottom:10px;">Vekil Atama'dan yapılmış ama derse girdiği henüz kaydedilmemiş dersler. Ücret listesine girmesi için onaylayın.</p>
+                <div class="kart-baslik">Henüz Onaylanmamış Atamalar (bilgi)</div>
+                <p style="font-size:13px;color:var(--text2);margin-bottom:10px;">Vekil Atama'dan yapılmış ama öğretmenin "Derse girdim" ile henüz onaylamadığı dersler. Öğretmen kendi sayfasından onaylayana kadar ücret listesine girmez; öğretmene hatırlatabilirsiniz.</p>
                 <div id="vdOnaysiz"></div>
-              </div>
-              <div class="kart yazdirma-gizle">
-                <div class="kart-baslik">Kayıt Ekle (Geçmiş Tarih)</div>
-                <div class="form-grid">
-                  <div class="form-group"><label>Tarih</label><input type="date" id="vdEkleTarih" onchange="vdEkleDersleriYukle()" /></div>
-                  <div class="form-group"><label>Ders Saati</label>
-                    <select id="vdEkleSaat" onchange="vdEkleDersleriYukle()">
-                      <option value="">Seçin</option>
-                      <option value="1">1. Ders</option><option value="2">2. Ders</option><option value="3">3. Ders</option><option value="4">4. Ders</option>
-                      <option value="5">5. Ders</option><option value="6">6. Ders</option><option value="7">7. Ders</option><option value="8">8. Ders</option>
-                    </select></div>
-                  <div class="form-group"><label>Ders (Sınıf — Ders — Öğretmen)</label><select id="vdEkleDers"><option value="">Önce tarih ve saat seçin</option></select></div>
-                  <div class="form-group"><label>Derse Giren (Vekil)</label><select id="vdEkleVekil"><option value="">Seçin</option></select></div>
-                </div>
-                <button class="btn btn-yesil" onclick="vdEkleKaydet()">Kaydet</button>
-                <div class="mesaj" id="vdEkleMesaj" style="margin-top:8px;"></div>
               </div>
             </div>
 

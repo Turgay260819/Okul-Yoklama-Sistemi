@@ -5,7 +5,7 @@ import {
 } from "./portal-config.js";
 import { state } from "./portal-state.js";
 import { esc, mesajGoster, haftaNoHesapla, normalizeGun, gunAdiGetir } from "./portal-utils.js";
-import { kayitId, kayitOlustur } from "./portal-vekil-ders.js";
+import { kayitId, kayitOlustur, kaydimiSil, ogretmenTarihiMi } from "./portal-vekil-ders.js";
 
 const GUNLER = ["Pazar", "Pazartesi", "Sali", "Carsamba", "Persembe", "Cuma", "Cumartesi"];
 
@@ -181,7 +181,7 @@ export async function dersleriniYukle() {
           return `<button class="btn btn-yesil btn-sm" data-ders="${esc(d.id)}" onclick="derslerimVekilGirdim(this)">${on}Derse girdim</button>`;
         }
         return kayit.vekil_ogretmen_id === benId
-          ? `<span class="rozet rozet-yesil">${on}✓ Derse girdiğiniz kaydedildi</span>`
+          ? `<span class="rozet rozet-yesil">${on}✓ Derse girdiğiniz kaydedildi</span>${ogretmenTarihiMi(d.date) ? ` <button class="btn btn-gri btn-sm" data-id="${esc(kayitId(d.date, d.class_id, d.lesson_number))}" onclick="derslerimVekilGeriAl(this)">Geri al</button>` : ""}`
           : `<span class="rozet rozet-turuncu">${on}${esc(kayit.vekil_ogretmen_ad)} girmiş</span>`;
       }).join(" ");
       vekilHtml = `<div style="margin-top:6px;font-size:13px;font-weight:700;color:#1565c0;">🔄 Vekil Ders — ${esc(yerine)} yerine</div>
@@ -211,12 +211,23 @@ window.dersleriniYukle = dersleriniYukle;
 // Derslerim'deki vekil ders kartlarindan dogrudan ucret kaydi: Vekil Derslerim
 // sayfasindaki "Derse girdim" ile ayni kayit (kayitOlustur, kaynak sistem_onay).
 let _derslerimVekilDersler = new Map();
+window.derslerimVekilGeriAl = async (btn) => {
+  btn.disabled = true;
+  try {
+    if (await kaydimiSil(btn.dataset.id)) await dersleriniYukle();
+    else btn.disabled = false;
+  } catch (err) {
+    btn.disabled = false;
+    mesajGoster("derslerimVekilMesaj", "Silinemedi: " + err.message, "hata");
+  }
+};
+
 window.derslerimVekilGirdim = async (btn) => {
   const ders = _derslerimVekilDersler.get(btn.dataset.ders);
   if (!ders || !state.ogretmenDoc) return;
   btn.disabled = true;
   try {
-    await kayitOlustur(ders, state.ogretmenDoc.id, "sistem_onay");
+    await kayitOlustur(ders, "sistem_onay");
     await dersleriniYukle();
   } catch (err) {
     btn.disabled = false;

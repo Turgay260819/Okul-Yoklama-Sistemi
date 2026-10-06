@@ -4,16 +4,17 @@ import {
   collection, query, where, doc, serverTimestamp,
 } from "./portal-config.js";
 import { state } from "./portal-state.js";
-import { esc, mesajGoster, sor, normalizeGun, gunAdiGetir } from "./portal-utils.js";
+import { esc, mesajGoster, sor } from "./portal-utils.js";
 
 // ── VEKİL DERS KAYITLARI (ücret) ──
-// vekil_dersler: "kim hangi derse girdi" sorusunun tek kaydi. Belge kimligi
-// tarih_sinif_saat oldugu icin bir sinif-saate tek kayit acilir (ilk giren
-// alir; firestore.rules ogretmenin mevcut kaydin ustune yazmasina izin vermez).
-// Ogretmen bugune ve bir onceki is gunune kendi adina yazar; daha eskisini
-// yonetim girer (firestore.rules ogretmenTarihi ile ayni sinir).
+// vekil_dersler: "kim hangi derse girdi" sorusunun tek kaydi. SADECE ogretmen
+// kendi sayfasindan acar (atama onayi ya da elle giris); idare kayit acamaz,
+// hatali kaydi silebilir. Belge kimligi tarih_sinif_saat oldugu icin bir
+// sinif-saate tek kayit acilir (ilk giren alir). Ogretmen bugune ve bir onceki
+// is gunune yazar ve o sure icinde kendi kaydini silebilir (firestore.rules
+// ogretmenTarihi ile ayni sinir).
 
-const KAYNAK_ETIKET = { sistem_onay: "Atama onayı", ogretmen: "Öğretmen girdi", admin: "İdare girdi" };
+const KAYNAK_ETIKET = { sistem_onay: "Atama onayı", ogretmen: "Elle girdi", admin: "İdare girdi" };
 
 export function kayitId(tarih, sinif, dersNo) {
   return `${tarih}_${String(sinif).replace(/[\/\s.#\[\]]/g, "-")}_${dersNo}`;
@@ -32,44 +33,6 @@ function tarihGoster(t) {
   return d ? `${d}.${m}.${y}` : t;
 }
 
-// Ders + asıl öğretmen + vekil bilgisinden vekil_dersler belgesini kurar.
-function kayitVerisi(ders, vekilId, kaynak) {
-  return {
-    tarih: ders.date,
-    ders_no: ders.lesson_number,
-    sinif: ders.class_id,
-    ders_adi: ders.lesson_name || "",
-    asil_ogretmen_id: ders.teacher_id || "",
-    asil_ogretmen_ad: ders.teacher_id ? ogretmenAd(ders.teacher_id) : "",
-    vekil_ogretmen_id: vekilId,
-    vekil_ogretmen_ad: ogretmenAd(vekilId),
-    kaynak,
-    today_lesson_id: ders.id || null,
-    olusturan_uid: auth.currentUser?.uid || null,
-    olusturma: serverTimestamp(),
-  };
-}
-
-// Kayit zaten varsa kimin girdigini soyler; yoksa yazar. Yaris durumunda
-// kural reddeder (update izni yok) — o da ayni mesaja cevrilir.
-export async function kayitOlustur(ders, vekilId, kaynak) {
-  const id = kayitId(ders.date, ders.class_id, ders.lesson_number);
-  const ref = doc(db, "vekil_dersler", id);
-  const mevcut = await getDoc(ref);
-  if (mevcut.exists()) {
-    throw new Error(`Bu ders zaten ${mevcut.data().vekil_ogretmen_ad || "başka bir öğretmen"} tarafından girilmiş.`);
-  }
-  try {
-    await setDoc(ref, kayitVerisi(ders, vekilId, kaynak));
-  } catch (err) {
-    const tekrar = await getDoc(ref).catch(() => null);
-    if (tekrar?.exists()) throw new Error(`Bu ders zaten ${tekrar.data().vekil_ogretmen_ad || "başka bir öğretmen"} tarafından girilmiş.`);
-    throw err;
-  }
-}
-
-// ═══════════════ ÖĞRETMEN: VEKİL DERSLERİM ═══════════════
-
 const GUN_ADLARI = ["Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi"];
 
 // Bir onceki is gunu: Pzt -> Cuma, Paz -> Cuma, Cmt -> Cuma, digerleri -> dun.
@@ -81,10 +44,71 @@ export function oncekiIsGunu(tarih) {
   return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, "0"), String(d.getDate()).padStart(2, "0")].join("-");
 }
 
+// Ogretmen bu tarihe kayit girebilir / kendi kaydini silebilir mi?
+export function ogretmenTarihiMi(tarih) {
+  const b = bugunHesapla();
+  return tarih === b || tarih === oncekiIsGunu(b);
+}
+
 function gunEtiketi(tarih) {
   const [, m, g] = tarih.split("-");
   return `${g}.${m} ${GUN_ADLARI[new Date(tarih + "T12:00:00").getDay()]}`;
 }
+
+// Oturumdaki ogretmen adina kayit acar. Once mukerrer kontrolu:
+//  1) ayni sinif-saat icin kayit varsa (kendisi ya da baskasi girmis)
+//  2) ogretmenin ayni gun ayni saatte baska bir sinif icin kaydi varsa
+// Yaris durumunda kural reddeder (update izni yok); o da ayni mesaja cevrilir.
+export async function kayitOlustur(ders, kaynak) {
+  const ben = state.ogretmenDoc;
+  if (!ben) throw new Error("Öğretmen kaydınız bulunamadı.");
+  const id = kayitId(ders.date, ders.class_id, ders.lesson_number);
+  const ref = doc(db, "vekil_dersler", id);
+
+  const mevcutMesaji = (k) => k.vekil_ogretmen_id === ben.id
+    ? "Mükerrer kayıt: Bu dersi zaten kaydettiniz."
+    : `Bu ders zaten ${k.vekil_ogretmen_ad || "başka bir öğretmen"} tarafından girilmiş.`;
+
+  const mevcut = await getDoc(ref);
+  if (mevcut.exists()) throw new Error(mevcutMesaji(mevcut.data()));
+
+  const benimSnap = await getDocs(query(collection(db, "vekil_dersler"), where("vekil_ogretmen_id", "==", ben.id)));
+  const ayniSaat = benimSnap.docs.map((d) => d.data())
+    .find((k) => k.tarih === ders.date && Number(k.ders_no) === Number(ders.lesson_number));
+  if (ayniSaat) {
+    throw new Error(`Mükerrer kayıt: ${tarihGoster(ders.date)} ${ders.lesson_number}. ders için zaten ${ayniSaat.sinif} ${ayniSaat.ders_adi || ""} kaydınız var. Aynı saatte iki derse girilemez; yanlışsa önce o kaydı silin.`);
+  }
+
+  try {
+    await setDoc(ref, {
+      tarih: ders.date,
+      ders_no: ders.lesson_number,
+      sinif: ders.class_id,
+      ders_adi: ders.lesson_name || "",
+      asil_ogretmen_id: ders.teacher_id || "",
+      asil_ogretmen_ad: ders.teacher_id ? ogretmenAd(ders.teacher_id) : "",
+      vekil_ogretmen_id: ben.id,
+      vekil_ogretmen_ad: ben.ad || ogretmenAd(ben.id),
+      kaynak,
+      today_lesson_id: ders.id || null,
+      olusturan_uid: auth.currentUser?.uid || null,
+      olusturma: serverTimestamp(),
+    });
+  } catch (err) {
+    const tekrar = await getDoc(ref).catch(() => null);
+    if (tekrar?.exists()) throw new Error(mevcutMesaji(tekrar.data()));
+    throw err;
+  }
+}
+
+// Ogretmenin kendi kaydini silmesi (onay ile).
+export async function kaydimiSil(id) {
+  if (!await sor("Kaydı Sil", "Bu vekil ders kaydınız silinecek ve ücret listesinden çıkacak. Derse girmediyseniz ya da yanlış girdiyseniz silin.", "Sil", "btn-kirmizi")) return false;
+  await deleteDoc(doc(db, "vekil_dersler", id));
+  return true;
+}
+
+// ═══════════════ ÖĞRETMEN: VEKİL DERSLERİM ═══════════════
 
 let _seciliTarih = null;   // null = bugun
 let _bugunDersler = [];    // secili gunun dersleri
@@ -121,11 +145,13 @@ export async function vekilDerslerimYukle() {
     benimSnap.forEach((d) => benimKayitlar.push({ id: d.id, ...d.data() }));
 
     const bugunMu = tarih === bugunTarih;
+    // Bu ay + (ay basindaysa) onceki is gununun kayitlari; silinebilenler de gorunsun.
+    const listeBas = [ayBasi(bugunTarih), onceki].sort()[0];
     kok.innerHTML =
       _gunSeciciHtml(bugunTarih, onceki, bugunMu) +
       _atananlarHtml(ben, tarih, bugunMu) +
       _elleEkleHtml(tarih, bugunMu) +
-      _buAyHtml(benimKayitlar.filter((k) => k.tarih >= ayBasi(bugunTarih) && k.tarih <= bugunTarih));
+      _kayitlarimHtml(benimKayitlar.filter((k) => k.tarih >= listeBas && k.tarih <= bugunTarih));
     _saatSecenekleriniDoldur();
   } catch (err) {
     kok.innerHTML = `<div class="bos-mesaj">Yüklenemedi: ${esc(err.message)}</div>`;
@@ -146,7 +172,7 @@ function _atananlarHtml(ben, tarih, bugunMu) {
     .sort((a, b) => a.lesson_number - b.lesson_number);
   let html = `<div class="kart">
     <div class="kart-baslik">${bugunMu ? "Bugün" : esc(gunEtiketi(tarih))} Size Atanan Vekil Dersler</div>
-    <p style="font-size:13px;color:var(--text2);margin-bottom:10px;">Ücret, sadece burada "Derse girdim" ile onayladığınız veya aşağıdan eklediğiniz dersler için ödenir. Kayıt bugün ve bir önceki iş günü için yapılabilir; daha eski tarihler için idareye başvurun.</p>`;
+    <p style="font-size:13px;color:var(--text2);margin-bottom:10px;">Ücret, sadece sizin "Derse girdim" ile onayladığınız veya aşağıdan eklediğiniz dersler için ödenir. Kayıt bugün ve bir önceki iş günü için yapılabilir; aynı süre içinde kendi kaydınızı silebilirsiniz.</p>`;
   if (!atananlar.length) {
     html += `<div class="bos-mesaj">${bugunMu ? "Bugün" : "Bu gün"} size atanmış vekil ders yok.</div></div>`;
     return html;
@@ -159,7 +185,7 @@ function _atananlarHtml(ben, tarih, bugunMu) {
       sag = `<button class="btn btn-yesil btn-sm" data-ders="${esc(d.id)}" onclick="vekilDerseGirdim(this)">Derse girdim</button>`;
     } else if (kayit.vekil_ogretmen_id === ben.id) {
       sag = `<span class="rozet rozet-yesil">✓ Kaydedildi</span>
-        <button class="btn btn-gri btn-sm" data-id="${esc(id)}" onclick="vekilKaydimiGeriAl(this)">Geri al</button>`;
+        <button class="btn btn-gri btn-sm" data-id="${esc(id)}" onclick="vekilKaydimiSil(this)">Geri al</button>`;
     } else {
       sag = `<span class="rozet rozet-turuncu">${esc(kayit.vekil_ogretmen_ad)} girmiş</span>`;
     }
@@ -175,7 +201,7 @@ function _atananlarHtml(ben, tarih, bugunMu) {
 function _elleEkleHtml(tarih, bugunMu) {
   return `<div class="kart">
     <div class="kart-baslik">Atanmamış Bir Derse Girdim${bugunMu ? "" : ` — ${esc(gunEtiketi(tarih))}`}</div>
-    <p style="font-size:13px;color:var(--text2);margin-bottom:10px;">Size sistemden atanmadığı halde ${bugunMu ? "bugün" : esc(gunEtiketi(tarih)) + " günü"} başka bir öğretmenin yerine derse girdiyseniz buradan ekleyin.</p>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:10px;">Size sistemden atanmadığı halde ${bugunMu ? "bugün" : esc(gunEtiketi(tarih)) + " günü"} başka bir öğretmenin yerine derse girdiyseniz buradan ekleyin. Atanan bir dersi burada tekrar girmeyin; yukarıdan "Derse girdim" deyin.</p>
     <div class="form-grid">
       <div class="form-group"><label>Ders Saati</label>
         <select id="vekilElleSaat" onchange="vekilElleSaatSecildi()"><option value="">Seçin</option></select></div>
@@ -187,16 +213,21 @@ function _elleEkleHtml(tarih, bugunMu) {
   </div>`;
 }
 
-function _buAyHtml(kayitlar) {
+function _kayitlarimHtml(kayitlar) {
   kayitlar.sort((a, b) => b.tarih.localeCompare(a.tarih) || a.ders_no - b.ders_no);
   let html = `<div class="kart">
-    <div class="kart-baslik">Bu Ayki Vekil Derslerim <span class="rozet rozet-mavi">${kayitlar.length} ders</span></div>`;
+    <div class="kart-baslik">Girdiğim Vekil Ders Kayıtları <span class="rozet rozet-mavi">${kayitlar.length} ders</span></div>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:10px;">Bu ayki kayıtlarınız. Derse girmediğiniz ya da yanlış girdiğiniz bir kaydı, bugün ve bir önceki iş günü içinde silebilirsiniz.</p>`;
   if (!kayitlar.length) return html + '<div class="bos-mesaj">Bu ay kayıtlı vekil dersiniz yok.</div></div>';
-  html += '<div style="overflow-x:auto;"><table><thead><tr><th>Tarih</th><th>Saat</th><th>Sınıf / Ders</th><th>Yerine</th></tr></thead><tbody>';
+  html += '<div style="overflow-x:auto;"><table><thead><tr><th>Tarih</th><th>Saat</th><th>Sınıf / Ders</th><th>Yerine</th><th>Nasıl</th><th></th></tr></thead><tbody>';
   html += kayitlar.map((k) => `<tr>
-    <td>${esc(tarihGoster(k.tarih))}</td><td>${k.ders_no}. ders</td>
-    <td>${esc(k.sinif)} ${esc(k.ders_adi)}</td><td>${esc(k.asil_ogretmen_ad || "-")}</td></tr>`).join("");
-  return html + "</tbody></table></div></div>";
+    <td style="white-space:nowrap;">${esc(tarihGoster(k.tarih))}</td><td style="white-space:nowrap;">${k.ders_no}. ders</td>
+    <td>${esc(k.sinif)} ${esc(k.ders_adi)}</td><td>${esc(k.asil_ogretmen_ad || "-")}</td>
+    <td style="font-size:12px;color:var(--text2);">${esc(KAYNAK_ETIKET[k.kaynak] || "")}</td>
+    <td>${ogretmenTarihiMi(k.tarih)
+      ? `<button class="btn btn-kirmizi btn-sm" data-id="${esc(k.id)}" onclick="vekilKaydimiSil(this)">Sil</button>`
+      : '<span style="font-size:11px;color:var(--text2);">Silme süresi doldu</span>'}</td></tr>`).join("");
+  return html + '</tbody></table></div><div class="mesaj" id="vekilKayitlarimMesaj" style="margin-top:8px;"></div></div>';
 }
 
 function _saatSecenekleriniDoldur() {
@@ -227,7 +258,7 @@ window.vekilElleKaydet = async () => {
   const ders = _bugunDersler.find((d) => d.id === dersId);
   if (!ders) { mesajGoster("vekilElleMesaj", "Ders saati ve dersi seçin.", "hata"); return; }
   try {
-    await kayitOlustur(ders, state.ogretmenDoc.id, "ogretmen");
+    await kayitOlustur(ders, "ogretmen");
     await vekilDerslerimYukle();
     mesajGoster("vekilElleMesaj", "Kaydedildi.", "basari");
   } catch (err) {
@@ -240,7 +271,7 @@ window.vekilDerseGirdim = async (btn) => {
   if (!ders) return;
   btn.disabled = true;
   try {
-    await kayitOlustur(ders, state.ogretmenDoc.id, "sistem_onay");
+    await kayitOlustur(ders, "sistem_onay");
     await vekilDerslerimYukle();
   } catch (err) {
     btn.disabled = false;
@@ -248,40 +279,36 @@ window.vekilDerseGirdim = async (btn) => {
   }
 };
 
-window.vekilKaydimiGeriAl = async (btn) => {
-  if (!await sor("Kaydı Geri Al", "Bu vekil ders kaydı silinecek.", "Geri al", "btn-kirmizi")) return;
+window.vekilKaydimiSil = async (btn) => {
   btn.disabled = true;
   try {
-    await deleteDoc(doc(db, "vekil_dersler", btn.dataset.id));
-    await vekilDerslerimYukle();
+    if (await kaydimiSil(btn.dataset.id)) await vekilDerslerimYukle();
+    else btn.disabled = false;
   } catch (err) {
     btn.disabled = false;
-    mesajGoster("vekilAtananMesaj", "Hata: " + err.message, "hata");
+    const yer = document.getElementById("vekilKayitlarimMesaj") ? "vekilKayitlarimMesaj" : "vekilAtananMesaj";
+    mesajGoster(yer, "Silinemedi: " + err.message, "hata");
   }
 };
 
 // ═══════════════ ADMİN: VEKİL DERS KAYITLARI ═══════════════
+// Sadece goruntuleme ve hatali kaydi silme. Kayit acma yok.
 
 let _adminKayitlar = [];
-let _adminEkleDersler = [];
 
 export function vekilDerslerAdminYukle() {
   const bas = document.getElementById("vdBaslangic");
   const bit = document.getElementById("vdBitis");
   if (bas && !bas.value) bas.value = ayBasi(bugun);
   if (bit && !bit.value) bit.value = bugun;
-  const ekleTarih = document.getElementById("vdEkleTarih");
-  if (ekleTarih && !ekleTarih.value) ekleTarih.value = bugun;
 
   const ogrOptions = [...state.ogretmenler]
     .sort((a, b) => (a.ad || "").localeCompare(b.ad || "", "tr"))
     .map((o) => `<option value="${esc(o.id)}">${esc(o.ad)}</option>`).join("");
   const filtre = document.getElementById("vdOgretmen");
   if (filtre && filtre.options.length <= 1) filtre.innerHTML = '<option value="">Tüm öğretmenler</option>' + ogrOptions;
-  const vekilSec = document.getElementById("vdEkleVekil");
-  if (vekilSec && vekilSec.options.length <= 1) vekilSec.innerHTML = '<option value="">Seçin</option>' + ogrOptions;
 
-  vekilDerslerListele();
+  window.vekilDerslerListele();
 }
 window.vekilDerslerAdminYukle = vekilDerslerAdminYukle;
 
@@ -311,14 +338,13 @@ window.vekilDerslerListele = async function vekilDerslerListele() {
 
     const onaysizlar = [];
     dersSnap.forEach((d) => {
-      const v = { id: d.id, ...d.data() };
+      const v = d.data();
       if (!v.substitute_teacher_id) return;
       if (ogrFiltre && v.substitute_teacher_id !== ogrFiltre) return;
       if (kayitIdleri.has(kayitId(v.date, v.class_id, v.lesson_number))) return;
       onaysizlar.push(v);
     });
     onaysizlar.sort((a, b) => a.date.localeCompare(b.date) || a.lesson_number - b.lesson_number);
-    window._vdOnaysizlar = onaysizlar;
 
     _ozetCiz(ozetEl, bas, bit);
     _listeCiz(listeEl);
@@ -346,7 +372,7 @@ function _ozetCiz(el, bas, bit) {
 function _listeCiz(el) {
   if (!_adminKayitlar.length) { el.innerHTML = '<div class="bos-mesaj">Kayıt yok.</div>'; return; }
   el.innerHTML = `<div style="overflow-x:auto;"><table><thead><tr>
-    <th>Tarih</th><th>Saat</th><th>Sınıf / Ders</th><th>Asıl Öğretmen</th><th>Vekil</th><th>Kaynak</th><th class="yazdirma-gizle"></th>
+    <th>Tarih</th><th>Saat</th><th>Sınıf / Ders</th><th>Asıl Öğretmen</th><th>Vekil</th><th>Nasıl</th><th class="yazdirma-gizle"></th>
     </tr></thead><tbody>
     ${_adminKayitlar.map((k) => `<tr>
       <td style="white-space:nowrap;">${esc(tarihGoster(k.tarih))}</td>
@@ -361,76 +387,21 @@ function _listeCiz(el) {
 }
 
 function _onaysizCiz(el, onaysizlar) {
-  if (!onaysizlar.length) { el.innerHTML = '<div class="bos-mesaj">Onay bekleyen atama yok.</div>'; return; }
-  el.innerHTML = `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
-      <button class="btn btn-yesil" id="vdTopluOnayBtn" onclick="vekilAtamalariTopluOnayla()">✓ Listedeki ${onaysizlar.length} atamanın tümünü onayla</button>
-      <span id="vdTopluOnayDurum" style="font-size:13px;color:var(--text2);"></span>
-    </div>
-    <div style="overflow-x:auto;"><table><thead><tr>
-    <th>Tarih</th><th>Saat</th><th>Sınıf / Ders</th><th>Asıl Öğretmen</th><th>Atanan Vekil</th><th></th></tr></thead><tbody>
-    ${onaysizlar.map((v, i) => `<tr>
+  if (!onaysizlar.length) { el.innerHTML = '<div class="bos-mesaj">Onaylanmamış atama yok.</div>'; return; }
+  el.innerHTML = `<div style="overflow-x:auto;"><table><thead><tr>
+    <th>Tarih</th><th>Saat</th><th>Sınıf / Ders</th><th>Asıl Öğretmen</th><th>Atanan Vekil</th></tr></thead><tbody>
+    ${onaysizlar.map((v) => `<tr>
       <td style="white-space:nowrap;">${esc(tarihGoster(v.date))}</td>
       <td style="white-space:nowrap;">${v.lesson_number}. ders</td>
       <td>${esc(v.class_id)} ${esc(v.lesson_name || "")}</td>
       <td>${esc(v.substitute_for_teacher_ad || ogretmenAd(v.teacher_id))}</td>
       <td>${esc(v.substitute_teacher_ad || ogretmenAd(v.substitute_teacher_id))}</td>
-      <td><button class="btn btn-yesil btn-sm" data-i="${i}" onclick="vekilAtamaOnayla(this)">Onayla</button></td>
     </tr>`).join("")}
     </tbody></table></div>`;
 }
 
-window.vekilAtamaOnayla = async (btn) => {
-  const v = window._vdOnaysizlar?.[Number(btn.dataset.i)];
-  if (!v) return;
-  btn.disabled = true;
-  try {
-    await kayitOlustur(v, v.substitute_teacher_id, "sistem_onay");
-    await window.vekilDerslerListele();
-  } catch (err) {
-    btn.disabled = false;
-    mesajGoster("vdMesaj", err.message, "hata");
-  }
-};
-
-// Listedeki (mevcut tarih/ogretmen filtresine uyan) tum onaysiz atamalari
-// "derse girdi" olarak kaydeder. writeBatch yerine kayitOlustur: admin'in
-// update izni oldugu icin batch, liste yuklendikten sonra baskasinin girdigi
-// bir kaydin ustune yazabilirdi; kayitOlustur once var mi diye bakar.
-window.vekilAtamalariTopluOnayla = async () => {
-  const liste = [...(window._vdOnaysizlar || [])];
-  if (!liste.length) return;
-  if (!await sor(
-    "Toplu Onay",
-    `${liste.length} atama, atanan vekil öğretmen derse girmiş sayılarak ücret listesine eklenecek. Derse girilmediğini bildiğiniz atamalar varsa toplu onay yerine diğerlerini tek tek onaylayın.`,
-    "Tümünü onayla", "btn-yesil",
-  )) return;
-
-  const btn = document.getElementById("vdTopluOnayBtn");
-  const durum = document.getElementById("vdTopluOnayDurum");
-  btn.disabled = true;
-  let tamam = 0;
-  const atlanan = [];
-  for (let i = 0; i < liste.length; i += 10) {
-    await Promise.all(liste.slice(i, i + 10).map(async (v) => {
-      try {
-        await kayitOlustur(v, v.substitute_teacher_id, "sistem_onay");
-        tamam++;
-      } catch (err) {
-        atlanan.push(`${tarihGoster(v.date)} ${v.lesson_number}. ders ${v.class_id}: ${err.message}`);
-      }
-    }));
-    durum.textContent = `${tamam + atlanan.length} / ${liste.length} işlendi...`;
-  }
-
-  await window.vekilDerslerListele();
-  mesajGoster("vdMesaj",
-    `${tamam} atama onaylandı.` + (atlanan.length ? ` ${atlanan.length} atama atlandı (ayrıntı konsolda).` : ""),
-    atlanan.length ? "hata" : "basari");
-  if (atlanan.length) console.warn("Toplu onayda atlananlar:\n" + atlanan.join("\n"));
-};
-
 window.vekilDersSil = async (btn) => {
-  if (!await sor("Kaydı Sil", "Bu vekil ders kaydı silinecek. Ücret listesinden çıkar.", "Sil", "btn-kirmizi")) return;
+  if (!await sor("Kaydı Sil", "Bu vekil ders kaydı silinecek ve ücret listesinden çıkacak. İdare kayıt ekleyemediği için silinen kaydı ancak öğretmen kendi giriş süresi içindeyse yeniden girebilir.", "Sil", "btn-kirmizi")) return;
   btn.disabled = true;
   try {
     await deleteDoc(doc(db, "vekil_dersler", btn.dataset.id));
@@ -442,59 +413,3 @@ window.vekilDersSil = async (btn) => {
 };
 
 window.vekilDersYazdir = () => window.print();
-
-// ── Geçmiş (veya herhangi bir) tarihe kayıt ekleme ──
-// O tarih icin today_lessons varsa onu kullanir; yoksa (ör. o gun ders
-// olusturulmamis) haftalik programdan (schedule) gun adina gore uretir.
-window.vdEkleDersleriYukle = async () => {
-  const tarih = document.getElementById("vdEkleTarih").value;
-  const saat = Number(document.getElementById("vdEkleSaat").value);
-  const sel = document.getElementById("vdEkleDers");
-  _adminEkleDersler = [];
-  if (!tarih || !saat) { sel.innerHTML = '<option value="">Önce tarih ve saat seçin</option>'; return; }
-  sel.innerHTML = '<option value="">Yukleniyor...</option>';
-  try {
-    const gunSnap = await getDocs(query(collection(db, "today_lessons"), where("date", "==", tarih)));
-    if (!gunSnap.empty) {
-      gunSnap.forEach((d) => {
-        const v = d.data();
-        if (v.lesson_number === saat) _adminEkleDersler.push({ id: d.id, ...v });
-      });
-    } else {
-      const gunAdi = gunAdiGetir(tarih);
-      const progSnap = await getDocs(query(collection(db, "schedule"), where("lesson_number", "==", saat)));
-      progSnap.forEach((d) => {
-        const v = d.data();
-        if (normalizeGun(v.day) !== gunAdi) return;
-        _adminEkleDersler.push({
-          id: null, date: tarih, lesson_number: saat,
-          class_id: v.class_id, lesson_name: v.lesson_name, teacher_id: v.teacher_id,
-        });
-      });
-    }
-    _adminEkleDersler.sort((a, b) => String(a.class_id).localeCompare(String(b.class_id), "tr"));
-    sel.innerHTML = _adminEkleDersler.length
-      ? '<option value="">Seçin</option>' + _adminEkleDersler.map((d, i) =>
-          `<option value="${i}">${esc(d.class_id)} — ${esc(d.lesson_name || "")} — ${esc(ogretmenAd(d.teacher_id))}</option>`).join("")
-      : '<option value="">Bu tarih/saatte ders bulunamadı</option>';
-  } catch (err) {
-    sel.innerHTML = '<option value="">Yüklenemedi</option>';
-    mesajGoster("vdEkleMesaj", "Hata: " + err.message, "hata");
-  }
-};
-
-window.vdEkleKaydet = async () => {
-  const iStr = document.getElementById("vdEkleDers").value;
-  const ders = iStr === "" ? null : _adminEkleDersler[Number(iStr)];
-  const vekilId = document.getElementById("vdEkleVekil").value;
-  if (!ders || !vekilId) { mesajGoster("vdEkleMesaj", "Tarih, saat, ders ve vekil öğretmeni seçin.", "hata"); return; }
-  if (vekilId === ders.teacher_id) { mesajGoster("vdEkleMesaj", "Vekil öğretmen dersin kendi öğretmeni olamaz.", "hata"); return; }
-  try {
-    await kayitOlustur(ders, vekilId, "admin");
-    mesajGoster("vdEkleMesaj", "Kayıt eklendi.", "basari");
-    document.getElementById("vdEkleDers").value = "";
-    await window.vekilDerslerListele();
-  } catch (err) {
-    mesajGoster("vdEkleMesaj", err.message, "hata");
-  }
-};
