@@ -430,6 +430,38 @@
       .gun-degisme-nobet tr:hover td { background: #f0f4ff; }
       .gdn-buHafta td { background: #fff8e1 !important; }
       .gdn-gecti td { opacity: 0.45; }
+      /* ── NÖBET GÖREVLENDİRME YAZISI ── */
+      .yazi-modal-kutu { max-width: 1100px; width: 96vw; max-height: 94vh; overflow-y: auto; }
+      .yazi-duzen { display: grid; grid-template-columns: 300px 1fr; gap: 16px; align-items: start; }
+      @media (max-width: 800px) { .yazi-duzen { grid-template-columns: 1fr; } }
+      .yazi-kontroller { display: flex; flex-direction: column; gap: 4px; }
+      .yazi-kontroller label { font-size: 12px; font-weight: 600; color: #555; margin-top: 6px; }
+      .yazi-kontroller input, .yazi-kontroller select, .yazi-kontroller textarea {
+        width: 100%; padding: 7px 9px; border: 1px solid #ddd; border-radius: 6px; font: inherit; font-size: 13px;
+      }
+      .yazi-uyari { background: #fff3cd; color: #7a5b00; border: 1px solid #f0d78c; border-radius: 6px; padding: 8px; font-size: 12px; margin-top: 6px; }
+      .yazi-onizleme-kap { background: #eee; padding: 12px; border-radius: 8px; overflow-x: auto; }
+      .yazi-kagit {
+        background: white; color: #000; width: 100%; max-width: 210mm; margin: 0 auto; padding: 18mm 16mm;
+        font-family: "Times New Roman", Times, serif; font-size: 12pt; line-height: 1.4; box-shadow: 0 1px 4px rgba(0,0,0,.15);
+      }
+      .yazi-ust { text-align: center; font-weight: bold; margin-bottom: 18px; }
+      .yazi-satir { display: flex; justify-content: space-between; margin-bottom: 4px; }
+      .yazi-hitap { text-align: center; font-weight: bold; margin: 18px 0 10px; }
+      .yazi-metin { text-indent: 1.25cm; text-align: justify; margin-bottom: 12px; }
+      .yazi-tablo { width: 100%; border-collapse: collapse; font-size: 10pt; }
+      .yazi-tablo th, .yazi-tablo td { border: 1px solid #000; padding: 4px 5px; text-align: center; vertical-align: middle; }
+      .yazi-tablo th { background: #f0f0f0; }
+      .yazi-tablo td.yazi-nokta { text-align: left; font-weight: bold; white-space: nowrap; }
+      .yazi-imza { margin-top: 28px; margin-left: auto; width: 45%; text-align: center; }
+      .yazi-imza-bosluk { height: 42px; }
+      #yaziYazdirAlan { display: none; }
+      @media print {
+        body.yazi-yazdir > * { display: none !important; }
+        body.yazi-yazdir > #yaziYazdirAlan { display: block !important; }
+        body.yazi-yazdir .yazi-kagit { box-shadow: none; padding: 0; max-width: none; }
+        @page { size: A4 portrait; margin: 15mm; }
+      }
     </style>
     <script>if(new URLSearchParams(location.search).get("embedded"))document.addEventListener("DOMContentLoaded",()=>document.querySelector("h1")?.remove());</script>
     <script src="/js/salt-okunur.js"></script>
@@ -460,6 +492,7 @@
           ⚙ Noktalar
         </button>
         <button class="btn btn-beyaz" onclick="yerlesimAc()">✏ Yerleşim</button>
+        <button class="btn btn-beyaz" onclick="yaziAc()">📄 Görevlendirme Yazısı</button>
         <button class="btn btn-turuncu" onclick="tumunuSabitGuneCevir()">
           Tümünü Sabit Güne Çevir
         </button>
@@ -488,6 +521,40 @@
         </div>
       </div>
     </div>
+    <!-- NÖBET GÖREVLENDİRME YAZISI MODAL -->
+    <div class="modal-zemin" id="yaziModal">
+      <div class="modal-kutu yazi-modal-kutu">
+        <div class="modal-baslik" style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+          <span>📄 Nöbet Görevlendirme Yazısı</span>
+          <button class="btn btn-gri" onclick="yaziKapat()">Kapat</button>
+        </div>
+        <div class="yazi-duzen">
+          <div class="yazi-kontroller">
+            <label>Hafta</label>
+            <select id="yaziHafta" onchange="yaziHaftaSecildi()"></select>
+            <div id="yaziUyari" class="yazi-uyari" style="display:none;"></div>
+            <label>İlçe / Kaymakamlık</label>
+            <input type="text" id="yazi_ilce" placeholder="Ör. ÇANKAYA KAYMAKAMLIĞI" oninput="yaziOnizle()" />
+            <label>Okul (müdürlük)</label>
+            <input type="text" id="yazi_okul" oninput="yaziOnizle()" />
+            <label>Sayı</label>
+            <input type="text" id="yazi_sayi" placeholder="Ör. E-12345678-903.02-" oninput="yaziOnizle()" />
+            <label>Müdür adı soyadı</label>
+            <input type="text" id="yazi_mudur_ad" oninput="yaziOnizle()" />
+            <label>Unvan</label>
+            <input type="text" id="yazi_mudur_unvan" oninput="yaziOnizle()" />
+            <label>Yazı metni <small>({baslangic} ve {bitis} otomatik dolar)</small></label>
+            <textarea id="yazi_metin" rows="5" oninput="yaziOnizle()"></textarea>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+              <button class="btn btn-gri" onclick="yaziAyarKaydet()">💾 Bilgileri kaydet</button>
+              <button class="btn btn-mavi" onclick="yaziYazdir()">🖨 Yazdır</button>
+            </div>
+          </div>
+          <div class="yazi-onizleme-kap"><div id="yaziOnizleme"></div></div>
+        </div>
+      </div>
+    </div>
+    <div id="yaziYazdirAlan"></div>
     <!-- YERLEŞİM MODAL -->
     <div class="modal-zemin" id="yerlesimModal">
       <div class="modal-kutu">
@@ -1379,6 +1446,210 @@
 
       window.modalKapat = function (id) {
         document.getElementById(id).classList.remove("aktif");
+      };
+
+      // ══════════ NÖBET GÖREVLENDİRME YAZISI ══════════
+      // Her hafta icin resmi gorevlendirme yazisi (tek yazi, sadece mudur imzasi).
+      // Dagilim once nobet2_gorevlendirmeler/{hafta} arsivinden okunur; yoksa
+      // mevcut rotasyon sayacindan geriye/ileriye sayilarak (tam tatil haftalari
+      // atlanir — nobet2HaftaGuncelle ve rotasyonHizala ile ayni mantik) BUGUNKU
+      // nobetci listesiyle hesaplanir. Yazdirilan dagilim arsive kaydedilir.
+      const YAZI_VARSAYILAN = {
+        ilce: "",
+        okul: "AHMET YENİCE ORTAOKULU MÜDÜRLÜĞÜ",
+        sayi: "",
+        mudur_ad: "Süleyman AYYILDIZ",
+        mudur_unvan: "Okul Müdürü",
+        metin: "Okulumuzda {baslangic} – {bitis} tarihleri arasında aşağıda belirtilen öğretmenler nöbetçi öğretmen olarak görevlendirilmiştir. Nöbet görevinin ilgili mevzuat hükümlerine uygun olarak yerine getirilmesini rica ederim.",
+      };
+      const GUN_TAM = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma"];
+      let yaziAyar = { ...YAZI_VARSAYILAN };
+      let yaziDagilim = null; // { hafta, sayac, kaynak, atamalar, gunDurumu }
+
+      function yEsc(s) {
+        return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+      }
+      function trTarih(t) {
+        const [y, m, d] = String(t).split("-");
+        return `${d}.${m}.${y}`;
+      }
+
+      // Okul baslangic haftasindan bir sonraki haftaya kadar Pazartesi listesi.
+      function yaziHaftalari() {
+        const mevcut = nobetVerisi.hafta_baslangic;
+        const bas = OKUL_BASLANGIC
+          ? pazartesiyeYuvarla(new Date(OKUL_BASLANGIC + "T12:00:00")).toISOString().split("T")[0]
+          : mevcut;
+        let son = haftaTarihEkle(mevcut, 7);
+        if (OKUL_BITIS && son > OKUL_BITIS) son = mevcut;
+        const liste = [];
+        for (let h = bas, g = 0; h <= son && g < 520; h = haftaTarihEkle(h, 7), g++) liste.push(h);
+        return liste.reverse();
+      }
+
+      // Hafta W icin rotasyon sayaci: mevcut haftadan W'ye kadar tam tatil
+      // olmayan haftalar kadar geri/ileri sayilir (rotasyon aktifse).
+      function haftaSayaci(W) {
+        const H = nobetVerisi.hafta_baslangic;
+        const S = nobetVerisi.rotasyon_sayaci || 0;
+        if (nobetVerisi.rotasyon_aktif === false || W === H) return S;
+        let fark = 0;
+        if (W < H) {
+          for (let x = haftaTarihEkle(W, 7); x <= H; x = haftaTarihEkle(x, 7)) if (!haftaTamamenTatilMi(x)) fark--;
+        } else {
+          for (let x = haftaTarihEkle(H, 7); x <= W; x = haftaTarihEkle(x, 7)) if (!haftaTamamenTatilMi(x)) fark++;
+        }
+        return S + fark;
+      }
+
+      function gunDurumlari(hafta) {
+        return GUNLER.map((g, gi) => {
+          const gunStr = haftaTarihEkle(hafta, gi);
+          if (OKUL_BASLANGIC && gunStr < OKUL_BASLANGIC) return "Dönem Dışı";
+          if (OKUL_BITIS && gunStr > OKUL_BITIS) return "Dönem Dışı";
+          return gunTatilMi(gunStr) ? "Tatil" : null;
+        });
+      }
+
+      function dagilimHesapla(hafta) {
+        const sayac = haftaSayaci(hafta);
+        const slotlar = nobetVerisi.slotlar || [];
+        const gunDurumu = gunDurumlari(hafta);
+        const atamalar = [];
+        slotlar.forEach((s) => {
+          const p = pozHesapla(s, sayac, slotlar);
+          if (gunDurumu[p.gi] || !NOKTALAR[p.ni]) return;
+          atamalar.push({
+            gi: p.gi, gun: GUN_TAM[p.gi], tarih: haftaTarihEkle(hafta, p.gi),
+            ni: p.ni, nokta: NOKTALAR[p.ni], ogretmen_id: s.ogretmen_id, ogretmen_ad: s.ogretmen_ad,
+          });
+        });
+        return { hafta, sayac, kaynak: "hesaplanan", atamalar, gunDurumu, noktalar: [...NOKTALAR] };
+      }
+
+      window.yaziAc = async () => {
+        try {
+          const ayarDoc = await getDoc(doc(db, "nobet2_ayarlar", "yazi"));
+          yaziAyar = { ...YAZI_VARSAYILAN, ...(ayarDoc.exists() ? ayarDoc.data() : {}) };
+        } catch (e) { yaziAyar = { ...YAZI_VARSAYILAN }; }
+        ["ilce", "okul", "sayi", "mudur_ad", "mudur_unvan", "metin"].forEach((k) => {
+          document.getElementById("yazi_" + k).value = yaziAyar[k] || "";
+        });
+        const haftalar = yaziHaftalari();
+        const mevcut = nobetVerisi.hafta_baslangic;
+        document.getElementById("yaziHafta").innerHTML = haftalar.map((h) => {
+          const tatil = haftaTamamenTatilMi(h);
+          const etiket = `${trTarih(h)} – ${trTarih(haftaTarihEkle(h, 4))}${h === mevcut ? " (bu hafta)" : h > mevcut ? " (gelecek hafta)" : ""}${tatil ? " (tatil)" : ""}`;
+          return `<option value="${h}"${h === mevcut ? " selected" : ""}${tatil ? " disabled" : ""}>${etiket}</option>`;
+        }).join("");
+        document.getElementById("yaziModal").classList.add("aktif");
+        await yaziHaftaSecildi();
+      };
+
+      window.yaziKapat = () => document.getElementById("yaziModal").classList.remove("aktif");
+
+      window.yaziHaftaSecildi = async () => {
+        const hafta = document.getElementById("yaziHafta").value;
+        const uyari = document.getElementById("yaziUyari");
+        uyari.style.display = "none";
+        let arsiv = null;
+        try {
+          const a = await getDoc(doc(db, "nobet2_gorevlendirmeler", hafta));
+          if (a.exists()) arsiv = a.data();
+        } catch (e) { /* arsiv okunamazsa hesapla */ }
+        if (arsiv) {
+          yaziDagilim = { ...arsiv, kaynak: "arsiv" };
+        } else {
+          yaziDagilim = dagilimHesapla(hafta);
+          uyari.textContent = "Bu hafta arşivde yok; bugünkü nöbetçi listesine göre hesaplandı. O hafta nöbetçi listesinde değişiklik yaptıysanız yazıyı kontrol edin. Yazdırdığınızda bu dağılım arşive kaydedilir.";
+          uyari.style.display = "block";
+        }
+        yaziOnizle();
+      };
+
+      function yaziAyarlariOku() {
+        const a = {};
+        ["ilce", "okul", "sayi", "mudur_ad", "mudur_unvan", "metin"].forEach((k) => (a[k] = document.getElementById("yazi_" + k).value.trim()));
+        return a;
+      }
+
+      function yaziHtml() {
+        const a = yaziAyarlariOku();
+        const d = yaziDagilim;
+        const noktalar = d.noktalar && d.noktalar.length ? d.noktalar : NOKTALAR;
+        const hucre = {};
+        (d.atamalar || []).forEach((x) => {
+          const k = x.ni + "-" + x.gi;
+          hucre[k] = hucre[k] ? hucre[k] + ", " + x.ogretmen_ad : x.ogretmen_ad;
+        });
+        const metin = (a.metin || YAZI_VARSAYILAN.metin)
+          .replace(/\{baslangic\}/g, trTarih(d.hafta))
+          .replace(/\{bitis\}/g, trTarih(haftaTarihEkle(d.hafta, 4)));
+        let tablo = '<table class="yazi-tablo"><thead><tr><th>Nöbet Yeri</th>';
+        GUN_TAM.forEach((g, gi) => (tablo += `<th>${g}<br><small>${trTarih(haftaTarihEkle(d.hafta, gi)).slice(0, 5)}</small></th>`));
+        tablo += "</tr></thead><tbody>";
+        noktalar.forEach((n, ni) => {
+          tablo += `<tr><td class="yazi-nokta">${yEsc(n)}</td>`;
+          GUN_TAM.forEach((g, gi) => {
+            const durum = (d.gunDurumu || [])[gi];
+            tablo += `<td>${durum ? `<i>${yEsc(durum)}</i>` : yEsc(hucre[ni + "-" + gi] || "")}</td>`;
+          });
+          tablo += "</tr>";
+        });
+        tablo += "</tbody></table>";
+        return `<div class="yazi-kagit">
+          <div class="yazi-ust">T.C.<br>${yEsc(a.ilce || "…… KAYMAKAMLIĞI")}<br>${yEsc(a.okul)}</div>
+          <div class="yazi-satir"><span>Sayı : ${yEsc(a.sayi)}</span><span>${trTarih(d.hafta)}</span></div>
+          <div class="yazi-satir"><span>Konu : Nöbet Görevlendirmesi</span></div>
+          <div class="yazi-hitap">İLGİLİ ÖĞRETMENLERE</div>
+          <p class="yazi-metin">${yEsc(metin)}</p>
+          ${tablo}
+          <div class="yazi-imza">
+            <div class="yazi-imza-bosluk"></div>
+            <div>${yEsc(a.mudur_ad)}</div>
+            <div>${yEsc(a.mudur_unvan)}</div>
+          </div>
+        </div>`;
+      }
+
+      window.yaziOnizle = () => {
+        if (!yaziDagilim) return;
+        document.getElementById("yaziOnizleme").innerHTML = yaziHtml();
+      };
+
+      window.yaziAyarKaydet = async () => {
+        try {
+          await setDoc(doc(db, "nobet2_ayarlar", "yazi"), { ...yaziAyarlariOku(), guncelleme: serverTimestamp() });
+          mesaj("Yazı bilgileri kaydedildi.", "basari");
+        } catch (e) {
+          mesaj("Kaydedilemedi: " + e.message, "hata");
+        }
+      };
+
+      window.yaziYazdir = async () => {
+        if (!yaziDagilim) return;
+        // Yazdirilan dagilimi (arsivde yoksa) kalici olarak sakla.
+        if (yaziDagilim.kaynak !== "arsiv") {
+          try {
+            const ref = doc(db, "nobet2_gorevlendirmeler", yaziDagilim.hafta);
+            const var_ = await getDoc(ref);
+            if (!var_.exists()) {
+              const { kaynak, ...veri } = yaziDagilim;
+              await setDoc(ref, { ...veri, kaynak: "yazdirma", olusturma: serverTimestamp() });
+            }
+            yaziDagilim.kaynak = "arsiv";
+            document.getElementById("yaziUyari").style.display = "none";
+          } catch (e) {
+            console.warn("Gorevlendirme arsive kaydedilemedi:", e);
+          }
+        }
+        const alan = document.getElementById("yaziYazdirAlan");
+        alan.innerHTML = yaziHtml();
+        document.body.classList.add("yazi-yazdir");
+        const bitir = () => { document.body.classList.remove("yazi-yazdir"); window.removeEventListener("afterprint", bitir); };
+        window.addEventListener("afterprint", bitir);
+        window.print();
+        setTimeout(bitir, 1000);
       };
 
       function mesaj(metin, tip) {

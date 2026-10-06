@@ -359,6 +359,11 @@ service cloud.firestore {
       allow create, update: if isYazabilir() && request.resource.data.uid == request.auth.uid;
       allow delete: if isLoggedIn() && resource.data.uid == request.auth.uid;
     }
+    // Haftalik nobet gorevlendirme yazisi arsivi (nobet2.html + nobet2HaftaGuncelle).
+    match /nobet2_gorevlendirmeler/{hafta} {
+      allow read: if isLoggedIn();
+      allow write: if isYonetim();
+    }
     // Para toplama listeleri (admin). Yonetim yazar, salt-okunur idareci gorur,
     // ogretmenler erisemez.
     match /para_toplamalar/{docId} {

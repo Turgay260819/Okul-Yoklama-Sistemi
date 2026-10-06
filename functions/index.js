@@ -1717,6 +1717,42 @@ exports.nobet2HaftaGuncelle = onSchedule({ schedule: "0 2 * * 1", timeZone: "Eur
     );
     console.log(`Nobet haftasi guncellendi: ${hafta}, sayac=${sayac}`);
   }
+
+  // Bu haftanin dagilimini gorevlendirme yazisi icin arsivle (varsa ezme).
+  // nobet2.html yaziHtml/dagilimHesapla ile ayni yapi.
+  try {
+    const arsivRef = db.collection("nobet2_gorevlendirmeler").doc(hafta);
+    if (!(await arsivRef.get()).exists) {
+      const nokDoc = await db.collection("nobet2_ayarlar").doc("noktalar").get();
+      const noktalar = nokDoc.exists ? (nokDoc.data().liste || []) : [];
+      const N = noktalar.length;
+      const slotlar = nb.slotlar || [];
+      if (N && slotlar.length) {
+        const GUN_TAM = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma"];
+        const gunDurumu = GUN_TAM.map((_, gi) => {
+          const g = nobet2TarihEkle(hafta, gi);
+          if ((okulBas && g < okulBas) || (okulBit && g > okulBit)) return "Dönem Dışı";
+          return tatiller.some((t) => t.baslangic && t.bitis && g >= t.baslangic && g <= t.bitis) ? "Tatil" : null;
+        });
+        const atamalar = [];
+        slotlar.forEach((s) => {
+          const p = nobet2PozHesapla(s, sayac, slotlar, N);
+          if (gunDurumu[p.gi] || !noktalar[p.ni]) return;
+          atamalar.push({
+            gi: p.gi, gun: GUN_TAM[p.gi], tarih: nobet2TarihEkle(hafta, p.gi),
+            ni: p.ni, nokta: noktalar[p.ni], ogretmen_id: s.ogretmen_id, ogretmen_ad: s.ogretmen_ad,
+          });
+        });
+        await arsivRef.set({
+          hafta, sayac, kaynak: "otomatik", atamalar, gunDurumu, noktalar,
+          olusturma: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        console.log(`Nobet gorevlendirmesi arsivlendi: ${hafta} (${atamalar.length} atama)`);
+      }
+    }
+  } catch (err) {
+    console.error("Nobet gorevlendirme arsivi yazilamadi:", err);
+  }
 });
 
 exports.disiplinIlkKurulum = onCall(async (request) => {
