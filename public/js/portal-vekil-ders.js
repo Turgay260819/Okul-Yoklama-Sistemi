@@ -548,7 +548,7 @@ window.vekilDersExcel = async () => {
 // Okul/mudur bilgileri nobet2.html gorevlendirme yazisiyla ortak
 // (nobet2_ayarlar/yazi); varsayilanlar oradaki YAZI_VARSAYILAN ile ayni.
 const VY_VARSAYILAN = {
-  ilce: "",
+  ilce: "KEŞAN KAYMAKAMLIĞI",
   okul: "AHMET YENİCE ORTAOKULU MÜDÜRLÜĞÜ",
   mudur_ad: "Süleyman AYYILDIZ",
   mudur_unvan: "Okul Müdürü",
@@ -568,6 +568,18 @@ function _vyToplamlar() {
     (sayac[k.vekil_ogretmen_id] ||= { ad: k.vekil_ogretmen_ad, sayi: 0 }).sayi++;
   });
   return Object.values(sayac).sort((a, b) => a.ad.localeCompare(b.ad, "tr"));
+}
+
+// Kayitlar ogretmene gore sirali; ardisik ayni ogretmen bir grup. Her grup
+// tabloda tek Sira / Ogretmen / Imza hucresi (rowspan, Excel'de merge) alir.
+function _vyGruplar() {
+  const gruplar = [];
+  _vyKayitlar.forEach((k) => {
+    const son = gruplar[gruplar.length - 1];
+    if (son && son.id === k.vekil_ogretmen_id) son.dersler.push(k);
+    else gruplar.push({ id: k.vekil_ogretmen_id, ad: k.vekil_ogretmen_ad, dersler: [k] });
+  });
+  return gruplar;
 }
 
 function _vyButonlar(acik) {
@@ -635,20 +647,23 @@ window.vekilYaziYukle = async () => {
 
 function _vyHtml() {
   const a = _vyAyar;
-  const sayi = document.getElementById("vySayi").value.trim();
-  const satirlar = _vyKayitlar.map((k, i) => `<tr>
-    <td>${i + 1}</td><td class="yazi-sol">${esc(k.vekil_ogretmen_ad)}</td><td>${esc(k.ders_no)}. ders</td>
-    <td>${esc(k.sinif)}</td><td class="yazi-sol">${esc(k.ders_adi)}</td>
-    <td class="yazi-sol">${esc(k.asil_ogretmen_ad || "-")}</td><td>${esc(VY_KAYNAK[k.kaynak])}</td></tr>`).join("");
+  const satirlar = _vyGruplar().map((g, gi) => g.dersler.map((k, i) => {
+    const rs = g.dersler.length > 1 ? ` rowspan="${g.dersler.length}"` : "";
+    return `<tr>
+      ${i === 0 ? `<td${rs}>${gi + 1}</td><td class="yazi-sol"${rs}>${esc(g.ad)}</td>` : ""}
+      <td>${esc(k.ders_no)}. ders</td><td>${esc(k.sinif)}</td><td class="yazi-sol">${esc(k.ders_adi)}</td>
+      <td class="yazi-sol">${esc(k.asil_ogretmen_ad || "-")}</td><td>${esc(VY_KAYNAK[k.kaynak])}</td>
+      ${i === 0 ? `<td class="yazi-imza-hucre"${rs}></td>` : ""}</tr>`;
+  }).join("")).join("");
   const toplamlar = _vyToplamlar().map((t) => `${esc(t.ad)} – ${t.sayi} ders`).join("; ");
   return `<div class="yazi-kagit">
-    <div class="yazi-ust">T.C.<br>${esc(a.ilce || "…… KAYMAKAMLIĞI")}<br>${esc(a.okul)}</div>
-    <div class="yazi-satir"><span>Sayı : ${esc(sayi)}</span><span>${esc(tarihGoster(_vyTarih))}</span></div>
+    <div class="yazi-ust">T.C.<br>${esc(a.ilce || VY_VARSAYILAN.ilce)}<br>${esc(a.okul)}</div>
+    <div class="yazi-satir"><span></span><span>${esc(tarihGoster(_vyTarih))}</span></div>
     <div class="yazi-satir"><span>Konu : Vekil Ders Görevlendirmesi</span></div>
     <div class="yazi-hitap">İLGİLİ ÖĞRETMENLERE</div>
     <p class="yazi-metin">${esc(_vyMetin(_vyTarih))}</p>
     <table class="yazi-tablo"><thead><tr>
-      <th>Sıra</th><th>Öğretmen</th><th>Ders Saati</th><th>Sınıf</th><th>Ders</th><th>Yerine Girdiği Öğretmen</th><th>Kayıt Şekli</th>
+      <th>Sıra</th><th>Öğretmen</th><th>Ders Saati</th><th>Sınıf</th><th>Ders</th><th>Yerine Girdiği Öğretmen</th><th>Kayıt Şekli</th><th>İmza</th>
     </tr></thead><tbody>${satirlar}</tbody></table>
     <div class="yazi-toplam"><b>Toplam ${_vyKayitlar.length} ders:</b> ${toplamlar}</div>
     <div class="yazi-imza">
@@ -689,7 +704,6 @@ window.vekilYaziExcel = async () => {
   try {
     const XLSX = await xlsxYukle();
     const a = _vyAyar;
-    const sayi = document.getElementById("vySayi").value.trim();
     // SheetJS (ucretsiz surum) hucrede satir kaydirma yapamiyor; metin elle bolunur.
     const metinSatirlari = [];
     _vyMetin(_vyTarih).split(" ").forEach((kelime) => {
@@ -699,29 +713,47 @@ window.vekilYaziExcel = async () => {
     });
     const metinBas = 9;
     const s = [
-      ["T.C."], [a.ilce || "…… KAYMAKAMLIĞI"], [a.okul], [],
-      [`Sayı : ${sayi}`, "", "", "", "", "", tarihGoster(_vyTarih)],
+      ["T.C."], [a.ilce || VY_VARSAYILAN.ilce], [a.okul], [],
+      ["", "", "", "", "", "", "", tarihGoster(_vyTarih)],
       ["Konu : Vekil Ders Görevlendirmesi"], [],
       ["İLGİLİ ÖĞRETMENLERE"], [],
       ...metinSatirlari.map((m) => [m]), [],
-      ["Sıra", "Öğretmen", "Ders Saati", "Sınıf", "Ders", "Yerine Girdiği Öğretmen", "Kayıt Şekli"],
-      ..._vyKayitlar.map((k, i) => [i + 1, k.vekil_ogretmen_ad, `${k.ders_no}. ders`, k.sinif, k.ders_adi || "",
-        k.asil_ogretmen_ad || "", VY_KAYNAK[k.kaynak]]),
+      ["Sıra", "Öğretmen", "Ders Saati", "Sınıf", "Ders", "Yerine Girdiği Öğretmen", "Kayıt Şekli", "İmza"],
+    ];
+    // Ogretmen basina tek Sira / Ogretmen / Imza hucresi (satirlar boyunca birlesik).
+    const grupMerge = [];
+    const tabloSatirlari = [];
+    _vyGruplar().forEach((g, gi) => {
+      const bas = s.length;
+      g.dersler.forEach((k, i) => {
+        tabloSatirlari.push(s.length);
+        s.push([i === 0 ? gi + 1 : "", i === 0 ? g.ad : "", `${k.ders_no}. ders`, k.sinif, k.ders_adi || "",
+          k.asil_ogretmen_ad || "", VY_KAYNAK[k.kaynak], ""]);
+      });
+      if (g.dersler.length > 1) {
+        const bit = bas + g.dersler.length - 1;
+        [0, 1, 7].forEach((c) => grupMerge.push({ s: { r: bas, c }, e: { r: bit, c } }));
+      }
+    });
+    s.push(
       [],
       ["", "Öğretmen", "Vekil Ders Sayısı"],
       ..._vyToplamlar().map((t) => ["", t.ad, t.sayi]),
       ["", "Toplam", _vyKayitlar.length],
       [], [],
-    ];
+    );
     const imzaBas = s.length;
-    s.push(["", "", "", "", "Görevlendiren"], [], [], ["", "", "", "", a.mudur_ad], ["", "", "", "", a.mudur_unvan]);
+    s.push(["", "", "", "", "", "Görevlendiren"], [], [], ["", "", "", "", "", a.mudur_ad], ["", "", "", "", "", a.mudur_unvan]);
 
     const ws = XLSX.utils.aoa_to_sheet(s);
-    ws["!cols"] = [6, 26, 10, 8, 20, 26, 14].map((w) => ({ wch: w }));
-    const tam = (r) => ({ s: { r, c: 0 }, e: { r, c: 6 } });
-    const imza = (r) => ({ s: { r, c: 4 }, e: { r, c: 6 } });
-    ws["!merges"] = [tam(0), tam(1), tam(2), { s: { r: 4, c: 0 }, e: { r: 4, c: 5 } }, tam(5), tam(7),
+    ws["!cols"] = [6, 26, 10, 8, 20, 26, 14, 18].map((w) => ({ wch: w }));
+    ws["!rows"] = [];
+    tabloSatirlari.forEach((r) => (ws["!rows"][r] = { hpt: 24 })); // imza atilacak yukseklik
+    const tam = (r) => ({ s: { r, c: 0 }, e: { r, c: 7 } });
+    const imza = (r) => ({ s: { r, c: 5 }, e: { r, c: 7 } });
+    ws["!merges"] = [tam(0), tam(1), tam(2), tam(5), tam(7),
       ...metinSatirlari.map((m, i) => tam(metinBas + i)),
+      ...grupMerge,
       imza(imzaBas), imza(imzaBas + 3), imza(imzaBas + 4)];
 
     const wb = XLSX.utils.book_new();

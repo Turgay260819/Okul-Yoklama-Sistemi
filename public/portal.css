@@ -1538,6 +1538,8 @@ tr:last-child td {
 .yazi-tablo th, .yazi-tablo td { border: 1px solid #000; padding: 4px 5px; text-align: center; vertical-align: middle; }
 .yazi-tablo th { background: #f0f0f0; }
 .yazi-tablo td.yazi-sol { text-align: left; }
+.yazi-tablo tbody td { height: 9mm; }
+.yazi-tablo td.yazi-imza-hucre { width: 28mm; }
 .yazi-toplam { margin-top: 10px; font-size: 10pt; }
 .yazi-imza { margin-top: 28px; margin-left: auto; width: 45%; text-align: center; }
 .yazi-imza-bosluk { height: 42px; }
