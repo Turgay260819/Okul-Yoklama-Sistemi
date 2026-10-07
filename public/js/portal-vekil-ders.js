@@ -541,3 +541,194 @@ window.vekilDersExcel = async () => {
   btn.disabled = false;
   btn.textContent = eski;
 };
+
+// ── Günlük görevlendirme yazısı (admin) ──
+// Secili gunde ogretmenin kendi onayi (sistem_onay) ya da elle girisi
+// (ogretmen) ile olusmus vekil_dersler kayitlari; resmi yazi + Excel.
+// Okul/mudur bilgileri nobet2.html gorevlendirme yazisiyla ortak
+// (nobet2_ayarlar/yazi); varsayilanlar oradaki YAZI_VARSAYILAN ile ayni.
+const VY_VARSAYILAN = {
+  ilce: "",
+  okul: "AHMET YENİCE ORTAOKULU MÜDÜRLÜĞÜ",
+  mudur_ad: "Süleyman AYYILDIZ",
+  mudur_unvan: "Okul Müdürü",
+};
+const VY_KAYNAK = { sistem_onay: "Atama onayı", ogretmen: "Elle giriş" };
+let _vyAyar = { ...VY_VARSAYILAN };
+let _vyKayitlar = [];
+let _vyTarih = "";
+
+function _vyMetin(tarih) {
+  return `Okulumuzda ${tarihGoster(tarih)} ${GUN_ADLARI[new Date(tarih + "T12:00:00").getDay()]} günü, derse giremeyen öğretmenlerin yerine aşağıda belirtilen öğretmenler belirtilen ders saatlerinde Okul Müdürlüğünce vekil öğretmen olarak görevlendirilmiştir.`;
+}
+
+function _vyToplamlar() {
+  const sayac = {};
+  _vyKayitlar.forEach((k) => {
+    (sayac[k.vekil_ogretmen_id] ||= { ad: k.vekil_ogretmen_ad, sayi: 0 }).sayi++;
+  });
+  return Object.values(sayac).sort((a, b) => a.ad.localeCompare(b.ad, "tr"));
+}
+
+function _vyButonlar(acik) {
+  document.getElementById("vyExcelBtn").disabled = !acik;
+  document.getElementById("vyYazdirBtn").disabled = !acik;
+}
+
+window.vekilYaziAc = async () => {
+  try {
+    const ayarDoc = await getDoc(doc(db, "nobet2_ayarlar", "yazi"));
+    const a = ayarDoc.exists() ? ayarDoc.data() : {};
+    _vyAyar = { ...VY_VARSAYILAN };
+    Object.keys(VY_VARSAYILAN).forEach((k) => { if (a[k]) _vyAyar[k] = a[k]; });
+  } catch (e) {
+    _vyAyar = { ...VY_VARSAYILAN };
+  }
+  const tarihEl = document.getElementById("vyTarih");
+  if (!tarihEl.value) tarihEl.value = bugunHesapla();
+  document.getElementById("vekilYaziModal").classList.add("aktif");
+  await window.vekilYaziYukle();
+};
+
+window.vekilYaziKapat = () => document.getElementById("vekilYaziModal").classList.remove("aktif");
+
+window.vekilYaziYukle = async () => {
+  const tarih = document.getElementById("vyTarih").value;
+  const onizleme = document.getElementById("vyOnizleme");
+  const uyari = document.getElementById("vyUyari");
+  uyari.hidden = true;
+  _vyKayitlar = [];
+  _vyTarih = tarih;
+  _vyButonlar(false);
+  if (!tarih) { onizleme.innerHTML = '<div class="bos-mesaj">Tarih seçin.</div>'; return; }
+  onizleme.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
+  try {
+    const [kayitSnap, dersSnap] = await Promise.all([
+      getDocs(query(collection(db, "vekil_dersler"), where("tarih", "==", tarih))),
+      getDocs(query(collection(db, "today_lessons"), where("date", "==", tarih))),
+    ]);
+    if (document.getElementById("vyTarih").value !== tarih) return; // bu arada tarih degisti
+    const kayitIdleri = new Set();
+    const liste = [];
+    kayitSnap.forEach((d) => {
+      kayitIdleri.add(d.id);
+      const k = d.data();
+      if (VY_KAYNAK[k.kaynak]) liste.push(k);
+    });
+    liste.sort((a, b) => (a.vekil_ogretmen_ad || "").localeCompare(b.vekil_ogretmen_ad || "", "tr") || a.ders_no - b.ders_no);
+    _vyKayitlar = liste;
+
+    let onaysiz = 0;
+    dersSnap.forEach((d) => {
+      const v = d.data();
+      if (v.substitute_teacher_id && !kayitIdleri.has(kayitId(v.date, v.class_id, v.lesson_number))) onaysiz++;
+    });
+    if (onaysiz) {
+      uyari.textContent = `Bu gün ${onaysiz} vekil atama henüz öğretmen tarafından onaylanmamış; bunlar yazıya girmez. Öğretmen onaylarsa yazıyı yeniden alın.`;
+      uyari.hidden = false;
+    }
+    window.vekilYaziOnizle();
+  } catch (err) {
+    onizleme.innerHTML = `<div class="bos-mesaj">Yüklenemedi: ${esc(err.message)}</div>`;
+  }
+};
+
+function _vyHtml() {
+  const a = _vyAyar;
+  const sayi = document.getElementById("vySayi").value.trim();
+  const satirlar = _vyKayitlar.map((k, i) => `<tr>
+    <td>${i + 1}</td><td class="yazi-sol">${esc(k.vekil_ogretmen_ad)}</td><td>${esc(k.ders_no)}. ders</td>
+    <td>${esc(k.sinif)}</td><td class="yazi-sol">${esc(k.ders_adi)}</td>
+    <td class="yazi-sol">${esc(k.asil_ogretmen_ad || "-")}</td><td>${esc(VY_KAYNAK[k.kaynak])}</td></tr>`).join("");
+  const toplamlar = _vyToplamlar().map((t) => `${esc(t.ad)} – ${t.sayi} ders`).join("; ");
+  return `<div class="yazi-kagit">
+    <div class="yazi-ust">T.C.<br>${esc(a.ilce || "…… KAYMAKAMLIĞI")}<br>${esc(a.okul)}</div>
+    <div class="yazi-satir"><span>Sayı : ${esc(sayi)}</span><span>${esc(tarihGoster(_vyTarih))}</span></div>
+    <div class="yazi-satir"><span>Konu : Vekil Ders Görevlendirmesi</span></div>
+    <div class="yazi-hitap">İLGİLİ ÖĞRETMENLERE</div>
+    <p class="yazi-metin">${esc(_vyMetin(_vyTarih))}</p>
+    <table class="yazi-tablo"><thead><tr>
+      <th>Sıra</th><th>Öğretmen</th><th>Ders Saati</th><th>Sınıf</th><th>Ders</th><th>Yerine Girdiği Öğretmen</th><th>Kayıt Şekli</th>
+    </tr></thead><tbody>${satirlar}</tbody></table>
+    <div class="yazi-toplam"><b>Toplam ${_vyKayitlar.length} ders:</b> ${toplamlar}</div>
+    <div class="yazi-imza">
+      <div>Görevlendiren</div>
+      <div class="yazi-imza-bosluk"></div>
+      <div>${esc(a.mudur_ad)}</div>
+      <div>${esc(a.mudur_unvan)}</div>
+    </div>
+  </div>`;
+}
+
+window.vekilYaziOnizle = () => {
+  const onizleme = document.getElementById("vyOnizleme");
+  if (!_vyTarih) return;
+  if (!_vyKayitlar.length) {
+    onizleme.innerHTML = '<div class="bos-mesaj">Bu gün için öğretmen onaylı vekil ders kaydı yok.</div>';
+    _vyButonlar(false);
+    return;
+  }
+  onizleme.innerHTML = _vyHtml();
+  _vyButonlar(true);
+};
+
+window.vekilYaziYazdir = () => {
+  if (!_vyKayitlar.length) return;
+  document.getElementById("vyYazdirAlan").innerHTML = _vyHtml();
+  document.body.classList.add("yazi-yazdir");
+  const bitir = () => { document.body.classList.remove("yazi-yazdir"); window.removeEventListener("afterprint", bitir); };
+  window.addEventListener("afterprint", bitir);
+  window.print();
+};
+
+// Tek sayfa, yazi duzeninde: baslik, metin, tablo, ogretmen toplamlari, imza.
+window.vekilYaziExcel = async () => {
+  if (!_vyKayitlar.length) return;
+  const btn = document.getElementById("vyExcelBtn");
+  btn.disabled = true;
+  try {
+    const XLSX = await xlsxYukle();
+    const a = _vyAyar;
+    const sayi = document.getElementById("vySayi").value.trim();
+    // SheetJS (ucretsiz surum) hucrede satir kaydirma yapamiyor; metin elle bolunur.
+    const metinSatirlari = [];
+    _vyMetin(_vyTarih).split(" ").forEach((kelime) => {
+      const son = metinSatirlari.length - 1;
+      if (son >= 0 && (metinSatirlari[son] + " " + kelime).length <= 95) metinSatirlari[son] += " " + kelime;
+      else metinSatirlari.push(kelime);
+    });
+    const metinBas = 9;
+    const s = [
+      ["T.C."], [a.ilce || "…… KAYMAKAMLIĞI"], [a.okul], [],
+      [`Sayı : ${sayi}`, "", "", "", "", "", tarihGoster(_vyTarih)],
+      ["Konu : Vekil Ders Görevlendirmesi"], [],
+      ["İLGİLİ ÖĞRETMENLERE"], [],
+      ...metinSatirlari.map((m) => [m]), [],
+      ["Sıra", "Öğretmen", "Ders Saati", "Sınıf", "Ders", "Yerine Girdiği Öğretmen", "Kayıt Şekli"],
+      ..._vyKayitlar.map((k, i) => [i + 1, k.vekil_ogretmen_ad, `${k.ders_no}. ders`, k.sinif, k.ders_adi || "",
+        k.asil_ogretmen_ad || "", VY_KAYNAK[k.kaynak]]),
+      [],
+      ["", "Öğretmen", "Vekil Ders Sayısı"],
+      ..._vyToplamlar().map((t) => ["", t.ad, t.sayi]),
+      ["", "Toplam", _vyKayitlar.length],
+      [], [],
+    ];
+    const imzaBas = s.length;
+    s.push(["", "", "", "", "Görevlendiren"], [], [], ["", "", "", "", a.mudur_ad], ["", "", "", "", a.mudur_unvan]);
+
+    const ws = XLSX.utils.aoa_to_sheet(s);
+    ws["!cols"] = [6, 26, 10, 8, 20, 26, 14].map((w) => ({ wch: w }));
+    const tam = (r) => ({ s: { r, c: 0 }, e: { r, c: 6 } });
+    const imza = (r) => ({ s: { r, c: 4 }, e: { r, c: 6 } });
+    ws["!merges"] = [tam(0), tam(1), tam(2), { s: { r: 4, c: 0 }, e: { r: 4, c: 5 } }, tam(5), tam(7),
+      ...metinSatirlari.map((m, i) => tam(metinBas + i)),
+      imza(imzaBas), imza(imzaBas + 3), imza(imzaBas + 4)];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Görevlendirme");
+    XLSX.writeFile(wb, dosyaAdi(`Vekil Ders Gorevlendirme ${tarihGoster(_vyTarih)}`) + ".xlsx");
+  } catch (err) {
+    mesajGoster("vyMesaj", err.message, "hata");
+  }
+  btn.disabled = false;
+};

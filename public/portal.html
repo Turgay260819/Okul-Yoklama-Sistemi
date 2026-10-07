@@ -501,6 +501,7 @@
                   <button class="btn btn-mavi" onclick="vekilDerslerListele()">Listele</button>
                   <button class="btn btn-gri" onclick="vekilDersYazdir()">🖨 Yazdır</button>
                   <button class="btn btn-yesil" id="vdExcelBtn" onclick="vekilDersExcel()">📊 Excel'e aktar</button>
+                  <button class="btn btn-mavi" onclick="vekilYaziAc()">📄 Günlük Görevlendirme Yazısı</button>
                 </div>
                 <div class="mesaj" id="vdMesaj" style="margin-top:8px;"></div>
               </div>
@@ -1245,6 +1246,30 @@
         </div>
       </div>
     </div>
+
+    <!-- GUNLUK VEKIL DERS GOREVLENDIRME YAZISI -->
+    <div class="modal-zemin" id="vekilYaziModal">
+      <div class="modal-kutu" style="max-width:860px;">
+        <div class="modal-baslik">📄 Günlük Vekil Ders Görevlendirme Yazısı</div>
+        <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">
+          Seçilen günde öğretmenlerin kendi sayfasından onayladığı veya elle girdiği vekil dersler. Onaylanmamış atamalar ve silinen kayıtlar yazıya girmez.
+          Okul ve müdür bilgileri Gün Değişme Nöbeti yazı ayarlarından alınır.
+        </p>
+        <div class="form-grid">
+          <div class="form-group"><label>Tarih</label><input type="date" id="vyTarih" onchange="vekilYaziYukle()" /></div>
+          <div class="form-group"><label>Sayı</label><input type="text" id="vySayi" oninput="vekilYaziOnizle()" /></div>
+        </div>
+        <div class="uyari-kutu" id="vyUyari" hidden></div>
+        <div class="yazi-onizleme-kap" id="vyOnizleme"><div class="yukleniyor">Yukleniyor...</div></div>
+        <div class="mesaj" id="vyMesaj" style="margin-top:8px;"></div>
+        <div class="modal-butonlar">
+          <button class="btn btn-gri" onclick="vekilYaziKapat()">Kapat</button>
+          <button class="btn btn-yesil" id="vyExcelBtn" onclick="vekilYaziExcel()" disabled>📊 Excel</button>
+          <button class="btn btn-mavi" id="vyYazdirBtn" onclick="vekilYaziYazdir()" disabled>🖨 Yazdır</button>
+        </div>
+      </div>
+    </div>
+    <div id="vyYazdirAlan"></div>
 
     <script type="module" src="/js/portal.js"></script>
   </body>
