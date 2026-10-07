@@ -17,6 +17,7 @@ import { kazanimSayfasiYukle, kazanimlarimYukle } from "./portal-kazanim.js";
 import { bildirimleriYukle } from "./portal-bildirim.js";
 import { pushHazirla } from "./portal-push.js";
 import "./portal-yoklama.js";
+import { yoklamaGirYukle } from "./portal-yoklama-gir.js";
 
 // Backward-compat namespace for portal-raporlar.js and portal-ayarlar.js
 window.__portal = {
@@ -50,6 +51,7 @@ window.sayfaYukle = (id) => {
   else if (id === "yoklamalarim") window.yoklamalarimYukle?.();
   else if (id === "dyk")          window.dykSayfasiYukle?.();
   else if (id === "dyk-admin")    window.dykAdminYukle?.();
+  else if (id === "yoklama-gir")  yoklamaGirYukle();
   else if (id === "raporlar")     window.raporSayfasiBaslat?.();
   else if (id === "ayarlar")      window.ayarlarYukle?.();
   else if (id === "disiplin")     window.disiplinYukle?.();

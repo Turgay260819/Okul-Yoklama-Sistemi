@@ -26,6 +26,7 @@ const adminMenu = [
   { separator: "Yoklama" },
   { id: "anasayfa",       ikon: "📊", ad: "Genel Durum" },
   { id: "yoklama-admin",  ikon: "📋", ad: "Gunluk Yoklamalar" },
+  { id: "yoklama-gir",    ikon: "✏️", ad: "Yoklama Gir", sadeceAdmin: true },
   { id: "dyk-admin",      ikon: "📚", ad: "DYK Yoklamalari" },
   { id: "yoklama-fisi",   ikon: "🖨",  ad: "Yoklama Fisleri" },
   { id: "dyk-fisi",       ikon: "🖨",  ad: "DYK Fisleri" },
@@ -86,6 +87,7 @@ export function menuOlustur(rol) {
   const container = document.getElementById("sidebarMenu");
   container.innerHTML = "";
   adminMenu.forEach((item) => {
+    if (item.sadeceAdmin && rol !== "admin") return;
     if (item.separator) {
       container.innerHTML += `<div class="menu-ayrac">${item.separator}</div>`;
     } else {

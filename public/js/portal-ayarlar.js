@@ -542,7 +542,7 @@ window.ogrencileriGetir = async function () {
 
   Object.entries(sinifGruplari).sort((a,b) => a[0].localeCompare(b[0],"tr")).forEach(([sinif, liste]) => {
     const sinifId = sinif.replace(/[^a-zA-Z0-9]/g,"_");
-    html += `<div class="accordion-item" style="margin-bottom:6px;">
+    html += `<div class="accordion-item ogr-sinif-grup" style="margin-bottom:6px;">
       <div class="accordion-baslik" style="cursor:pointer;" onclick="const ic=this.nextElementSibling;ic.style.display=ic.style.display==='none'?'block':'none';">
         <span>📚 ${sinif} <span style="font-size:12px;color:#888;">(${liste.length} öğrenci)</span></span>
         <span>▼</span>
@@ -559,7 +559,8 @@ window.ogrencileriGetir = async function () {
       const hesapBilgi = o.kimlik_email
         ? `<span class="rozet rozet-yesil" style="font-size:11px;">✓ ${o.kimlik_email}</span>`
         : `<span class="rozet rozet-gri" style="font-size:11px;">Hesap Yok</span>`;
-      html += `<tr>
+      const araMetni = `${o.name || ""} ${o.student_number || ""} ${sinif}`.toLocaleLowerCase("tr").replace(/"/g, "");
+      html += `<tr class="ogr-ara-satir" data-ara="${araMetni}">
         <td style="padding:7px;border-bottom:1px solid #f5f5f5;">${o.name}</td>
         <td style="padding:7px;border-bottom:1px solid #f5f5f5;">${o.student_number||""}</td>
         <td style="padding:7px;border-bottom:1px solid #f5f5f5;">${hesapBilgi}</td>
@@ -575,6 +576,33 @@ window.ogrencileriGetir = async function () {
   });
 
   container.innerHTML = html;
+  window.ogrenciAramaFiltrele();
+};
+
+// Arama: ad / numara / sinif (Turkce kucuk harf). Bos arama listeyi
+// ilk haline dondurur (tum siniflar kapali); doluysa eslesen siniflar acilir.
+window.ogrenciAramaFiltrele = function () {
+  const kutu = document.getElementById("ayarOgrenciAra");
+  const sonucEl = document.getElementById("ayarOgrenciAramaSonuc");
+  const container = document.getElementById("ayarOgrenciListesi");
+  if (!kutu || !container) return;
+  const kelimeler = kutu.value.toLocaleLowerCase("tr").split(/\s+/).filter(Boolean);
+  let bulunan = 0;
+  container.querySelectorAll(".ogr-sinif-grup").forEach((grup) => {
+    let grupta = 0;
+    grup.querySelectorAll(".ogr-ara-satir").forEach((satir) => {
+      const uygun = kelimeler.every((k) => satir.dataset.ara.includes(k));
+      satir.hidden = !uygun;
+      if (uygun) grupta++;
+    });
+    bulunan += grupta;
+    grup.hidden = kelimeler.length > 0 && grupta === 0;
+    grup.querySelector(".accordion-icerik").style.display = kelimeler.length && grupta ? "block" : "none";
+  });
+  if (sonucEl) {
+    sonucEl.hidden = !kelimeler.length;
+    sonucEl.textContent = bulunan ? `${bulunan} öğrenci bulundu.` : "Sonuç yok.";
+  }
 };
 
 // ── Yeni öğrenci ekle + hesap oluştur ──

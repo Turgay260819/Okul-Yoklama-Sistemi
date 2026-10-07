@@ -214,6 +214,30 @@
               </div>
             </div>
 
+            <!-- YOKLAMA GİR (ADMIN, sinirsiz) -->
+            <div class="sayfa" id="sayfa-yoklama-gir">
+              <div class="kart" id="ygUst">
+                <div class="kart-baslik">✏️ Yoklama Gir</div>
+                <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">
+                  Saat ve süre sınırı yoktur; bugün ya da geçmiş bir gün için istediğiniz ders saatine yoklama girebilirsiniz.
+                  Ders saati varsayılan olarak şu anki derstir. Seçilen gün ve saat için kayıtlı yoklama varsa yüklenir, kaydedince üzerine yazılır.
+                </p>
+                <div class="form-grid">
+                  <div class="form-group"><label>Tarih</label><input type="date" id="ygTarih" onchange="yoklamaGirSecimDegisti()" /></div>
+                  <div class="form-group"><label>Ders Saati</label>
+                    <select id="ygDersNo" onchange="yoklamaGirSaatDegisti()">
+                      <option value="1">1. Ders</option><option value="2">2. Ders</option><option value="3">3. Ders</option><option value="4">4. Ders</option>
+                      <option value="5">5. Ders</option><option value="6">6. Ders</option><option value="7">7. Ders</option><option value="8">8. Ders</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div class="kart">
+                <div class="kart-baslik">Sınıflar</div>
+                <div id="ygSinifListesi"><div class="yukleniyor">Yukleniyor...</div></div>
+              </div>
+            </div>
+
             <!-- MANUEL -->
             <div class="sayfa" id="sayfa-manuel">
               <div class="uyari-kutu">Bu ekran sadece teknik sorun veya program degisikligi durumunda kullanin.</div>
@@ -963,6 +987,8 @@
                     <button class="btn btn-mavi btn-sm" onclick="tumOgrencilereHesapAc()">⚡ Hesabı Olmayanlara Toplu Hesap Olustur</button>
                   </div>
                   <div id="topluOgrenciIlerleme" style="font-size:13px;color:#1a73e8;margin-bottom:8px;display:none;"></div>
+                  <input type="search" id="ayarOgrenciAra" placeholder="🔍 Ad, numara veya sınıf ara..." oninput="ogrenciAramaFiltrele()" style="width:100%;margin-bottom:8px;" />
+                  <div id="ayarOgrenciAramaSonuc" style="font-size:13px;color:var(--text2);margin-bottom:8px;" hidden></div>
                   <div id="ayarOgrenciListesi"><div class="yukleniyor">Yukleniyor...</div></div>
                 </div>
               </div>
