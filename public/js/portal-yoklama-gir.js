@@ -250,6 +250,58 @@ window.yoklamaGirKaydet = async (sinif, tam) => {
   butonlar.forEach((b) => (b.disabled = false));
 };
 
+// ── Öğrenci arama ──
+// Tum aktif ogrenciler ilk aramada bir kez okunur. Sonuca tiklayinca ogrencinin
+// sinifi acilir ve satiri vurgulanir.
+let _tumOgrenciler = null;
+
+window.yoklamaGirOgrenciAra = async () => {
+  const kutu = document.getElementById("ygOgrenciAra");
+  const sonucEl = document.getElementById("ygAramaSonuc");
+  const kelimeler = kutu.value.toLocaleLowerCase("tr").split(/\s+/).filter(Boolean);
+  if (!kelimeler.length) { sonucEl.hidden = true; sonucEl.innerHTML = ""; return; }
+  sonucEl.hidden = false;
+  if (!_tumOgrenciler) {
+    sonucEl.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
+    try {
+      const snap = await getDocs(query(collection(db, "students"), where("status", "==", "active")));
+      _tumOgrenciler = snap.docs.map((d) => {
+        const o = d.data();
+        return { no: String(o.student_number || ""), ad: o.name || "", sinif: o.class_id || "",
+          ara: `${o.name || ""} ${o.student_number || ""}`.toLocaleLowerCase("tr") };
+      });
+    } catch (err) {
+      sonucEl.innerHTML = `<div class="bos-mesaj">Öğrenciler okunamadı: ${esc(err.message)}</div>`;
+      return;
+    }
+    // Okuma surerken kutu degistiyse guncel metinle yeniden calis.
+    return window.yoklamaGirOgrenciAra();
+  }
+  const bulunan = _tumOgrenciler.filter((o) => kelimeler.every((k) => o.ara.includes(k)))
+    .sort((a, b) => a.ad.localeCompare(b.ad, "tr"));
+  if (!bulunan.length) { sonucEl.innerHTML = '<div class="bos-mesaj">Öğrenci bulunamadı.</div>'; return; }
+  sonucEl.innerHTML = bulunan.slice(0, 20).map((o) => `
+    <div class="ogrenci-satir" style="cursor:pointer;" data-sinif="${esc(o.sinif)}" data-no="${esc(o.no)}"
+      onclick="yoklamaGirOgrenciyeGit(this.dataset.sinif, this.dataset.no)">
+      <span class="ogrenci-no">${esc(o.no)}</span><span class="ogrenci-isim">${esc(o.ad)}</span>
+      <span class="rozet rozet-mavi" style="margin-left:auto;">${esc(o.sinif)}</span>
+    </div>`).join("")
+    + (bulunan.length > 20 ? `<div style="font-size:12px;color:var(--text2);">İlk 20 sonuç gösteriliyor (${bulunan.length} eşleşme); aramayı daraltın.</div>` : "");
+};
+
+window.yoklamaGirOgrenciyeGit = async (sinif, no) => {
+  const el = _icerikEl(sinif);
+  if (!el) return;
+  el.parentElement.hidden = false; // kademe grubu kapatilmis olabilir
+  if (!(_acikSinif === sinif && !el.hidden)) await window.yoklamaGirSinifAc(sinif);
+  const chk = [...el.querySelectorAll(".yg-chk")].find((c) => c.value === no);
+  const satir = chk?.parentElement;
+  if (!satir) return;
+  satir.scrollIntoView({ behavior: "smooth", block: "center" });
+  satir.style.outline = "2px solid var(--mavi, #1a73e8)";
+  setTimeout(() => (satir.style.outline = ""), 2500);
+};
+
 // Saat degisince sadece rozetler ve acik sinif yenilenir (tarih ayni).
 window.yoklamaGirSaatDegisti = () => {
   if (!_dersler) return;
