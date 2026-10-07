@@ -192,6 +192,13 @@
       let tumSiniflar = [];
       let tumOgrenciler = [];
       let _sinifOgrenciler = [];
+      let aktifUid = null;
+      let aktifKullaniciAd = "";
+      let ogretmenSiniflari = null; // ogretmen: ders verdigi sinif adlari (Set); idare: null = tumu
+
+      function esc(s) {
+        return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+      }
 
       async function soruYukle() {
         try {
@@ -210,17 +217,23 @@
         const ud = await getDoc(doc(db, "users", user.uid));
         if (!ud.exists()) { window.location.href = "/portal.html"; return; }
         aktifRol = ud.data().rol;
+        aktifUid = user.uid;
+        aktifKullaniciAd = ud.data().ad || "";
 
         await Promise.all([ogretmenleriYukle(), siniflariYukle(), ogrencileriYukle(), soruYukle()]);
 
         if (aktifRol === "ogretmen") {
           const ogSnap = await getDocs(query(collection(db, "teachers"), where("uid", "==", user.uid)));
+          ogretmenSiniflari = new Set(); // ogretmen kaydi yoksa hic ogrenci gosterilmez
           if (!ogSnap.empty) {
             aktifOgretmenId = ogSnap.docs[0].id;
             const ogData = ogSnap.docs[0].data();
             aktifOgretmenAd = ogData.ad;
             aktifOgretmenBrans = ogData.brans;
             aktifOgretmenRehber = !!(ogData.rehberSube || ogData.sinifSeviye);
+            // Yetenek girisi: sadece ders programindaki siniflar (disiplin.html ile ayni yontem)
+            const progSnap = await getDocs(query(collection(db, "schedule"), where("teacher_id", "==", aktifOgretmenId)));
+            progSnap.forEach((d) => ogretmenSiniflari.add(d.data().class_id));
           }
         }
 
@@ -459,81 +472,161 @@
         setTimeout(() => ogretmenVeriGirGoster(), 1500);
       };
 
-      // YETENEK EKLEME
+      // YETENEK EKLEME (ogretmen "Yetenek Ekle" + admin "Yetenek Ekle" ortak)
+      // Disiplin sistemindeki gibi: ogrenci ad/numara ile aranir, secilince o
+      // ogrencinin tum yetenek kayitlari (kim, ne zaman) gosterilir. Ogretmen
+      // sadece ders programindaki siniflarin ogrencilerini bulabilir; idare tumunu.
+      let _yetSecili = null;
+      let _yetKap = null;
+
       function ogretmenYetenekGoster() {
-        const c = document.getElementById("osekme-yetenek");
+        yetenekGirisGoster("osekme-yetenek");
+      }
+
+      function aranabilirOgrenciler() {
+        return tumOgrenciler.filter((o) => (o.status || "active") === "active" &&
+          (ogretmenSiniflari === null || ogretmenSiniflari.has(o.class_id)));
+      }
+
+      function yetenekGirisGoster(kapId) {
+        _yetKap = kapId;
+        _yetSecili = null;
+        const c = document.getElementById(kapId);
+        const aciklama = ogretmenSiniflari === null
+          ? "Herhangi bir öğrenciyi ad veya numarasıyla arayın."
+          : `Sadece ders verdiğiniz sınıflardaki öğrenciler aranabilir (${ogretmenSiniflari.size} sınıf).`;
         c.innerHTML = `<div class="kart">
           <div class="kart-baslik">Yetenek Ekle</div>
-          <p style="font-size:13px;color:#888;margin-bottom:16px;">Yetenek gördüğünüz öğrenciyi seçin, kategori ve açıklama girin.</p>
-          <div class="form-group">
-            <label>Sınıf</label>
-            <select id="yetSinif" onchange="yetSinifSecildi(this.value)">
-              <option value="">-- Sınıf Seçin --</option>
-              ${tumSiniflar.map((s) => `<option value="${s.id}">${s.class_name}</option>`).join("")}
-            </select>
+          <p style="font-size:13px;color:#888;margin-bottom:12px;">${esc(aciklama)} Öğrenciyi seçince daha önce girilmiş yetenek kayıtları görünür.</p>
+          <div class="form-group" id="yetAramaWrap">
+            <label>Öğrenci</label>
+            <input type="text" id="yetAra" placeholder="Öğrenci adı veya numarası..." autocomplete="off" oninput="yetOgrenciAra(this.value)">
+            <div id="yetSonuclar" style="margin-top:4px;"></div>
           </div>
-          <div id="yetOgrenciWrap"></div>
+          <div id="yetSeciliWrap"></div>
         </div>`;
       }
 
-      window.yetSinifSecildi = (sinifId) => {
-        const wrap = document.getElementById("yetOgrenciWrap");
-        const ogrenciler = tumOgrenciler.filter((o) => o.sinif_id_gercek === sinifId || o.class_id === sinifId);
-
-        if (!ogrenciler.length) {
-          wrap.innerHTML = '<div style="color:#888;font-size:13px;">Öğrenci bulunamadı.</div>';
-          return;
-        }
-        wrap.innerHTML = `<div class="form-group">
-          <label>Öğrenci</label>
-          <select id="yetOgrenci">
-            <option value="">-- Öğrenci Seçin --</option>
-            ${ogrenciler.map((o) => `<option value="${o.id}" data-ad="${o.name || o.ad || ""}">${o.name || o.ad || ""}</option>`).join("")}
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Yetenek Kategorisi</label>
-          <select id="yetKategori">
-            <option value="">-- Kategori Seçin --</option>
-            ${YETENEK_KATEGORILER.map((k) => `<option value="${k}">${k}</option>`).join("")}
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Yetenek Detayı</label>
-          <input type="text" id="yetDetay" placeholder="Örn: Futbol, Piyano, Resim...">
-        </div>
-        <div class="form-group">
-          <label>Açıklama / Not</label>
-          <textarea id="yetNot" placeholder="Bu yetenek hakkında gözlemlerinizi yazın..."></textarea>
-        </div>
-        <button class="btn btn-yesil" onclick="yetenekKaydet('${sinifId}')">💾 Kaydet</button>
-        <div class="mesaj" id="yetMesaj"></div>`;
+      window.yetOgrenciAra = (q) => {
+        const el = document.getElementById("yetSonuclar");
+        const metin = q.trim().toLocaleLowerCase("tr");
+        if (!metin) { el.innerHTML = ""; return; }
+        const bulunan = aranabilirOgrenciler().filter((o) =>
+          (o.name || "").toLocaleLowerCase("tr").includes(metin) || String(o.student_number || "").includes(metin)).slice(0, 8);
+        el.innerHTML = bulunan.length
+          ? bulunan.map((o) => `<div class="yet-sonuc" data-id="${esc(o.id)}" onclick="yetOgrenciSec(this.dataset.id)"
+              style="padding:8px 10px;border:1px solid #eee;border-radius:6px;margin-bottom:4px;cursor:pointer;background:#fff;">
+              <strong>${esc(o.name)}</strong> <span style="color:#888;font-size:12px;">No: ${esc(o.student_number)} | ${esc(o.class_id)}</span></div>`).join("")
+          : '<div style="color:#888;font-size:13px;">Sonuç bulunamadı.</div>';
       };
 
-      window.yetenekKaydet = async (sinifId) => {
-        const ogrenciEl = document.getElementById("yetOgrenci");
-        const ogrenciId = ogrenciEl?.value;
-        const ogrenciAd = ogrenciEl?.options[ogrenciEl.selectedIndex]?.dataset.ad || "";
+      window.yetOgrenciSec = async (id) => {
+        const o = aranabilirOgrenciler().find((x) => x.id === id);
+        if (!o) return;
+        _yetSecili = o;
+        document.getElementById("yetAramaWrap").style.display = "none";
+        document.getElementById("yetSonuclar").innerHTML = "";
+        document.getElementById("yetSeciliWrap").innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 12px;background:#e8f0fe;border-radius:8px;margin-bottom:12px;">
+            <div><strong>${esc(o.name)}</strong> <span style="color:#555;font-size:13px;">No: ${esc(o.student_number)} | Sınıf: ${esc(o.class_id)}</span></div>
+            <button class="btn btn-gri" style="padding:6px 12px;font-size:12px;" onclick="yetOgrenciDegistir()">Değiştir</button>
+          </div>
+          <div id="yetGecmis" style="margin-bottom:14px;"><div class="yukleniyor">Yükleniyor...</div></div>
+          <div class="form-group">
+            <label>Yetenek Kategorisi</label>
+            <select id="yetKategori">
+              <option value="">-- Kategori Seçin --</option>
+              ${YETENEK_KATEGORILER.map((k) => `<option value="${esc(k)}">${esc(k)}</option>`).join("")}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Yetenek Detayı</label>
+            <input type="text" id="yetDetay" placeholder="Örn: Futbol, Piyano, Resim...">
+          </div>
+          <div class="form-group">
+            <label>Açıklama / Not</label>
+            <textarea id="yetNot" placeholder="Bu yetenek hakkında gözlemlerinizi yazın..."></textarea>
+          </div>
+          <button class="btn btn-yesil" onclick="yetenekKaydet()">💾 Kaydet</button>
+          <div class="mesaj" id="yetMesaj"></div>`;
+        await yetGecmisGetir();
+      };
+
+      window.yetOgrenciDegistir = () => yetenekGirisGoster(_yetKap);
+
+      function yetTarih(t) {
+        return t?.toDate ? t.toDate().toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric" }) : "";
+      }
+
+      async function yetGecmisGetir() {
+        const el = document.getElementById("yetGecmis");
+        if (!el || !_yetSecili) return;
+        try {
+          const snap = await getDocs(query(collection(db, "ogrenci_yetenekler"), where("ogrenci_id", "==", _yetSecili.id)));
+          const liste = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+            .sort((a, b) => (b.tarih?.toMillis?.() || 0) - (a.tarih?.toMillis?.() || 0));
+          if (!liste.length) {
+            el.innerHTML = '<div style="color:#888;font-size:13px;">Bu öğrenci için henüz yetenek kaydı yok.</div>';
+            return;
+          }
+          const idare = aktifRol === "admin" || aktifRol === "mudur_yardimcisi";
+          el.innerHTML = `<div style="font-weight:700;color:#b06000;margin-bottom:6px;">Bu öğrencinin yetenek kayıtları (${liste.length})</div>` +
+            liste.map((y) => {
+              const silebilir = idare || (y.giren_uid && y.giren_uid === aktifUid);
+              return `<div class="yetenek-kart">
+                <div style="display:flex;justify-content:space-between;gap:8px;">
+                  <div style="font-weight:700;color:#b06000;">${esc(y.yetenek_kategori)} — ${esc(y.yetenek_detay)}</div>
+                  ${silebilir ? `<button class="btn btn-kirmizi" style="padding:2px 8px;font-size:11px;" data-id="${esc(y.id)}" onclick="yetenekSil(this.dataset.id)">Sil</button>` : ""}
+                </div>
+                ${y.not ? `<div style="font-size:13px;margin-top:4px;">${esc(y.not)}</div>` : ""}
+                <div style="font-size:11px;color:#888;margin-top:4px;">${esc(y.ogretmen_ad || "")}${yetTarih(y.tarih) ? " · " + esc(yetTarih(y.tarih)) : ""}</div>
+              </div>`;
+            }).join("");
+        } catch (err) {
+          el.innerHTML = `<div style="color:#c5221f;font-size:13px;">Kayıtlar okunamadı: ${esc(err.message)}</div>`;
+        }
+      }
+
+      window.yetenekKaydet = async () => {
+        const o = _yetSecili;
         const kategori = document.getElementById("yetKategori")?.value;
         const detay = document.getElementById("yetDetay")?.value?.trim();
         const not = document.getElementById("yetNot")?.value?.trim();
-
-        if (!ogrenciId || !kategori || !detay || !not) {
-          mesajGoster("yetMesaj", "Tüm alanları doldurun.", "hata");
+        if (!o) { mesajGoster("yetMesaj", "Önce öğrenci seçin.", "hata"); return; }
+        if (!kategori || !detay || !not) { mesajGoster("yetMesaj", "Tüm alanları doldurun.", "hata"); return; }
+        if (ogretmenSiniflari !== null && !ogretmenSiniflari.has(o.class_id)) {
+          mesajGoster("yetMesaj", "Bu öğrencinin sınıfına ders vermiyorsunuz.", "hata");
           return;
         }
+        const idare = ogretmenSiniflari === null;
+        try {
+          await addDoc(collection(db, "ogrenci_yetenekler"), {
+            ogrenci_id: o.id, ogrenci_ad: o.name || "", ogrenci_no: String(o.student_number || ""),
+            sinif_id: o.sinif_id_gercek || o.class_id || "", sinif_ad: o.class_id || "",
+            ogretmen_id: idare ? null : aktifOgretmenId,
+            ogretmen_ad: idare ? `${aktifKullaniciAd || "İdare"} (İdare)` : aktifOgretmenAd,
+            giren_uid: aktifUid, giren_rol: aktifRol,
+            yetenek_kategori: kategori, yetenek_detay: detay, not,
+            tarih: serverTimestamp(),
+          });
+          mesajGoster("yetMesaj", "Yetenek kaydedildi!", "basari");
+          document.getElementById("yetKategori").value = "";
+          document.getElementById("yetDetay").value = "";
+          document.getElementById("yetNot").value = "";
+          await yetGecmisGetir();
+        } catch (err) {
+          mesajGoster("yetMesaj", "Kaydedilemedi: " + err.message, "hata");
+        }
+      };
 
-        await addDoc(collection(db, "ogrenci_yetenekler"), {
-          ogrenci_id: ogrenciId, ogrenci_ad: ogrenciAd, sinif_id: sinifId,
-          ogretmen_id: aktifOgretmenId, ogretmen_ad: aktifOgretmenAd,
-          yetenek_kategori: kategori, yetenek_detay: detay, not,
-          tarih: serverTimestamp(),
-        });
-        mesajGoster("yetMesaj", "Yetenek kaydedildi!", "basari");
-        document.getElementById("yetOgrenci").value = "";
-        document.getElementById("yetKategori").value = "";
-        document.getElementById("yetDetay").value = "";
-        document.getElementById("yetNot").value = "";
+      window.yetenekSil = async (id) => {
+        if (!confirm("Bu yetenek kaydı silinsin mi?")) return;
+        try {
+          await deleteDoc(doc(db, "ogrenci_yetenekler", id));
+          await yetGecmisGetir();
+        } catch (err) {
+          mesajGoster("yetMesaj", "Silinemedi: " + err.message, "hata");
+        }
       };
 
       // GİRDİKLERİM
@@ -578,8 +671,10 @@
             <button class="sekme-btn" onclick="adminSekme('ogrenci', this)">👤 Öğrenci Profili</button>
             <button class="sekme-btn" onclick="adminSekme('ogretmen', this)">👥 Öğretmen Takibi</button>
             <button class="sekme-btn" onclick="adminSekme('yetenek', this)">⭐ Yetenekler</button>
+            ${aktifRol === "admin" ? `<button class="sekme-btn" onclick="adminSekme('yetenekEkle', this)">➕ Yetenek Ekle</button>` : ""}
             <button class="sekme-btn" onclick="adminSekme('ayarlar', this)">⚙️ Ayarlar</button>
           </div>
+          <div class="sekme-icerik" id="asekme-yetenekEkle"></div>
           <div class="sekme-icerik aktif" id="asekme-istatistik"></div>
           <div class="sekme-icerik" id="asekme-ogrenci"></div>
           <div class="sekme-icerik" id="asekme-ogretmen"></div>
@@ -597,6 +692,7 @@
         else if (id === "ogrenci") adminOgrenciGoster();
         else if (id === "ogretmen") adminOgretmenTakipGoster();
         else if (id === "yetenek") adminYetenekGoster();
+        else if (id === "yetenekEkle") yetenekGirisGoster("asekme-yetenekEkle");
         else if (id === "ayarlar") adminAyarlarGoster();
       };
 

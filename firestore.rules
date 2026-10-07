@@ -289,9 +289,14 @@ service cloud.firestore {
       allow read: if isLoggedIn();
       allow write: if isYazabilir();
     }
+    // Ogrenci yetenek kayitlari: ogrenciler erisemez. Ogretmen ve idare ekler
+    // (giren_uid kendisi olmali); ogretmen sadece kendi kaydini siler. Ogretmenin
+    // sinif kisiti (ders programi) istemcide, disiplin sistemindeki gibi.
     match /ogrenci_yetenekler/{docId} {
-      allow read: if isLoggedIn();
-      allow write: if isYazabilir();
+      allow read: if isYonetimOkur() || isOgretmen();
+      allow create: if (isYonetim() || isOgretmen()) && request.resource.data.giren_uid == request.auth.uid;
+      allow update: if isYonetim();
+      allow delete: if isYonetim() || (isOgretmen() && resource.data.giren_uid == request.auth.uid);
     }
     match /geziler/{docId} {
       allow read: if isLoggedIn();
