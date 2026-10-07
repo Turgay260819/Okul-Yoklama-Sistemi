@@ -877,6 +877,16 @@
                   <div class="mesaj" id="bransNormalizeMesaj"></div>
                   <div id="ayarOgretmenListesi"><div class="yukleniyor">Yukleniyor...</div></div>
                 </div>
+                <div class="kart">
+                  <div class="kart-baslik">📞 Öğretmen Telefonları (Toplu Giriş)</div>
+                  <p style="font-size:13px;color:var(--text2);margin-bottom:10px;">
+                    Excel'den iki sütunu (Ad Soyad, Telefon) kopyalayıp yapıştırın; her satıra bir öğretmen. Adlar öğretmen listesiyle eşleştirilir.
+                    Telefonları sadece idare görür (Genel Durum'daki nöbetçi listesi). Tek bir numarayı öğretmenin Düzenle formundan da değiştirebilirsiniz.
+                  </p>
+                  <textarea id="telefonTopluMetin" rows="6" style="width:100%;font-family:inherit;" placeholder="Ayşe Yılmaz	0532 123 45 67&#10;Mehmet Demir	05551234567"></textarea>
+                  <button class="btn btn-mavi" style="margin-top:8px;" onclick="telefonlariTopluKaydet()">Kaydet</button>
+                  <div class="mesaj" id="telefonTopluMesaj"></div>
+                </div>
               </div>
               <div class="sekme-icerik" id="asekme-ogretmen-sifre">
                 <div class="kart">

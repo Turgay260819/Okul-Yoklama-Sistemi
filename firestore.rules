@@ -94,6 +94,13 @@ service cloud.firestore {
       allow write: if isYonetim();
     }
 
+    // Ogretmen telefonlari: teachers herkese acik oldugu icin ayri tutulur;
+    // sadece idare okur (Genel Durum nobetci karti, Ayarlar > Ogretmenler).
+    match /ogretmen_iletisim/{teacherId} {
+      allow read: if isYonetimOkur();
+      allow write: if isYonetim();
+    }
+
     match /schedule/{scheduleId} {
       allow read: if isLoggedIn();
       allow write: if isYonetim();

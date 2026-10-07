@@ -323,7 +323,10 @@ window.bugunNobetcileriYukle = async function () {
     liste.forEach((n) => {
       html += `<tr>
         <td style="padding:4px 8px 4px 0;color:var(--text2);">${esc(n.nokta)}</td>
-        <td style="padding:4px 0;text-align:right;font-weight:600;">${esc(n.ad)}</td>
+        <td style="padding:4px 8px;font-weight:600;">${esc(n.ad)}</td>
+        <td style="padding:4px 0;text-align:right;white-space:nowrap;">${n.telefon
+          ? `<a href="tel:${esc(n.telefon.replace(/[^\d+]/g, ""))}">${esc(n.telefon)}</a>`
+          : '<span style="color:var(--text2);font-size:12px;">telefon yok</span>'}</td>
       </tr>`;
     });
     html += "</tbody></table>";

@@ -1086,9 +1086,14 @@ exports.bugunNobetcileriGetir = onCall(async (request) => {
   if (tatilAdi) return { sebep: `Tatil: ${tatilAdi}.`, liste: [] };
 
   const { tanimli, liste } = await bugunNobetciListesi(db, bugun, jsDay - 1);
+  const iletisimRefs = liste.filter((n) => n.ogretmen_id).map((n) => db.collection("ogretmen_iletisim").doc(n.ogretmen_id));
+  const telefonlar = {};
+  if (iletisimRefs.length) {
+    (await db.getAll(...iletisimRefs)).forEach((d) => { if (d.exists) telefonlar[d.id] = d.data().telefon || ""; });
+  }
   return {
     sebep: tanimli ? null : "Nöbet çizelgesi tanımlı değil.",
-    liste: liste.map(({ nokta, ad }) => ({ nokta, ad })),
+    liste: liste.map(({ nokta, ad, ogretmen_id }) => ({ nokta, ad, telefon: telefonlar[ogretmen_id] || "" })),
   };
 });
 

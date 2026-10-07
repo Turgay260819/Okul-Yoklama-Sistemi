@@ -60,7 +60,7 @@ window.ayarlarYukle = async function () {
 async function ogretmenleriListele() {
   const { db, getDocs, collection, getTumOgretmenler } = window.__portal;
   const tumOgretmenler = getTumOgretmenler();
-  const snap = await getDocs(collection(db, "teachers"));
+  const [snap, telefonlar] = await Promise.all([getDocs(collection(db, "teachers")), telefonlariOku()]);
   tumOgretmenler.length = 0;
   snap.forEach((d) => tumOgretmenler.push({ id: d.id, ...d.data() }));
   window.dropdownlariGuncelle?.();
@@ -96,9 +96,11 @@ async function ogretmenleriListele() {
       liste.forEach((o) => {
         const adEsc = (o.ad || "").replace(/'/g, "\\'").replace(/"/g, "&quot;");
         const emailEsc = (o.email || "").replace(/"/g, "&quot;");
+        const telefon = telefonlar[o.id] || "";
+        const telefonEsc = telefon.replace(/"/g, "&quot;");
         html += `<tr>
           <td style="padding:8px 12px;"><strong>${o.ad}</strong></td>
-          <td style="padding:8px 6px;color:var(--text2);font-size:13px;">${o.email}</td>
+          <td style="padding:8px 6px;color:var(--text2);font-size:13px;">${o.email}${telefon ? `<br>📞 ${telefonEsc}` : ""}</td>
           <td style="padding:8px 12px;white-space:nowrap;text-align:right;">
             <button class="btn btn-gri btn-sm" onclick="ogretmenDuzenleAc('${o.id}')">Düzenle</button>
             <button class="btn btn-mavi btn-sm" onclick="ogretmenOtoKimlikVer('${o.id}','${adEsc}')">Kimlik Ver</button>
@@ -120,6 +122,10 @@ async function ogretmenleriListele() {
                 <div class="form-group">
                   <label style="font-size:12px;">Yeni Şifre <span style="font-weight:400;color:var(--text2);">(boş = değiştirme)</span></label>
                   <input type="password" id="edit-sifre-${o.id}" placeholder="Yeni şifre..." style="font-size:13px;">
+                </div>
+                <div class="form-group">
+                  <label style="font-size:12px;">Telefon <span style="font-weight:400;color:var(--text2);">(sadece idare görür)</span></label>
+                  <input type="tel" id="edit-telefon-${o.id}" value="${telefonEsc}" data-eski="${telefonEsc}" placeholder="05xx xxx xx xx" style="font-size:13px;">
                 </div>
               </div>
               <div style="display:flex;gap:8px;align-items:center;">
@@ -167,6 +173,74 @@ window.ogretmenSil = async function (id, ad) {
   }
 };
 
+// ── Öğretmen telefonları ──
+// teachers herkese okunur oldugu icin numaralar ayri koleksiyonda
+// (ogretmen_iletisim/{ogretmenId}); sadece idare okur, admin/mudur yrd. yazar.
+
+// Rakamlari alir; 10/11 haneli Turkiye cep numarasini "05xx xxx xx xx" yapar,
+// digerlerini oldugu gibi birakir. Bos -> "".
+function telefonBicimle(ham) {
+  const metin = String(ham || "").trim();
+  let r = metin.replace(/\D/g, "");
+  if (r.startsWith("90") && r.length === 12) r = r.slice(2);
+  if (r.length === 10 && r.startsWith("5")) r = "0" + r;
+  if (r.length === 11 && r.startsWith("0")) return `${r.slice(0, 4)} ${r.slice(4, 7)} ${r.slice(7, 9)} ${r.slice(9)}`;
+  return metin;
+}
+
+async function telefonlariOku() {
+  const { db, getDocs, collection } = window.__portal;
+  const harita = {};
+  try {
+    (await getDocs(collection(db, "ogretmen_iletisim"))).forEach((d) => (harita[d.id] = d.data().telefon || ""));
+  } catch (e) {
+    console.warn("Telefonlar okunamadi:", e);
+  }
+  return harita;
+}
+
+async function telefonYaz(ogretmenId, ham) {
+  const { db, doc, setDoc, serverTimestamp } = window.__portal;
+  await setDoc(doc(db, "ogretmen_iletisim", ogretmenId), { telefon: telefonBicimle(ham), guncelleme: serverTimestamp() });
+}
+
+function adAnahtar(ad) {
+  return String(ad || "").toLocaleLowerCase("tr").replace(/\s+/g, " ").trim();
+}
+
+// Her satir: "Ad Soyad <tab/;/,> Telefon" ya da "Ad Soyad 0532 123 45 67".
+window.telefonlariTopluKaydet = async function () {
+  const metin = document.getElementById("telefonTopluMetin").value;
+  const ogretmenler = window.__portal.getTumOgretmenler();
+  const adHarita = {};
+  ogretmenler.forEach((o) => (adHarita[adAnahtar(o.ad)] = o));
+
+  const eslesen = [], bulunamayan = [], hatali = [];
+  metin.split(/\r?\n/).map((s) => s.trim()).filter(Boolean).forEach((satir) => {
+    const m = satir.match(/^(.*?)[\t;,]*\s*(\+?[\d][\d\s()\-]{8,})$/);
+    if (!m || !m[1].trim()) { hatali.push(satir); return; }
+    const o = adHarita[adAnahtar(m[1].replace(/[\t;,]+$/, ""))];
+    if (o) eslesen.push({ id: o.id, telefon: m[2] });
+    else bulunamayan.push(m[1].trim());
+  });
+
+  if (!eslesen.length) {
+    mesajGoster("telefonTopluMesaj", "Eşleşen öğretmen bulunamadı." + (bulunamayan.length ? " Bulunamayan: " + bulunamayan.join(", ") : ""), "hata");
+    return;
+  }
+  try {
+    await Promise.all(eslesen.map((e) => telefonYaz(e.id, e.telefon)));
+    let mesaj = `${eslesen.length} öğretmenin telefonu kaydedildi.`;
+    if (bulunamayan.length) mesaj += ` Listede bulunamayan: ${bulunamayan.join(", ")}.`;
+    if (hatali.length) mesaj += ` Okunamayan satır: ${hatali.length}.`;
+    mesajGoster("telefonTopluMesaj", mesaj, bulunamayan.length || hatali.length ? "hata" : "basari");
+    if (!bulunamayan.length && !hatali.length) document.getElementById("telefonTopluMetin").value = "";
+    await ogretmenleriListele();
+  } catch (err) {
+    mesajGoster("telefonTopluMesaj", "Kaydedilemedi: " + err.message, "hata");
+  }
+};
+
 window.ogretmenDuzenleAc = function (id) {
   const row = document.getElementById("edit-" + id);
   if (!row) return;
@@ -189,6 +263,8 @@ window.ogretmenGuncelle = async function (id) {
     const payload = { ogretmenId: id, ad, email };
     if (sifre) payload.sifre = sifre;
     await fn(payload);
+    const telEl = document.getElementById("edit-telefon-" + id);
+    if (telEl && telEl.value.trim() !== telEl.dataset.eski) await telefonYaz(id, telEl.value);
     mesajGoster("ogretmenEkleMesaj", "Öğretmen bilgileri güncellendi.", "basari");
     await ogretmenleriListele();
   } catch (err) {
