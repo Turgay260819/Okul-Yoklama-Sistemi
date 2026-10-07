@@ -827,34 +827,44 @@ function nobet2PozHesapla(s, sayac, slots, N) {
   return nobet2SlotToPos(serbest[yeniIdx], N);
 }
 
-// Bugun (verilen tarih) nobetci olan ogretmenlerin id setini dondurur.
-// raporluIcinVekilAta tarafindan "nobetci once" onceliklendirmesi icin kullanilir.
-async function bugunNobetciIdSeti(db, bugun, bugunGi) {
+// Bugun (verilen tarih) nobetci olan ogretmenler, nokta sirasina gore:
+// { tanimli, liste: [{ ni, nokta, ogretmen_id, ad }] }. tanimli=false: nobet
+// cizelgesi ya da noktalar tanimli degil. Bugun admin'in takip ettigi mevcut
+// hafta disindaysa liste bos doner. Tatil/donem kontrolu cagirana aittir.
+async function bugunNobetciListesi(db, bugun, bugunGi) {
   const [nbDoc, nokDoc] = await Promise.all([
     db.collection("nobet2_ayarlar").doc("mevcut").get(),
     db.collection("nobet2_ayarlar").doc("noktalar").get(),
   ]);
-  if (!nbDoc.exists) return new Set();
-
-  const nb = nbDoc.data();
   const NOKTALAR = nokDoc.exists ? (nokDoc.data().liste || []) : [];
   const N = NOKTALAR.length;
-  if (!N) return new Set();
+  if (!nbDoc.exists || !N) return { tanimli: false, liste: [] };
 
+  const nb = nbDoc.data();
   const slotlar = nb.slotlar || [];
   const haftaBas = new Date(nb.hafta_baslangic + "T12:00:00");
   const haftaBit = new Date(haftaBas);
   haftaBit.setDate(haftaBas.getDate() + 4);
   const bugunTarih = new Date(bugun + "T12:00:00");
-  if (bugunTarih < haftaBas || bugunTarih > haftaBit) return new Set();
+  if (bugunTarih < haftaBas || bugunTarih > haftaBit) return { tanimli: true, liste: [] };
 
   const sayac = nb.rotasyon_sayaci || 0;
-  const idSeti = new Set();
+  const liste = [];
   slotlar.forEach((s) => {
     const pos = nobet2PozHesapla(s, sayac, slotlar, N);
-    if (pos.gi === bugunGi) idSeti.add(s.ogretmen_id);
+    if (pos.gi === bugunGi) {
+      liste.push({ ni: pos.ni, nokta: NOKTALAR[pos.ni] || "-", ogretmen_id: s.ogretmen_id, ad: s.ogretmen_ad });
+    }
   });
-  return idSeti;
+  liste.sort((a, b) => a.ni - b.ni);
+  return { tanimli: true, liste };
+}
+
+// Bugun (verilen tarih) nobetci olan ogretmenlerin id setini dondurur.
+// raporluIcinVekilAta tarafindan "nobetci once" onceliklendirmesi icin kullanilir.
+async function bugunNobetciIdSeti(db, bugun, bugunGi) {
+  const { liste } = await bugunNobetciListesi(db, bugun, bugunGi);
+  return new Set(liste.map((n) => n.ogretmen_id));
 }
 
 // today_lessons'a gore, o gun en az bir dersi olan ogretmenlerin ders
@@ -1052,6 +1062,37 @@ exports.nobetciMiBugun = onCall(async (request) => {
 });
 
 // ===========================
+// BUGÜNÜN NÖBETÇİLERİ (portal Genel Durum karti)
+// Nobet rotasyonu sadece sunucuda hesaplandigi icin idare paneli listeyi
+// buradan alir. Telegram bildirimiyle ayni liste.
+// ===========================
+exports.bugunNobetcileriGetir = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Giris yapilmamis.");
+
+  const db = admin.firestore();
+  const callerDoc = await db.collection("users").doc(request.auth.uid).get();
+  const callerRole = callerDoc.data()?.rol;
+  if (callerRole !== "admin" && callerRole !== "mudur_yardimcisi" && callerRole !== "idareci_izleyici") {
+    throw new HttpsError("permission-denied", "Yetkiniz yok.");
+  }
+
+  const bugun = new Date().toLocaleString("sv-SE", { timeZone: "Europe/Istanbul" }).slice(0, 10);
+  const jsDay = new Date(bugun + "T12:00:00").getDay();
+  if (jsDay === 0 || jsDay === 6) return { sebep: "Hafta sonu.", liste: [] };
+
+  const donemDurumu = await okulDonemDisindaMi(db, bugun);
+  if (donemDurumu) return { sebep: `Okul dönemi dışında (${donemDurumu}).`, liste: [] };
+  const tatilAdi = await tatilKontrol(db, bugun);
+  if (tatilAdi) return { sebep: `Tatil: ${tatilAdi}.`, liste: [] };
+
+  const { tanimli, liste } = await bugunNobetciListesi(db, bugun, jsDay - 1);
+  return {
+    sebep: tanimli ? null : "Nöbet çizelgesi tanımlı değil.",
+    liste: liste.map(({ nokta, ad }) => ({ nokta, ad })),
+  };
+});
+
+// ===========================
 // GÜNLÜK NÖBET BİLDİRİMİ (Telegram)
 // Her sabah 07:30'da (hafta içi) o günün nöbetçi öğretmenlerini, nöbet
 // noktalarını ve ders programında ara boşluğu olan öğretmenleri
@@ -1085,9 +1126,8 @@ async function nobetGunlukBildirimCalistir(db) {
   }
 
   const bugunGi = jsDay - 1;
-  const [nbDoc, nokDoc, lessonsSnap, teachersSnap] = await Promise.all([
-    db.collection("nobet2_ayarlar").doc("mevcut").get(),
-    db.collection("nobet2_ayarlar").doc("noktalar").get(),
+  const [nobetciler, lessonsSnap, teachersSnap] = await Promise.all([
+    bugunNobetciListesi(db, bugun, bugunGi),
     db.collection("today_lessons").where("date", "==", bugun).get(),
     db.collection("teachers").get(),
   ]);
@@ -1099,35 +1139,14 @@ async function nobetGunlukBildirimCalistir(db) {
 
   // ── Bugünün nöbetçileri ──
   mesaj += "🔔 <b>Bugünün Nöbetçileri</b>\n";
-  const nb = nbDoc.exists ? nbDoc.data() : null;
-  const NOKTALAR = nokDoc.exists ? (nokDoc.data().liste || []) : [];
-  const N = NOKTALAR.length;
-  if (nb && N) {
-    const slotlar = nb.slotlar || [];
-    const sayac = nb.rotasyon_sayaci || 0;
-    const haftaBas = new Date(nb.hafta_baslangic + "T12:00:00");
-    const haftaBit = new Date(haftaBas);
-    haftaBit.setDate(haftaBas.getDate() + 4);
-    const bugunTarih = new Date(bugun + "T12:00:00");
-    const bugunHaftaIcinde = bugunTarih >= haftaBas && bugunTarih <= haftaBit;
-
-    const bugunNobetciler = [];
-    if (bugunHaftaIcinde) {
-      slotlar.forEach((s) => {
-        const pos = nobet2PozHesapla(s, sayac, slotlar, N);
-        if (pos.gi === bugunGi) bugunNobetciler.push({ ni: pos.ni, ad: s.ogretmen_ad });
-      });
-    }
-    if (bugunNobetciler.length) {
-      bugunNobetciler.sort((a, b) => a.ni - b.ni);
-      bugunNobetciler.forEach((n) => {
-        mesaj += `• ${NOKTALAR[n.ni] || "-"}: ${n.ad}\n`;
-      });
-    } else {
-      mesaj += "Bugün nöbetçi yok.\n";
-    }
-  } else {
+  if (!nobetciler.tanimli) {
     mesaj += "Nöbet çizelgesi tanımlı değil.\n";
+  } else if (nobetciler.liste.length) {
+    nobetciler.liste.forEach((n) => {
+      mesaj += `• ${n.nokta}: ${n.ad}\n`;
+    });
+  } else {
+    mesaj += "Bugün nöbetçi yok.\n";
   }
 
   // ── Ara boşluğu olan öğretmenler (sadece ders programına göre) ──

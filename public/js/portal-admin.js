@@ -50,6 +50,7 @@ export async function anasayfaYukle() {
     await window.ogretmenTakipYukle();
     await window.bosOgretmenlerYukle();
     await window.yoklamaGirmeyenlerYukle();
+    window.bugunNobetcileriYukle(); // gun icinde degismez; periyodik yenilemeye girmez
     if (state.takipInterval) clearInterval(state.takipInterval);
     state.takipInterval = setInterval(() => {
       window.ogretmenTakipYukle();
@@ -294,6 +295,35 @@ window.bosOgretmenlerYukle = async function () {
         <td style="padding:4px 8px 4px 0;font-weight:600;">${esc(o.ad)}</td>
         <td style="padding:4px 6px;color:var(--text2);font-size:12px;">${esc(o.brans)}</td>
         <td style="padding:4px 0;text-align:right;">${o.bosSaatler.map((s) => s + ". ders").join(", ")}</td>
+      </tr>`;
+    });
+    html += "</tbody></table>";
+    container.innerHTML = html;
+  } catch (err) {
+    container.innerHTML = `<div class="bos-mesaj" style="color:#ea4335;">Hata: ${esc(err.message)}</div>`;
+  }
+};
+
+// ── BUGÜNÜN NÖBETÇİLERİ ──
+// Nobet rotasyonu sunucuda hesaplanir (bugunNobetcileriGetir); Telegram
+// gunluk nobet bildirimindeki listeyle aynidir.
+window.bugunNobetcileriYukle = async function () {
+  const container = document.getElementById("bugunNobetcilerListesi");
+  if (!container) return;
+  container.innerHTML = '<div class="yukleniyor">Yükleniyor...</div>';
+
+  try {
+    const { data } = await httpsCallable(functions, "bugunNobetcileriGetir")({});
+    const liste = data?.liste || [];
+    if (!liste.length) {
+      container.innerHTML = `<div class="bos-mesaj">${esc(data?.sebep || "Bugün nöbetçi yok.")}</div>`;
+      return;
+    }
+    let html = '<table style="width:100%;font-size:13px;"><tbody>';
+    liste.forEach((n) => {
+      html += `<tr>
+        <td style="padding:4px 8px 4px 0;color:var(--text2);">${esc(n.nokta)}</td>
+        <td style="padding:4px 0;text-align:right;font-weight:600;">${esc(n.ad)}</td>
       </tr>`;
     });
     html += "</tbody></table>";
