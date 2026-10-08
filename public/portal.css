@@ -1549,3 +1549,20 @@ tr:last-child td {
   body.yazi-yazdir > #vyYazdirAlan { display: block !important; }
   body.yazi-yazdir .yazi-kagit { box-shadow: none; padding: 0; max-width: none; }
 }
+
+/* ── Kelebek sınav çıktıları (portal-kelebek.js) ── */
+#kelebekYazdirAlan { display: none; }
+.kb-sayfa { font-family: "Times New Roman", Times, serif; color: #000; padding: 6mm 0; }
+.kb-baslik { text-align: center; font-weight: bold; margin-bottom: 8px; line-height: 1.4; }
+.kb-alt { font-size: 15pt; margin-top: 6px; }
+.kb-gozetmen { margin: 6px 0 10px; font-size: 11pt; }
+.kb-tablo { width: 100%; border-collapse: collapse; font-size: 11pt; }
+.kb-tablo th, .kb-tablo td { border: 1px solid #000; padding: 3px 6px; text-align: center; }
+.kb-tablo th { background: #f0f0f0; }
+.kb-tablo td.kb-sol { text-align: left; }
+@media print {
+  body.kelebek-yazdir > * { display: none !important; }
+  body.kelebek-yazdir > #kelebekYazdirAlan { display: block !important; }
+  body.kelebek-yazdir .kb-sayfa { page-break-after: always; break-after: page; }
+  body.kelebek-yazdir .kb-sayfa:last-child { page-break-after: auto; break-after: auto; }
+}

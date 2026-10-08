@@ -1098,6 +1098,59 @@ exports.bugunNobetcileriGetir = onCall(async (request) => {
 });
 
 // ===========================
+// KELEBEK SINAV: YEDEK GÖZETMEN ADAYLARI
+// Okulda olmayan gozetmenin yerine, vekil atamadaki gibi once o saatte bos
+// nobetci, sonra diger bos ogretmenler. "Bos" = o gun ilk ve son dersi
+// arasinda o saatte dersi olmayan (saatBazliBosOgretmenler). Dersler o tarihin
+// today_lessons'indan, yoksa haftalik programdan. Raporlular ve `haric`
+// (bu sinavda o saatte zaten gozetmen olanlar) disarida.
+// ===========================
+exports.kelebekGozetmenAdaylari = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Giris yapilmamis.");
+  const db = admin.firestore();
+  const callerDoc = await db.collection("users").doc(request.auth.uid).get();
+  if (callerDoc.data()?.rol !== "admin") throw new HttpsError("permission-denied", "Yetkiniz yok.");
+
+  const { tarih, saat } = request.data || {};
+  const haric = new Set(Array.isArray(request.data?.haric) ? request.data.haric : []);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(tarih || "")) || !Number(saat)) {
+    throw new HttpsError("invalid-argument", "tarih ve saat gerekli.");
+  }
+  const jsDay = new Date(tarih + "T12:00:00").getDay();
+  if (jsDay === 0 || jsDay === 6) return { sebep: "Hafta sonu.", nobetci: [], diger: [] };
+  const tatilAdi = await tatilKontrol(db, tarih);
+  if (tatilAdi) return { sebep: `Tatil: ${tatilAdi}.`, nobetci: [], diger: [] };
+
+  const [gunlukSnap, teachersSnap, raporSnap] = await Promise.all([
+    db.collection("today_lessons").where("date", "==", tarih).get(),
+    db.collection("teachers").get(),
+    db.collection("ogretmen_rapor").where("baslangic_tarihi", "<=", tarih).get(),
+  ]);
+  let dersler = gunlukSnap.docs.map((d) => d.data());
+  if (!dersler.length) {
+    const gunler = ["pazar", "pazartesi", "sali", "carsamba", "persembe", "cuma", "cumartesi"];
+    const programSnap = await db.collection("schedule").get();
+    dersler = programSnap.docs.map((d) => d.data()).filter((d) => normalizeGun(d.day) === gunler[jsDay]);
+  }
+  const ogretmenAdMap = {};
+  teachersSnap.forEach((d) => (ogretmenAdMap[d.id] = d.data().ad || d.id));
+  const raporlular = new Set();
+  raporSnap.forEach((d) => { const r = d.data(); if (r.bitis_tarihi >= tarih) raporlular.add(r.ogretmen_id); });
+
+  const dersSnapBenzeri = { forEach: (fn) => dersler.forEach((x) => fn({ data: () => x })) };
+  const bosOlanlar = (saatBazliBosOgretmenler(dersSnapBenzeri, ogretmenAdMap, raporlular)[Number(saat)] || [])
+    .filter((o) => !haric.has(o.id));
+  const nobetciSeti = await bugunNobetciIdSeti(db, tarih, jsDay - 1);
+  const sirala = (a, b) => a.ad.localeCompare(b.ad, "tr");
+  return {
+    sebep: null,
+    nobetBilinmiyor: nobetciSeti.size === 0,
+    nobetci: bosOlanlar.filter((o) => nobetciSeti.has(o.id)).sort(sirala),
+    diger: bosOlanlar.filter((o) => !nobetciSeti.has(o.id)).sort(sirala),
+  };
+});
+
+// ===========================
 // GÜNLÜK NÖBET BİLDİRİMİ (Telegram)
 // Her sabah 07:30'da (hafta içi) o günün nöbetçi öğretmenlerini, nöbet
 // noktalarını ve ders programında ara boşluğu olan öğretmenleri
