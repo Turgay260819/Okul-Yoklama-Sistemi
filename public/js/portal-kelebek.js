@@ -36,12 +36,11 @@ const saatMetni = (s) => (s || []).map((x) => x + ".").join(", ") + " ders";
 export async function kelebekYukle() {
   kok().innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
   try {
-    if (!_ogrenciler) {
-      const snap = await getDocs(query(collection(db, "students"), where("status", "==", "active")));
-      _ogrenciler = snap.docs.map((d) => {
-        const o = d.data();
-        return { ogrenci_id: d.id, no: String(o.student_number || ""), ad: o.name || "", sinif: o.class_id || "" };
-      }).filter((o) => o.sinif);
+    // Ogrenciler her giriste yeniden okunur: Ayarlar'dan sonradan eklenen
+    // ogrenciler portal yenilenmeden de listede gorunsun.
+    const ilk = !_ogrenciler;
+    await _ogrencileriOku();
+    if (ilk) {
       try {
         const y = await getDoc(doc(db, "nobet2_ayarlar", "yazi"));
         if (y.exists() && y.data().okul) _okulAd = y.data().okul;
@@ -54,6 +53,34 @@ export async function kelebekYukle() {
   }
 }
 window.kelebekYukle = kelebekYukle;
+
+async function _ogrencileriOku() {
+  const snap = await getDocs(query(collection(db, "students"), where("status", "==", "active")));
+  _ogrenciler = snap.docs.map((d) => {
+    const o = d.data();
+    return { ogrenci_id: d.id, no: String(o.student_number || ""), ad: o.name || "", sinif: o.class_id || "" };
+  }).filter((o) => o.sinif);
+}
+
+// Sinav acikken baska sekmede ogrenci eklendiyse: secim korunur, yeni
+// ogrenciler isaretsiz gelir, artik bulunmayan secili ogrenciler secimden duser.
+window.kelebekOgrencileriYenile = async (btn) => {
+  if (btn) btn.disabled = true;
+  try {
+    const onceki = _ogrenciler.length;
+    await _ogrencileriOku();
+    const mevcut = new Set(_ogrenciler.map((o) => o.ogrenci_id));
+    const dusen = [..._secili].filter((id) => !mevcut.has(id));
+    dusen.forEach((id) => _secili.delete(id));
+    _ogrencilerCiz(); _salonlarCiz();
+    if (dusen.length) _dagilimDegisti();
+    const fark = _ogrenciler.length - onceki;
+    mesajGoster("kbMesaj", `Öğrenci listesi yenilendi${fark > 0 ? `: ${fark} yeni öğrenci` : ""}.${dusen.length ? ` ${dusen.length} öğrenci artık kayıtlı değil, seçimden çıkarıldı.` : ""}`, "basari");
+  } catch (err) {
+    mesajGoster("kbMesaj", "Yenilenemedi: " + err.message, "hata");
+  }
+  if (btn) btn.disabled = false;
+};
 
 // ═══════════ SINAV LİSTESİ ═══════════
 async function _listeCiz() {
@@ -182,7 +209,8 @@ function _ogrencilerCiz() {
     ${ro ? "" : `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;font-size:13px;">
       <span style="font-weight:600;">Hızlı seçim:</span>
       ${kademeler.map((k) => `<button class="btn btn-gri btn-sm" data-k="${esc(k)}" onclick="kelebekKademe(this.dataset.k, true)">${esc(k)}. sınıfların tümü</button>`).join("")}
-      <button class="btn btn-gri btn-sm" onclick="kelebekTumunuKaldir()">Seçimi temizle</button></div>`}
+      <button class="btn btn-gri btn-sm" onclick="kelebekTumunuKaldir()">Seçimi temizle</button>
+      <button class="btn btn-gri btn-sm" onclick="kelebekOgrencileriYenile(this)">🔄 Öğrenci listesini yenile</button></div>`}
     ${adlar.map((s) => {
       const liste = subeler[s];
       const acik = _acikSubeler.has(s);

@@ -45,6 +45,7 @@ function ogretmenAd(id) {
 export async function yoklamaGirYukle() {
   const kok = document.getElementById("ygSinifListesi");
   if (!kok) return;
+  _tumOgrenciler = null; // arama sonradan eklenen ogrencileri de bulsun
   if (state.rol !== "admin") {
     kok.innerHTML = '<div class="bos-mesaj">Bu ekran sadece admin içindir.</div>';
     document.getElementById("ygUst").hidden = true;
