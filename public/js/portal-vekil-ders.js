@@ -11,8 +11,8 @@ import { xlsxYukle, sayfaOlustur, isoTarih, dosyaAdi, TARIH_SAAT_BICIMI } from "
 // vekil_dersler: "kim hangi derse girdi" sorusunun tek kaydi. SADECE ogretmen
 // kendi sayfasindan acar (atama onayi ya da elle giris); idare kayit acamaz,
 // hatali kaydi silebilir. Belge kimligi tarih_sinif_saat oldugu icin bir
-// sinif-saate tek kayit acilir (ilk giren alir). Ogretmen bugune ve bir onceki
-// is gunune yazar ve o sure icinde kendi kaydini silebilir (firestore.rules
+// sinif-saate tek kayit acilir (ilk giren alir). Ogretmen bugune ve gecmis her
+// gune yazar, kendi kaydini silebilir; gelecek kapali (firestore.rules
 // ogretmenTarihi ile ayni sinir).
 
 const KAYNAK_ETIKET = { sistem_onay: "Atama onayı", ogretmen: "Elle girdi", admin: "İdare girdi" };
@@ -45,10 +45,10 @@ export function oncekiIsGunu(tarih) {
   return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, "0"), String(d.getDate()).padStart(2, "0")].join("-");
 }
 
-// Ogretmen bu tarihe kayit girebilir / kendi kaydini silebilir mi?
+// Ogretmen bu tarihe kayit girebilir / kendi kaydini silebilir mi? Bugun ve
+// gecmis her gun; gelecek degil. firestore.rules ogretmenTarihi ile ayni.
 export function ogretmenTarihiMi(tarih) {
-  const b = bugunHesapla();
-  return tarih === b || tarih === oncekiIsGunu(b);
+  return typeof tarih === "string" && tarih.length === 10 && tarih <= bugunHesapla();
 }
 
 function gunEtiketi(tarih) {
@@ -147,6 +147,12 @@ window.vekilGunSec = (secim) => {
   vekilDerslerimYukle();
 };
 
+window.vekilTarihSecildi = (t) => {
+  if (!ogretmenTarihiMi(t)) return;
+  _seciliTarih = t === bugunHesapla() ? null : t;
+  vekilDerslerimYukle();
+};
+
 export async function vekilDerslerimYukle() {
   const kok = document.getElementById("vekilDerslerimIcerik");
   if (!kok) return;
@@ -156,7 +162,7 @@ export async function vekilDerslerimYukle() {
 
   const bugunTarih = bugunHesapla();
   const onceki = oncekiIsGunu(bugunTarih);
-  if (_seciliTarih && _seciliTarih !== onceki) _seciliTarih = null; // gun degistiyse
+  if (_seciliTarih && !ogretmenTarihiMi(_seciliTarih)) _seciliTarih = null;
   const tarih = _seciliTarih || bugunTarih;
 
   try {
@@ -173,10 +179,11 @@ export async function vekilDerslerimYukle() {
     benimSnap.forEach((d) => benimKayitlar.push({ id: d.id, ...d.data() }));
 
     const bugunMu = tarih === bugunTarih;
-    // Bu ay + (ay basindaysa) onceki is gununun kayitlari; silinebilenler de gorunsun.
-    const listeBas = [ayBasi(bugunTarih), onceki].sort()[0];
+    // Bu ay + (ay basindaysa) onceki is gunu + secili gunun ayi; eski bir aya
+    // girilen kayit da listede gorunsun.
+    const listeBas = [ayBasi(bugunTarih), onceki, ayBasi(tarih)].sort()[0];
     kok.innerHTML =
-      _gunSeciciHtml(bugunTarih, onceki, bugunMu) +
+      _gunSeciciHtml(bugunTarih, onceki, tarih) +
       _atananlarHtml(ben, tarih, bugunMu) +
       _elleEkleHtml(tarih, bugunMu) +
       _kayitlarimHtml(benimKayitlar.filter((k) => k.tarih >= listeBas && k.tarih <= bugunTarih)) +
@@ -204,10 +211,12 @@ async function _gecmisimYukle() {
   }
 }
 
-function _gunSeciciHtml(bugunTarih, onceki, bugunMu) {
-  return `<div class="sekme-bar" style="margin-bottom:12px;">
-    <button class="sekme-btn${bugunMu ? " aktif" : ""}" onclick="vekilGunSec('bugun')">Bugün (${esc(gunEtiketi(bugunTarih))})</button>
-    <button class="sekme-btn${bugunMu ? "" : " aktif"}" onclick="vekilGunSec('onceki')">Önceki iş günü (${esc(gunEtiketi(onceki))})</button>
+function _gunSeciciHtml(bugunTarih, onceki, tarih) {
+  return `<div class="sekme-bar" style="margin-bottom:12px;align-items:center;flex-wrap:wrap;gap:6px;">
+    <button class="sekme-btn${tarih === bugunTarih ? " aktif" : ""}" onclick="vekilGunSec('bugun')">Bugün (${esc(gunEtiketi(bugunTarih))})</button>
+    <button class="sekme-btn${tarih === onceki ? " aktif" : ""}" onclick="vekilGunSec('onceki')">Önceki iş günü (${esc(gunEtiketi(onceki))})</button>
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px;">Başka gün:
+      <input type="date" id="vekilTarihSec" max="${esc(bugunTarih)}" value="${esc(tarih)}" onchange="vekilTarihSecildi(this.value)"></label>
   </div>`;
 }
 
@@ -217,7 +226,7 @@ function _atananlarHtml(ben, tarih, bugunMu) {
     .sort((a, b) => a.lesson_number - b.lesson_number);
   let html = `<div class="kart">
     <div class="kart-baslik">${bugunMu ? "Bugün" : esc(gunEtiketi(tarih))} Size Atanan Vekil Dersler</div>
-    <p style="font-size:13px;color:var(--text2);margin-bottom:10px;">Ücret, sadece sizin "Derse girdim" ile onayladığınız veya aşağıdan eklediğiniz dersler için ödenir. Kayıt bugün ve bir önceki iş günü için yapılabilir; aynı süre içinde kendi kaydınızı silebilirsiniz.</p>`;
+    <p style="font-size:13px;color:var(--text2);margin-bottom:10px;">Ücret, sadece sizin "Derse girdim" ile onayladığınız veya aşağıdan eklediğiniz dersler için ödenir. Bugün ya da geçmiş herhangi bir gün için kayıt girebilir (üstten gün seçin), kendi kaydınızı silebilirsiniz.</p>`;
   if (!atananlar.length) {
     html += `<div class="bos-mesaj">${bugunMu ? "Bugün" : "Bu gün"} size atanmış vekil ders yok.</div></div>`;
     return html;
@@ -262,7 +271,7 @@ function _kayitlarimHtml(kayitlar) {
   kayitlar.sort((a, b) => b.tarih.localeCompare(a.tarih) || a.ders_no - b.ders_no);
   let html = `<div class="kart">
     <div class="kart-baslik">Girdiğim Vekil Ders Kayıtları <span class="rozet rozet-mavi">${kayitlar.length} ders</span></div>
-    <p style="font-size:13px;color:var(--text2);margin-bottom:10px;">Bu ayki kayıtlarınız. Derse girmediğiniz ya da yanlış girdiğiniz bir kaydı, bugün ve bir önceki iş günü içinde silebilirsiniz.</p>`;
+    <p style="font-size:13px;color:var(--text2);margin-bottom:10px;">Bu ayki (ve seçili günün ayındaki) kayıtlarınız. Derse girmediğiniz ya da yanlış girdiğiniz bir kaydı silebilirsiniz.</p>`;
   if (!kayitlar.length) return html + '<div class="bos-mesaj">Bu ay kayıtlı vekil dersiniz yok.</div></div>';
   html += '<div style="overflow-x:auto;"><table><thead><tr><th>Tarih</th><th>Saat</th><th>Sınıf / Ders</th><th>Yerine</th><th>Nasıl</th><th></th></tr></thead><tbody>';
   html += kayitlar.map((k) => `<tr>
@@ -469,7 +478,7 @@ async function _adminGecmisYukle(bas, bit, ogrFiltre) {
 }
 
 window.vekilDersSil = async (btn) => {
-  if (!await sor("Kaydı Sil", "Bu vekil ders kaydı silinecek ve ücret listesinden çıkacak. İdare kayıt ekleyemediği için silinen kaydı ancak öğretmen kendi giriş süresi içindeyse yeniden girebilir.", "Sil", "btn-kirmizi")) return;
+  if (!await sor("Kaydı Sil", "Bu vekil ders kaydı silinecek ve ücret listesinden çıkacak. İdare kayıt ekleyemediği için silinen kaydı ancak öğretmen kendi sayfasından yeniden girebilir.", "Sil", "btn-kirmizi")) return;
   btn.disabled = true;
   try {
     await deleteDoc(doc(db, "vekil_dersler", btn.dataset.id));

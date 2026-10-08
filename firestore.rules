@@ -65,9 +65,10 @@ service cloud.firestore {
       return tarihTR(t - duration.value(geri * 24, 'h'));
     }
 
-    // Ogretmenin vekil ders kaydi girebilecegi tarihler.
+    // Ogretmenin vekil ders kaydi girebilecegi / silebilecegi tarihler:
+    // bugun ve gecmis her gun (YYYY-MM-DD dizgi karsilastirmasi); gelecek kapali.
     function ogretmenTarihi(tarih) {
-      return tarih == bugunTR() || tarih == oncekiIsGunuTR();
+      return tarih is string && tarih.size() == 10 && tarih <= bugunTR();
     }
 
     function kendiOgretmenDocu(teacherId) {
