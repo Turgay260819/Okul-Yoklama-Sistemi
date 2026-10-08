@@ -12,6 +12,38 @@ export function bransNormalize(brans) {
 }
 window.bransNormalize = bransNormalize;
 
+// Brans karsilastirma anahtari: Turkce harf ve buyuk/kucuk farkindan bagimsiz
+// ("Ingilizce", "İngilizce", "INGILIZCE" -> "ingilizce").
+export function bransAnahtar(brans) {
+  return String(bransNormalize(brans) || "")
+    .toLocaleLowerCase("tr")
+    .replace(/i̇/g, "i").replace(/ı/g, "i").replace(/ş/g, "s").replace(/ç/g, "c")
+    .replace(/ğ/g, "g").replace(/ü/g, "u").replace(/ö/g, "o")
+    .replace(/\s+/g, " ").trim();
+}
+
+// Ogretmenleri bransa gore gruplar: { anahtar: { ad, ogretmenler } }. Grubun
+// adi gruptaki en sik yazim (esitlikte Turkce karakterli olan).
+export function bransGruplari(ogretmenler) {
+  const gruplar = {};
+  ogretmenler.forEach((o) => {
+    const ad = String(bransNormalize(o.brans) || "").trim();
+    const anahtar = bransAnahtar(ad) || "diger";
+    const g = (gruplar[anahtar] ||= { ad: "", ogretmenler: [], yazimlar: {} });
+    g.ogretmenler.push(o);
+    if (ad) g.yazimlar[ad] = (g.yazimlar[ad] || 0) + 1;
+  });
+  const turkce = (s) => (s.match(/[çğıöşüİÇĞÖŞÜ]/g) || []).length;
+  Object.values(gruplar).forEach((g) => {
+    g.ad = Object.entries(g.yazimlar)
+      .sort((a, b) => b[1] - a[1] || turkce(b[0]) - turkce(a[0]) || a[0].localeCompare(b[0], "tr"))[0]?.[0] || "Diğer";
+    delete g.yazimlar;
+  });
+  return gruplar;
+}
+window.bransAnahtar = bransAnahtar;
+window.bransGruplari = bransGruplari;
+
 // Gün adlarını Türkçe aksan/harf farkından bağımsız, tek bir biçime indirger
 // (örn. "Salı", "sali", "SALI" hepsi "sali" olur). schedule.day / dyk_courses.gun
 // gibi alanlar farklı biçimlerde girilmiş olabileceğinden karşılaştırmalarda

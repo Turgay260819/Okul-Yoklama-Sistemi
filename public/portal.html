@@ -848,33 +848,10 @@
                     </div>
                     <div class="form-group">
                       <label>Brans</label>
-                      <select id="ayarOgretmenBrans">
-                        <option value="">Brans secin...</option>
-                        <option>Anasinifi</option>
-                        <option>Beden Egitimi</option>
-                        <option>Bilisim Teknolojileri</option>
-                        <option>Biyoloji</option>
-                        <option>Cografya</option>
-                        <option>Din Kültürü</option>
-                        <option>Edebiyat</option>
-                        <option>Felsefe</option>
-                        <option>Fen Bilimleri</option>
-                        <option>Fizik</option>
-                        <option>Gorsel Sanatlar</option>
-                        <option>Ingilizce</option>
-                        <option>Kimya</option>
-                        <option>Matematik</option>
-                        <option>Muzik</option>
-                        <option>Psikolojik Danisman</option>
-                        <option>Rehber Ogretmen</option>
-                        <option>Sinif Ogretmeni</option>
-                        <option>Sosyal Bilgiler</option>
-                        <option>Tarih</option>
-                        <option>Teknoloji ve Tasarim</option>
-                        <option>Turkce</option>
-                        <option>Turkce Edebiyat</option>
-                        <option>Diger</option>
+                      <select id="ayarOgretmenBrans" onchange="bransSecimDegisti(this)">
+                        <option value="">Branş seçin...</option>
                       </select>
+                      <input type="text" id="ayarOgretmenBransYeni" placeholder="Yeni branş adı" hidden style="margin-top:4px;" />
                     </div>
                     <div class="form-group">
                       <label>E-posta (Kullanici Adi)</label>

@@ -70,19 +70,17 @@ async function ogretmenleriListele() {
     return;
   }
 
-  // Branşa göre grupla (normalize ederek)
-  const bransGrup = {};
-  tumOgretmenler.forEach((o) => {
-    const brans = (window.bransNormalize?.(o.brans)) || o.brans || "Diğer";
-    if (!bransGrup[brans]) bransGrup[brans] = [];
-    bransGrup[brans].push(o);
-  });
+  // Branşa göre grupla: Türkçe harf / büyük-küçük farkı aynı başlıkta
+  // ("Ingilizce" ve "İngilizce" tek grup); başlık en sık yazım.
+  const gruplar = Object.values(window.bransGruplari(tumOgretmenler));
+  _bransListesiDoldur(gruplar);
 
   let html = "";
-  Object.keys(bransGrup)
-    .sort((a, b) => a.localeCompare(b, "tr"))
-    .forEach((brans) => {
-      const liste = bransGrup[brans].sort((a, b) => (a.ad || "").localeCompare(b.ad || "", "tr"));
+  gruplar
+    .sort((a, b) => a.ad.localeCompare(b.ad, "tr"))
+    .forEach((g) => {
+      const brans = g.ad;
+      const liste = g.ogretmenler.sort((a, b) => (a.ad || "").localeCompare(b.ad || "", "tr"));
       const bransId = "brans-" + brans.replace(/[^a-zA-Z0-9]/g, "_");
 
       html += `<div style="margin-bottom:4px;">
@@ -124,6 +122,13 @@ async function ogretmenleriListele() {
                   <input type="password" id="edit-sifre-${o.id}" placeholder="Yeni şifre..." style="font-size:13px;">
                 </div>
                 <div class="form-group">
+                  <label style="font-size:12px;">Branş</label>
+                  <select id="edit-brans-${o.id}" data-eski="${(o.brans || "").replace(/"/g, "&quot;")}" onchange="bransSecimDegisti(this)" style="font-size:13px;">
+                    ${_bransSecenekleri(brans)}
+                  </select>
+                  <input type="text" id="edit-brans-${o.id}-yeni" placeholder="Yeni branş adı" hidden style="font-size:13px;margin-top:4px;">
+                </div>
+                <div class="form-group">
                   <label style="font-size:12px;">Telefon <span style="font-weight:400;color:var(--text2);">(sadece idare görür)</span></label>
                   <input type="tel" id="edit-telefon-${o.id}" value="${telefonEsc}" data-eski="${telefonEsc}" placeholder="05xx xxx xx xx" style="font-size:13px;">
                 </div>
@@ -144,15 +149,53 @@ async function ogretmenleriListele() {
   container.innerHTML = html;
 }
 
+// ── Branş listesi ──
+// Ekleme ve duzenleme formlarindaki brans secenekleri sabit liste degil,
+// kayitli ogretmenlerin branslari (gruplanmis) + "Yeni branş…".
+let _bransAdlari = [];
+const YENI_BRANS = "__yeni";
+
+function _bransSecenekleri(secili) {
+  const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+  return '<option value="">Branş seçin...</option>' +
+    _bransAdlari.map((b) => `<option value="${esc(b)}"${b === secili ? " selected" : ""}>${esc(b)}</option>`).join("") +
+    `<option value="${YENI_BRANS}">Yeni branş…</option>`;
+}
+
+function _bransListesiDoldur(gruplar) {
+  _bransAdlari = gruplar.map((g) => g.ad).filter((a) => a && a !== "Diğer").sort((a, b) => a.localeCompare(b, "tr"));
+  const sel = document.getElementById("ayarOgretmenBrans");
+  if (!sel) return;
+  const onceki = sel.value;
+  sel.innerHTML = _bransSecenekleri(onceki);
+}
+
+window.bransSecimDegisti = function (sel) {
+  const yeni = document.getElementById(sel.id + "-yeni") || document.getElementById("ayarOgretmenBransYeni");
+  if (yeni) yeni.hidden = sel.value !== YENI_BRANS;
+};
+
+// Secili brans; "Yeni branş…" ise yaninaki kutudaki ad.
+function _secilenBrans(selectId) {
+  const sel = document.getElementById(selectId);
+  if (!sel) return "";
+  if (sel.value !== YENI_BRANS) return sel.value.trim();
+  const yeni = document.getElementById(selectId + "-yeni") || document.getElementById("ayarOgretmenBransYeni");
+  return (yeni?.value || "").trim();
+}
+
+// Her ogretmenin bransini grubunun adina cevirir (ör. "Ingilizce" -> "İngilizce").
 window.branslarNormalizeEt = async function () {
   const { db, getDocs, updateDoc, collection, doc } = window.__portal;
   const snap = await getDocs(collection(db, "teachers"));
+  const ogretmenler = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const gruplar = window.bransGruplari(ogretmenler);
   const guncellemeler = [];
-  snap.forEach((d) => {
-    const mevcutBrans = d.data().brans;
-    const yeniBrans = window.bransNormalize?.(mevcutBrans);
-    if (yeniBrans && yeniBrans !== mevcutBrans)
-      guncellemeler.push(updateDoc(doc(db, "teachers", d.id), { brans: yeniBrans }));
+  ogretmenler.forEach((o) => {
+    const mevcutBrans = o.brans;
+    const yeniBrans = gruplar[window.bransAnahtar(mevcutBrans) || "diger"]?.ad;
+    if (mevcutBrans && yeniBrans && yeniBrans !== "Diğer" && yeniBrans !== mevcutBrans)
+      guncellemeler.push(updateDoc(doc(db, "teachers", o.id), { brans: yeniBrans }));
   });
   await Promise.all(guncellemeler);
   mesajGoster("bransNormalizeMesaj", guncellemeler.length + " öğretmen güncellendi.", "basari");
@@ -263,6 +306,12 @@ window.ogretmenGuncelle = async function (id) {
     const payload = { ogretmenId: id, ad, email };
     if (sifre) payload.sifre = sifre;
     await fn(payload);
+    const yeniBrans = _secilenBrans("edit-brans-" + id);
+    const bransEl = document.getElementById("edit-brans-" + id);
+    if (yeniBrans && bransEl && yeniBrans !== bransEl.dataset.eski) {
+      const { db, doc, updateDoc } = window.__portal;
+      await updateDoc(doc(db, "teachers", id), { brans: yeniBrans });
+    }
     const telEl = document.getElementById("edit-telefon-" + id);
     if (telEl && telEl.value.trim() !== telEl.dataset.eski) await telefonYaz(id, telEl.value);
     mesajGoster("ogretmenEkleMesaj", "Öğretmen bilgileri güncellendi.", "basari");
@@ -395,7 +444,7 @@ window.ogretmenSifreListesiGoster = async function () {
 window.ogretmenEkle = async function () {
   const { functions, httpsCallable } = window.__portal;
   const ad = document.getElementById("ayarOgretmenAd").value.trim();
-  const brans = document.getElementById("ayarOgretmenBrans").value.trim();
+  const brans = _secilenBrans("ayarOgretmenBrans");
   let email = document.getElementById("ayarOgretmenEmail").value.trim();
   let sifre = document.getElementById("ayarOgretmenSifre").value.trim();
   if (!ad || !brans) {
@@ -411,9 +460,10 @@ window.ogretmenEkle = async function () {
     const fn = httpsCallable(functions, "ogretmenOlustur");
     await fn({ ad, brans, email, sifre });
     mesajGoster("ogretmenEkleMesaj", `Öğretmen eklendi. Kullanıcı: ${email} / Şifre: ${sifre}`, "basari");
-    ["ayarOgretmenAd", "ayarOgretmenBrans", "ayarOgretmenEmail", "ayarOgretmenSifre"].forEach(
+    ["ayarOgretmenAd", "ayarOgretmenBrans", "ayarOgretmenBransYeni", "ayarOgretmenEmail", "ayarOgretmenSifre"].forEach(
       (id) => (document.getElementById(id).value = ""),
     );
+    document.getElementById("ayarOgretmenBransYeni").hidden = true;
     await ogretmenleriListele();
   } catch (err) {
     mesajGoster("ogretmenEkleMesaj", "Hata: " + err.message, "hata");
