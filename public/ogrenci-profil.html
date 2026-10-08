@@ -660,8 +660,56 @@
           });
         }
         html += "</div>";
-        c.innerHTML = html;
+        c.innerHTML = html + '<div id="girdiklerimYetenek"><div class="yukleniyor">Yükleniyor...</div></div>';
+        await girdiklerimYetenekGoster();
       }
+
+      // Ogretmenin girdigi yetenek kayitlari. Yeni kayitlar giren_uid ile, eski
+      // kayitlar (giren_uid yok) ogretmen_id ile bulunur; ikisi birlestirilir.
+      async function girdiklerimYetenekGoster() {
+        const el = document.getElementById("girdiklerimYetenek");
+        if (!el) return;
+        try {
+          const sorgular = [getDocs(query(collection(db, "ogrenci_yetenekler"), where("giren_uid", "==", aktifUid)))];
+          if (aktifOgretmenId) sorgular.push(getDocs(query(collection(db, "ogrenci_yetenekler"), where("ogretmen_id", "==", aktifOgretmenId))));
+          const harita = new Map();
+          (await Promise.all(sorgular)).forEach((snap) => snap.forEach((d) => harita.set(d.id, { id: d.id, ...d.data() })));
+          const liste = [...harita.values()].sort((a, b) => (b.tarih?.toMillis?.() || 0) - (a.tarih?.toMillis?.() || 0));
+
+          let html = `<div class="kart">
+            <div class="kart-baslik">Girdiğim Yetenek Kayıtları <span class="rozet rozet-mavi">${liste.length} kayıt</span></div>`;
+          if (!liste.length) {
+            html += '<div class="bos-mesaj">Henüz yetenek kaydı girmediniz.</div>';
+          } else {
+            html += liste.map((y) => {
+              const sinifAd = y.sinif_ad || tumSiniflar.find((s) => s.id === y.sinif_id)?.class_name || y.sinif_id || "";
+              const silebilir = y.giren_uid && y.giren_uid === aktifUid;
+              return `<div class="yetenek-kart">
+                <div style="display:flex;justify-content:space-between;gap:8px;">
+                  <div><strong>${esc(y.ogrenci_ad)}</strong> <span style="color:#888;font-size:12px;">— ${esc(sinifAd)}${y.ogrenci_no ? " · No: " + esc(y.ogrenci_no) : ""}</span></div>
+                  ${silebilir ? `<button class="btn btn-kirmizi" style="padding:2px 8px;font-size:11px;" data-id="${esc(y.id)}" onclick="girdiklerimYetenekSil(this.dataset.id)">Sil</button>` : ""}
+                </div>
+                <div style="font-weight:700;color:#b06000;margin-top:4px;">${esc(y.yetenek_kategori)} — ${esc(y.yetenek_detay)}</div>
+                ${y.not ? `<div style="font-size:13px;margin-top:4px;">${esc(y.not)}</div>` : ""}
+                ${yetTarih(y.tarih) ? `<div style="font-size:11px;color:#888;margin-top:4px;">${esc(yetTarih(y.tarih))}</div>` : ""}
+              </div>`;
+            }).join("");
+          }
+          el.innerHTML = html + "</div>";
+        } catch (err) {
+          el.innerHTML = `<div class="kart"><div class="bos-mesaj">Yetenek kayıtları okunamadı: ${esc(err.message)}</div></div>`;
+        }
+      }
+
+      window.girdiklerimYetenekSil = async (id) => {
+        if (!confirm("Bu yetenek kaydı silinsin mi?")) return;
+        try {
+          await deleteDoc(doc(db, "ogrenci_yetenekler", id));
+        } catch (err) {
+          alert("Silinemedi: " + err.message);
+        }
+        await girdiklerimYetenekGoster();
+      };
 
       // ── ADMİN SAYFASI ──
       function adminSayfasi() {
