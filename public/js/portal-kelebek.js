@@ -24,6 +24,8 @@ let _okulAd = "AHMET YENİCE ORTAOKULU MÜDÜRLÜĞÜ";
 let _sinav = null;        // duzenlenen sinav
 let _dagilimEski = false; // ogrenci/salon degisti, dagilim guncel degil
 let _gozetmen = {};       // "salon|saat" -> { id, ad, raporlu, kaynak, asil_id, asil_ad }
+let _secili = new Set();  // sinava girecek ogrenci_id'ler
+let _acikSubeler = new Set(); // acik akordiyonlar (yeniden cizimde korunur)
 
 const admin = () => state.rol === "admin";
 const kok = () => document.getElementById("sayfa-kelebek");
@@ -71,8 +73,10 @@ async function _listeCiz() {
 }
 
 window.kelebekYeni = () => {
-  _sinav = { id: null, ad: "", tarih: bugunHesapla(), saatler: [], sira_no: false, siniflar: [], haric: [],
+  _sinav = { id: null, ad: "", tarih: bugunHesapla(), saatler: [], sira_no: false,
     salonlar: [{ ad: "", sinif: "", kapasite: 0 }], dagilim: [], gozetmenler: {} };
+  _secili = new Set();
+  _acikSubeler = new Set();
   _dagilimEski = false;
   _duzenleyiciCiz();
 };
@@ -80,7 +84,16 @@ window.kelebekYeni = () => {
 window.kelebekAc = async (id) => {
   const d = await getDoc(doc(db, "kelebek_sinavlar", id));
   if (!d.exists()) return;
-  _sinav = { id, gozetmenler: {}, haric: [], dagilim: [], ...d.data() };
+  _sinav = { id, gozetmenler: {}, dagilim: [], ...d.data() };
+  // Secim ogrenci bazinda (ogrenciler). Eski kayitlarda sube + haric vardi.
+  if (Array.isArray(_sinav.ogrenciler)) {
+    _secili = new Set(_sinav.ogrenciler);
+  } else {
+    const subeler = new Set(_sinav.siniflar || []);
+    const haric = new Set(_sinav.haric || []);
+    _secili = new Set(_ogrenciler.filter((o) => subeler.has(o.sinif) && !haric.has(o.ogrenci_id)).map((o) => o.ogrenci_id));
+  }
+  _acikSubeler = new Set();
   _dagilimEski = false;
   _duzenleyiciCiz();
 };
@@ -95,15 +108,15 @@ window.kelebekListeyeDon = () => { _sinav = null; _listeCiz(); };
 
 // ═══════════ DÜZENLEYİCİ ═══════════
 function _secilenOgrenciler() {
-  const siniflar = new Set(_sinav.siniflar);
-  const haric = new Set(_sinav.haric);
-  return _ogrenciler.filter((o) => siniflar.has(o.sinif) && !haric.has(o.ogrenci_id));
+  return _ogrenciler.filter((o) => _secili.has(o.ogrenci_id));
 }
 
-function _subeSayilari() {
-  const say = {};
-  _ogrenciler.forEach((o) => (say[o.sinif] = (say[o.sinif] || 0) + 1));
-  return say;
+// sube -> ogrenciler (numaraya gore)
+function _subeler() {
+  const g = {};
+  _ogrenciler.forEach((o) => (g[o.sinif] ||= []).push(o));
+  Object.values(g).forEach((l) => l.sort((a, b) => a.no.localeCompare(b.no, "tr", { numeric: true })));
+  return g;
 }
 
 function _duzenleyiciCiz() {
@@ -155,60 +168,95 @@ function _dagilimDegisti() {
 }
 
 // ── Öğrenciler ──
+// Ayarlar > Ogrenciler gibi sube akordiyonu: baslik kutusu subenin tumunu
+// secer/kaldirir (kismi secimde yarim isaret), acilinca her ogrencinin
+// karsisinda onay kutusu. Ustte kademe hizli secimi.
 function _ogrencilerCiz() {
   const el = document.getElementById("kbOgrenciler");
   const ro = !admin();
-  const say = _subeSayilari();
-  const subeler = Object.keys(say).sort((a, b) => a.localeCompare(b, "tr", { numeric: true }));
-  const kademeler = {};
-  subeler.forEach((s) => (kademeler[kademeAl(s)] ||= []).push(s));
-  const secili = new Set(_sinav.siniflar);
-  const haricListe = _ogrenciler.filter((o) => _sinav.haric.includes(o.ogrenci_id));
-  el.innerHTML = Object.entries(kademeler).map(([k, liste]) => {
-    const hepsi = liste.every((s) => secili.has(s));
-    return `<div style="margin-bottom:8px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;">
-      <label style="font-weight:700;display:flex;gap:6px;align-items:center;margin-bottom:4px;">
-        <input type="checkbox" ${hepsi ? "checked" : ""} data-k="${esc(k)}" onchange="kelebekKademe(this.dataset.k, this.checked)"${ro ? " disabled" : ""}>${esc(k)}. sınıflar</label>
-      <div style="display:flex;gap:12px;flex-wrap:wrap;">${liste.map((s) => `<label style="display:flex;gap:4px;align-items:center;font-size:13px;">
-        <input type="checkbox" ${secili.has(s) ? "checked" : ""} data-s="${esc(s)}" onchange="kelebekSube(this.dataset.s, this.checked)"${ro ? " disabled" : ""}>
-        ${esc(s)} <span style="color:var(--text2);">(${say[s]})</span></label>`).join("")}</div></div>`;
-  }).join("") + `
-    ${ro ? "" : `<div class="form-group" style="margin-top:8px;"><label>Öğrenci çıkar (sınava girmeyecek)</label>
-      <input type="search" id="kbHaricAra" placeholder="Ad veya numara..." oninput="kelebekHaricAra(this.value)">
-      <div id="kbHaricSonuc"></div></div>`}
-    ${haricListe.length ? `<div style="font-size:13px;margin-top:6px;">Çıkarılanlar: ${haricListe.map((o) => `<span class="rozet rozet-gri" style="margin:2px;">${esc(o.ad)} (${esc(o.sinif)})${ro ? "" : ` <a href="#" data-id="${esc(o.ogrenci_id)}" onclick="kelebekHaricKaldir(this.dataset.id);return false;">✕</a>`}</span>`).join("")}</div>` : ""}
-    <div style="margin-top:8px;font-weight:700;">Toplam: ${_secilenOgrenciler().length} öğrenci, ${_sinav.siniflar.length} şube</div>`;
+  const dis = ro ? " disabled" : "";
+  const subeler = _subeler();
+  const adlar = Object.keys(subeler).sort((a, b) => a.localeCompare(b, "tr", { numeric: true }));
+  const kademeler = [...new Set(adlar.map(kademeAl))];
+  el.innerHTML = `
+    ${ro ? "" : `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;font-size:13px;">
+      <span style="font-weight:600;">Hızlı seçim:</span>
+      ${kademeler.map((k) => `<button class="btn btn-gri btn-sm" data-k="${esc(k)}" onclick="kelebekKademe(this.dataset.k, true)">${esc(k)}. sınıfların tümü</button>`).join("")}
+      <button class="btn btn-gri btn-sm" onclick="kelebekTumunuKaldir()">Seçimi temizle</button></div>`}
+    ${adlar.map((s) => {
+      const liste = subeler[s];
+      const acik = _acikSubeler.has(s);
+      return `<div class="accordion-item kb-sube" data-sube="${esc(s)}" style="margin-bottom:6px;">
+        <div class="akor-sube-baslik" style="margin:0;gap:10px;">
+          <input type="checkbox" class="kb-sube-chk" data-sube="${esc(s)}" onclick="event.stopPropagation()" onchange="kelebekSube(this.dataset.sube, this.checked)"${dis}>
+          <span style="flex:1;cursor:pointer;" data-sube="${esc(s)}" onclick="kelebekSubeAc(this.dataset.sube)">📚 <strong>${esc(s)}</strong>
+            <span class="kb-sube-sayi" style="font-size:12px;color:#888;"></span></span>
+          <span style="cursor:pointer;" data-sube="${esc(s)}" onclick="kelebekSubeAc(this.dataset.sube)">${acik ? "▲" : "▼"}</span>
+        </div>
+        <div class="accordion-icerik" ${acik ? "" : "hidden"} style="padding:4px 8px;">
+          ${liste.map((o) => `<label class="ogrenci-satir" style="cursor:pointer;padding:6px 10px;margin-bottom:3px;">
+            <input type="checkbox" class="kb-ogr-chk" value="${esc(o.ogrenci_id)}" ${_secili.has(o.ogrenci_id) ? "checked" : ""} onchange="kelebekOgrenci(this)"${dis}>
+            <span class="ogrenci-no">${esc(o.no)}</span><span class="ogrenci-isim">${esc(o.ad)}</span></label>`).join("")}
+        </div></div>`;
+    }).join("")}
+    <div id="kbOgrToplam" style="margin-top:8px;font-weight:700;"></div>`;
+  _secimGostergeleri();
 }
 
+// Akordiyonu yeniden cizmeden sube basliklarini ve toplami gunceller.
+function _secimGostergeleri() {
+  const subeler = _subeler();
+  document.querySelectorAll("#kbOgrenciler .kb-sube").forEach((kutu) => {
+    const liste = subeler[kutu.dataset.sube] || [];
+    const n = liste.filter((o) => _secili.has(o.ogrenci_id)).length;
+    const chk = kutu.querySelector(".kb-sube-chk");
+    chk.checked = n > 0 && n === liste.length;
+    chk.indeterminate = n > 0 && n < liste.length;
+    kutu.querySelector(".kb-sube-sayi").textContent = `(${n} / ${liste.length} seçili)`;
+  });
+  const secilen = _secilenOgrenciler();
+  const subeSayisi = new Set(secilen.map((o) => o.sinif)).size;
+  const el = document.getElementById("kbOgrToplam");
+  if (el) el.textContent = `Toplam: ${secilen.length} öğrenci, ${subeSayisi} şube`;
+}
+
+function _secimDegisti() {
+  _secimGostergeleri();
+  _salonlarCiz();
+  _dagilimDegisti();
+}
+
+window.kelebekSubeAc = (s) => {
+  _acikSubeler.has(s) ? _acikSubeler.delete(s) : _acikSubeler.add(s);
+  const kutu = [...document.querySelectorAll("#kbOgrenciler .kb-sube")].find((k) => k.dataset.sube === s);
+  if (!kutu) return;
+  const icerik = kutu.querySelector(".accordion-icerik");
+  icerik.hidden = !_acikSubeler.has(s);
+  kutu.querySelectorAll(".akor-sube-baslik span[data-sube]")[1].textContent = icerik.hidden ? "▼" : "▲";
+};
+
+window.kelebekOgrenci = (cb) => {
+  cb.checked ? _secili.add(cb.value) : _secili.delete(cb.value);
+  _secimDegisti();
+};
+
+function _subeIsaretle(s, acik) {
+  (_subeler()[s] || []).forEach((o) => (acik ? _secili.add(o.ogrenci_id) : _secili.delete(o.ogrenci_id)));
+  const kutu = [...document.querySelectorAll("#kbOgrenciler .kb-sube")].find((k) => k.dataset.sube === s);
+  kutu?.querySelectorAll(".kb-ogr-chk").forEach((c) => (c.checked = acik));
+}
+
+window.kelebekSube = (s, acik) => { _subeIsaretle(s, acik); _secimDegisti(); };
+
 window.kelebekKademe = (k, acik) => {
-  const subeler = Object.keys(_subeSayilari()).filter((s) => kademeAl(s) === k);
-  const set = new Set(_sinav.siniflar);
-  subeler.forEach((s) => (acik ? set.add(s) : set.delete(s)));
-  _sinav.siniflar = [...set];
-  _ogrencilerCiz(); _salonlarCiz(); _dagilimDegisti();
+  Object.keys(_subeler()).filter((s) => kademeAl(s) === k).forEach((s) => _subeIsaretle(s, acik));
+  _secimDegisti();
 };
-window.kelebekSube = (s, acik) => {
-  const set = new Set(_sinav.siniflar);
-  acik ? set.add(s) : set.delete(s);
-  _sinav.siniflar = [...set];
-  _ogrencilerCiz(); _salonlarCiz(); _dagilimDegisti();
-};
-window.kelebekHaricAra = (q) => {
-  const el = document.getElementById("kbHaricSonuc");
-  const m = q.trim().toLocaleLowerCase("tr");
-  if (!m) { el.innerHTML = ""; return; }
-  const bul = _secilenOgrenciler().filter((o) => o.ad.toLocaleLowerCase("tr").includes(m) || o.no.includes(m)).slice(0, 8);
-  el.innerHTML = bul.length ? bul.map((o) => `<div class="ogrenci-satir" style="cursor:pointer;padding:6px 10px;" data-id="${esc(o.ogrenci_id)}" onclick="kelebekHaricEkle(this.dataset.id)">
-    <span class="ogrenci-no">${esc(o.no)}</span><span class="ogrenci-isim">${esc(o.ad)}</span><span class="rozet rozet-mavi" style="margin-left:auto;">${esc(o.sinif)}</span></div>`).join("")
-    : '<div style="font-size:13px;color:var(--text2);">Seçili şubelerde bulunamadı.</div>';
-};
-window.kelebekHaricEkle = (id) => {
-  if (!_sinav.haric.includes(id)) _sinav.haric.push(id);
-  _ogrencilerCiz(); _salonlarCiz(); _dagilimDegisti();
-};
-window.kelebekHaricKaldir = (id) => {
-  _sinav.haric = _sinav.haric.filter((x) => x !== id);
-  _ogrencilerCiz(); _salonlarCiz(); _dagilimDegisti();
+
+window.kelebekTumunuKaldir = () => {
+  _secili = new Set();
+  document.querySelectorAll("#kbOgrenciler .kb-ogr-chk").forEach((c) => (c.checked = false));
+  _secimDegisti();
 };
 
 // ── Salonlar ──
@@ -284,7 +332,7 @@ function _dagitimCiz() {
 window.kelebekDagitYap = () => {
   const ogr = _secilenOgrenciler();
   const salonlar = _gecerliSalonlar();
-  if (!ogr.length) { mesajGoster("kbMesaj", "Sınava girecek şubeleri seçin.", "hata"); return; }
+  if (!ogr.length) { mesajGoster("kbMesaj", "Sınava girecek öğrencileri seçin.", "hata"); return; }
   if (salonlar.length !== _sinav.salonlar.length) { mesajGoster("kbMesaj", "Her salon için bir sınıf seçin ya da Diğer salona ad yazın.", "hata"); return; }
   if (new Set(salonlar.map((s) => s.ad)).size !== salonlar.length) { mesajGoster("kbMesaj", "Aynı salon iki kez eklenmiş.", "hata"); return; }
   try {
@@ -303,7 +351,8 @@ window.kelebekKaydet = async () => {
   if (_dagilimEski) { mesajGoster("kbMesaj", "Değişikliklerden sonra yeniden dağıtın, sonra kaydedin.", "hata"); return; }
   const veri = {
     ad, tarih: _sinav.tarih, saatler: _sinav.saatler, sira_no: !!_sinav.sira_no,
-    siniflar: _sinav.siniflar, haric: _sinav.haric,
+    ogrenciler: [..._secili],
+    siniflar: [...new Set(_secilenOgrenciler().map((o) => o.sinif))], haric: [],
     salonlar: _sinav.salonlar.map((s) => ({ ad: _salonAd(s), sinif: s.sinif || "", kapasite: Number(s.kapasite) || 0 })),
     dagilim: _sinav.dagilim, gozetmenler: _sinav.gozetmenler || {},
     olusturan_ad: state.kullanici?.ad || "", guncelleme: serverTimestamp(),
