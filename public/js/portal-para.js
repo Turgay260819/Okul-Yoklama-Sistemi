@@ -29,6 +29,81 @@ function secili() {
   return _toplamalar.find((t) => t.id === _seciliId) || null;
 }
 
+// ── Kademeye göre tutar seçenekleri ──
+// para_toplamalar.tutarlar: [{ tutar, kademeler: ["5","6"] }] (en fazla 5).
+// Kademe = sube adinin bastaki sayisi ("7-A" -> "7"). Secenegi olmayan
+// kademelerde (ve eski toplamalarda) varsayilan_tutar kullanilir.
+const TUTAR_SECENEK_SAYISI = 5;
+const kademe = (sinif) => (String(sinif || "").match(/^\d+/) || [""])[0];
+
+function kademeler() {
+  return [...new Set(_ogrenciler.map((o) => kademe(o.class_id)).filter(Boolean))].sort((a, b) => Number(a) - Number(b));
+}
+
+export function ogrenciTutari(t, sinif) {
+  if (!t) return "";
+  const k = kademe(sinif);
+  const secenek = (t.tutarlar || []).find((s) => (s.kademeler || []).includes(k));
+  if (secenek) return Number(secenek.tutar);
+  return t.varsayilan_tutar ? Number(t.varsayilan_tutar) : "";
+}
+
+function tutarOzetleri(t) {
+  const satirlar = (t.tutarlar || []).map((s) =>
+    `${[...s.kademeler].sort((a, b) => Number(a) - Number(b)).join(", ")}. sınıflar: ${tl(s.tutar)}`);
+  if (t.varsayilan_tutar) satirlar.push(`${satirlar.length ? "Diğer" : "Tüm"} sınıflar: ${tl(t.varsayilan_tutar)}`);
+  return satirlar;
+}
+
+function _tutarBlokHtml(onek, t) {
+  const ks = kademeler();
+  const secenekler = t?.tutarlar || [];
+  let html = `<div style="font-weight:700;margin:4px 0 6px;">Tutar seçenekleri <span style="font-weight:400;font-size:12px;color:var(--text2);">(en fazla ${TUTAR_SECENEK_SAYISI}; her tutarın hangi kademelere uygulanacağını işaretleyin, boş satırlar yok sayılır)</span></div>`;
+  for (let i = 0; i < TUTAR_SECENEK_SAYISI; i++) {
+    const s = secenekler[i] || { tutar: "", kademeler: [] };
+    html += `<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:6px;">
+      <input type="number" id="${onek}Tutar${i}" min="0" step="0.01" placeholder="${i + 1}. tutar (₺)" value="${s.tutar === "" ? "" : esc(s.tutar)}" style="width:140px;" />
+      ${ks.map((k) => `<label style="display:flex;gap:3px;align-items:center;font-size:13px;">
+        <input type="checkbox" class="${onek}K${i}" value="${esc(k)}" ${s.kademeler.includes(k) ? "checked" : ""} />${esc(k)}. sınıf</label>`).join("")}
+    </div>`;
+  }
+  html += `<div class="form-group" style="max-width:260px;margin-top:4px;"><label>Seçeneği olmayan kademeler için tutar (isteğe bağlı)</label>
+    <input type="number" id="${onek}Varsayilan" min="0" step="0.01" value="${t?.varsayilan_tutar ? esc(t.varsayilan_tutar) : ""}" /></div>`;
+  return html;
+}
+
+// Formdaki secenekleri okur ve dogrular; hata varsa Error firlatir.
+export function tutarlariDogrula(satirlar, varsayilan) {
+  const tutarlar = [];
+  const kullanilan = new Map();
+  satirlar.forEach((s, i) => {
+    const tutar = s.tutar === "" || s.tutar == null ? null : Number(s.tutar);
+    const ks = s.kademeler || [];
+    if (tutar == null && !ks.length) return;
+    if (tutar == null || !(tutar > 0)) throw new Error(`${i + 1}. seçenek: kademe seçilmiş ama geçerli bir tutar girilmemiş.`);
+    if (!ks.length) throw new Error(`${i + 1}. seçenek: tutar girilmiş ama kademe seçilmemiş.`);
+    ks.forEach((k) => {
+      if (kullanilan.has(k)) throw new Error(`${k}. sınıflar hem ${kullanilan.get(k)}. hem ${i + 1}. seçenekte; bir kademe tek seçenekte olabilir.`);
+      kullanilan.set(k, i + 1);
+    });
+    tutarlar.push({ tutar, kademeler: ks });
+  });
+  const v = varsayilan === "" || varsayilan == null ? 0 : Number(varsayilan);
+  if (v < 0) throw new Error("Tutar negatif olamaz.");
+  return { tutarlar, varsayilan_tutar: v };
+}
+
+function _tutarlarOku(onek) {
+  const satirlar = [];
+  for (let i = 0; i < TUTAR_SECENEK_SAYISI; i++) {
+    satirlar.push({
+      tutar: document.getElementById(`${onek}Tutar${i}`).value,
+      kademeler: [...document.querySelectorAll(`.${onek}K${i}:checked`)].map((c) => c.value),
+    });
+  }
+  return tutarlariDogrula(satirlar, document.getElementById(`${onek}Varsayilan`).value);
+}
+
 function siniflar() {
   const set = new Set(_ogrenciler.map((o) => o.class_id).filter(Boolean));
   return [...set].sort(sinifSirala);
@@ -83,7 +158,7 @@ function _ciz() {
     <div class="para-ozet">
       <div><span class="para-ozet-sayi" id="paraOzetVeren">${_odemeler.size}</span><span class="para-ozet-etiket">Para veren / ${_ogrenciler.length} öğrenci</span></div>
       <div><span class="para-ozet-sayi" id="paraOzetToplam">${esc(tl(toplamTutar))}</span><span class="para-ozet-etiket">Toplanan</span></div>
-      ${t.varsayilan_tutar ? `<div><span class="para-ozet-sayi">${esc(tl(t.varsayilan_tutar))}</span><span class="para-ozet-etiket">Varsayılan tutar</span></div>` : ""}
+      ${tutarOzetleri(t).length ? `<div><span class="para-ozet-etiket" style="display:block;">Tutarlar</span>${tutarOzetleri(t).map((s) => `<div style="font-weight:700;">${esc(s)}</div>`).join("")}</div>` : ""}
     </div>
     <div class="yazdirma-gizle" style="margin-top:10px;">
       <button class="btn btn-yesil btn-sm" id="paraExcelBtn" onclick="paraExcel()">📊 Excel'e aktar</button>
@@ -110,21 +185,48 @@ function _toplamaSecimHtml(t) {
         <select id="paraToplamaSec" onchange="paraToplamaSecildi(this.value)">${secenekler || '<option value="">—</option>'}</select>
       </div>
       <button class="btn btn-mavi" onclick="paraYeniFormAc()">+ Yeni Toplama</button>
-      ${t ? `<button class="btn btn-gri" onclick="paraAktiflikDegistir()">${t.aktif === false ? "Aktif yap" : "Pasif yap"}</button>
+      ${t ? `<button class="btn btn-gri" onclick="paraTutarFormAc()">💰 Tutarlar</button>
+             <button class="btn btn-gri" onclick="paraAktiflikDegistir()">${t.aktif === false ? "Aktif yap" : "Pasif yap"}</button>
              <button class="btn btn-kirmizi" onclick="paraToplamaSil()">Sil</button>` : ""}
     </div>
     ${t?.aciklama ? `<div style="font-size:13px;color:var(--text2);margin-top:8px;">${esc(t.aciklama)}</div>` : ""}
     <div id="paraYeniForm" hidden style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px;">
       <div class="form-grid">
         <div class="form-group"><label>Ad</label><input type="text" id="paraYeniAd" maxlength="80" placeholder="Ör. Kermes 2026" /></div>
-        <div class="form-group"><label>Varsayılan tutar (₺)</label><input type="number" id="paraYeniTutar" min="0" step="0.01" placeholder="Ör. 100" /></div>
         <div class="form-group"><label>Açıklama</label><input type="text" id="paraYeniAciklama" maxlength="200" placeholder="İsteğe bağlı" /></div>
       </div>
+      ${_tutarBlokHtml("paraYeni", null)}
       <button class="btn btn-yesil" onclick="paraToplamaOlustur()">Oluştur</button>
       <div class="mesaj" id="paraYeniMesaj" style="margin-top:8px;"></div>
     </div>
+    ${t ? `<div id="paraTutarForm" hidden style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px;">
+      ${_tutarBlokHtml("paraDuz", t)}
+      <div style="font-size:12px;color:var(--text2);margin-bottom:8px;">Değişiklik bundan sonra işaretlenen öğrencilere uygulanır; kayıtlı ödemelerin tutarı değişmez.</div>
+      <button class="btn btn-yesil" onclick="paraTutarlarKaydet()">Kaydet</button>
+      <div class="mesaj" id="paraTutarMesaj" style="margin-top:8px;"></div>
+    </div>` : ""}
   </div>`;
 }
+
+window.paraTutarFormAc = () => {
+  const f = document.getElementById("paraTutarForm");
+  if (f) f.hidden = !f.hidden;
+};
+
+window.paraTutarlarKaydet = async () => {
+  const t = secili();
+  if (!t) return;
+  let veri;
+  try { veri = _tutarlarOku("paraDuz"); } catch (err) { mesajGoster("paraTutarMesaj", err.message, "hata"); return; }
+  try {
+    await updateDoc(doc(db, "para_toplamalar", t.id), veri);
+    Object.assign(t, veri);
+    _ciz();
+    mesajGoster("paraMesaj", "Tutarlar kaydedildi.", "basari");
+  } catch (err) {
+    mesajGoster("paraTutarMesaj", "Hata: " + err.message, "hata");
+  }
+};
 
 window.paraToplamaSecildi = async (id) => {
   _seciliId = id || null;
@@ -143,13 +245,13 @@ window.paraYeniFormAc = () => {
 
 window.paraToplamaOlustur = async () => {
   const ad = document.getElementById("paraYeniAd").value.trim();
-  const tutar = Number(document.getElementById("paraYeniTutar").value || 0);
   const aciklama = document.getElementById("paraYeniAciklama").value.trim();
   if (!ad) { mesajGoster("paraYeniMesaj", "Ad zorunludur.", "hata"); return; }
-  if (tutar < 0) { mesajGoster("paraYeniMesaj", "Tutar negatif olamaz.", "hata"); return; }
+  let tutarVeri;
+  try { tutarVeri = _tutarlarOku("paraYeni"); } catch (err) { mesajGoster("paraYeniMesaj", err.message, "hata"); return; }
   try {
     const ref = await addDoc(collection(db, "para_toplamalar"), {
-      ad, aciklama, varsayilan_tutar: tutar, aktif: true,
+      ad, aciklama, ...tutarVeri, aktif: true,
       olusturma: serverTimestamp(), olusturan_ad: state.kullanici?.ad || "",
     });
     _seciliId = ref.id;
@@ -225,7 +327,7 @@ function _girisSatirlari() {
       <td>${esc(o.name)}</td>
       <td>${esc(o.class_id)}</td>
       <td style="text-align:center;"><input type="checkbox" data-id="${esc(o.id)}" ${od ? "checked" : ""} onchange="paraIsaret(this)" style="width:20px;height:20px;" /></td>
-      <td><input type="number" min="0" step="0.01" data-id="${esc(o.id)}" value="${od ? esc(od.tutar) : ""}" placeholder="${esc(secili()?.varsayilan_tutar || "")}" onchange="paraTutar(this)" style="width:110px;" /></td>
+      <td><input type="number" min="0" step="0.01" data-id="${esc(o.id)}" value="${od ? esc(od.tutar) : ""}" placeholder="${esc(ogrenciTutari(secili(), o.class_id))}" onchange="paraTutar(this)" style="width:110px;" /></td>
       <td id="paraDurum_${esc(o.id)}" style="font-size:12px;color:var(--yesil);white-space:nowrap;"></td>
     </tr>`;
   }).join("");
@@ -283,7 +385,7 @@ window.paraIsaret = async (cb) => {
   cb.disabled = true;
   try {
     if (cb.checked) {
-      const tutar = Number(tutarEl.value || secili()?.varsayilan_tutar || 0);
+      const tutar = Number(tutarEl.value || ogrenciTutari(secili(), ogrenci.class_id) || 0);
       await _odemeYaz(ogrenci, tutar);
     } else {
       await deleteDoc(doc(db, "para_odemeler", odemeId(_seciliId, ogrenci.id)));
@@ -346,31 +448,39 @@ function _siniflarHtml() {
     const mevcut = _ogrenciler.filter((o) => o.class_id === s);
     const verenler = mevcut.filter((o) => _odemeler.has(o.id));
     const toplam = verenler.reduce((t, o) => t + Number(_odemeler.get(o.id).tutar || 0), 0);
-    return { sinif: s, mevcut, verenler, toplam };
+    const birim = ogrenciTutari(secili(), s);
+    return { sinif: s, mevcut, verenler, toplam, birim, beklenen: birim === "" ? null : birim * mevcut.length };
   });
   // Sinifi degismis/silinmis ogrencilerin odemeleri (kayittaki sinifa gore)
   const bilinenIdler = new Set(_ogrenciler.map((o) => o.id));
   const yetim = [..._odemeler.values()].filter((o) => !bilinenIdler.has(o.ogrenci_id));
   const genel = [..._odemeler.values()].reduce((t, o) => t + Number(o.tutar || 0), 0);
+  const beklenenVar = satirlar.some((r) => r.beklenen != null);
+  const genelBeklenen = satirlar.reduce((t, r) => t + (r.beklenen || 0), 0);
 
   let html = `<div class="para-yazdir-baslik">${esc(secili().ad)} — Sınıflara Göre</div>
     <div style="display:flex;justify-content:flex-end;margin:12px 0;">
       <button class="btn btn-gri btn-sm yazdirma-gizle" onclick="window.print()">🖨 Yazdır</button>
     </div>
     <div style="overflow-x:auto;"><table class="para-tablo"><thead><tr>
-      <th>Sınıf</th><th style="text-align:center;">Veren / Mevcut</th><th style="text-align:right;">Toplam</th><th class="yazdirma-gizle"></th>
+      <th>Sınıf</th><th style="text-align:center;">Veren / Mevcut</th>
+      ${beklenenVar ? '<th style="text-align:right;">Kişi Başı</th><th style="text-align:right;">Beklenen</th>' : ""}
+      <th style="text-align:right;">Toplanan</th><th class="yazdirma-gizle"></th>
     </tr></thead><tbody>`;
+  const sutun = beklenenVar ? 6 : 4;
+  const bos = beklenenVar ? "<td></td><td></td>" : "";
   satirlar.forEach((r) => {
     const acik = _acikSinif === r.sinif;
     html += `<tr class="${r.verenler.length ? "" : "para-bos-sinif"}">
       <td><strong>${esc(r.sinif)}</strong></td>
       <td style="text-align:center;">${r.verenler.length} / ${r.mevcut.length}</td>
+      ${beklenenVar ? `<td style="text-align:right;">${r.birim === "" ? "—" : esc(tl(r.birim))}</td><td style="text-align:right;">${r.beklenen == null ? "—" : esc(tl(r.beklenen))}</td>` : ""}
       <td style="text-align:right;">${esc(tl(r.toplam))}</td>
       <td class="yazdirma-gizle" style="text-align:right;"><button class="btn btn-gri btn-sm" data-sinif="${esc(r.sinif)}" onclick="paraSinifAc(this)">${acik ? "Gizle" : "Ayrıntı"}</button></td>
     </tr>`;
     if (acik) {
       const vermeyen = r.mevcut.filter((o) => !_odemeler.has(o.id));
-      html += `<tr><td colspan="4" style="background:#fafafa;">
+      html += `<tr><td colspan="${sutun}" style="background:#fafafa;">
         <div class="para-detay">
           <div><strong style="color:var(--yesil);">Verenler (${r.verenler.length})</strong>
             ${r.verenler.map((o) => `<div>${esc(o.student_number)} ${esc(o.name)} — ${esc(tl(_odemeler.get(o.id).tutar))}</div>`).join("") || '<div style="color:var(--text2);">—</div>'}</div>
@@ -380,10 +490,11 @@ function _siniflarHtml() {
     }
   });
   if (yetim.length) {
-    html += `<tr><td>Diğer (kaydı değişmiş öğrenci)</td><td style="text-align:center;">${yetim.length}</td>
+    html += `<tr><td>Diğer (kaydı değişmiş öğrenci)</td><td style="text-align:center;">${yetim.length}</td>${bos}
       <td style="text-align:right;">${esc(tl(yetim.reduce((t, o) => t + Number(o.tutar || 0), 0)))}</td><td class="yazdirma-gizle"></td></tr>`;
   }
   html += `<tr class="para-toplam"><td>Genel Toplam</td><td style="text-align:center;">${_odemeler.size} / ${_ogrenciler.length}</td>
+    ${beklenenVar ? `<td></td><td style="text-align:right;">${esc(tl(genelBeklenen))}</td>` : ""}
     <td style="text-align:right;">${esc(tl(genel))}</td><td class="yazdirma-gizle"></td></tr>
     </tbody></table></div>`;
   return html;
@@ -418,17 +529,23 @@ window.paraExcel = async () => {
     s1.push([], ["", "", `Toplam (${verenler.length} öğrenci)`, toplam, ""]);
 
     // 2) Siniflara gore
-    const s2 = [["Sınıf", "Veren", "Mevcut", "Vermeyen", "Toplam"]];
+    const s2 = [["Sınıf", "Veren", "Mevcut", "Vermeyen", "Toplanan", "Kişi Başı", "Beklenen"]];
+    let genelBeklenen = 0;
     siniflar().forEach((sf) => {
       const mevcut = _ogrenciler.filter((o) => o.class_id === sf);
       const veren = mevcut.filter((o) => _odemeler.has(o.id));
+      const birim = ogrenciTutari(t, sf);
+      if (birim !== "") genelBeklenen += birim * mevcut.length;
       s2.push([sf, veren.length, mevcut.length, mevcut.length - veren.length,
-        veren.reduce((s, o) => s + num(_odemeler.get(o.id).tutar), 0)]);
+        veren.reduce((s, o) => s + num(_odemeler.get(o.id).tutar), 0),
+        birim === "" ? "" : birim, birim === "" ? "" : birim * mevcut.length]);
     });
     const bilinen = new Set(_ogrenciler.map((o) => o.id));
     const yetim = [..._odemeler.values()].filter((o) => !bilinen.has(o.ogrenci_id));
-    if (yetim.length) s2.push(["Diğer (kaydı değişmiş öğrenci)", yetim.length, "", "", yetim.reduce((s, o) => s + num(o.tutar), 0)]);
-    s2.push([], ["Genel Toplam", _odemeler.size, _ogrenciler.length, "", toplam]);
+    if (yetim.length) s2.push(["Diğer (kaydı değişmiş öğrenci)", yetim.length, "", "", yetim.reduce((s, o) => s + num(o.tutar), 0), "", ""]);
+    s2.push([], ["Genel Toplam", _odemeler.size, _ogrenciler.length, "", toplam, "", genelBeklenen || ""]);
+    const ozet = tutarOzetleri(t);
+    if (ozet.length) s2.push([], ["Tutarlar"], ...ozet.map((x) => [x]));
 
     // 3) Tum ogrenciler
     const s3 = [["Sınıf", "No", "Ad Soyad", "Durum", "Tutar"]];
@@ -439,7 +556,7 @@ window.paraExcel = async () => {
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, sayfaOlustur(XLSX, s1, [10, 8, 30, 14, 12], [3]), "Para Verenler");
-    XLSX.utils.book_append_sheet(wb, sayfaOlustur(XLSX, s2, [30, 8, 8, 10, 14], [4]), "Sınıflara Göre");
+    XLSX.utils.book_append_sheet(wb, sayfaOlustur(XLSX, s2, [30, 8, 8, 10, 14, 12, 14], [4, 5, 6]), "Sınıflara Göre");
     XLSX.utils.book_append_sheet(wb, sayfaOlustur(XLSX, s3, [10, 8, 30, 10, 14], [4]), "Tüm Öğrenciler");
 
     const bugun = new Date().toLocaleDateString("tr-TR").replace(/\./g, "-");
