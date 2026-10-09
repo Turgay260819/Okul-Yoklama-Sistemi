@@ -1029,6 +1029,7 @@
             <button class="sekme-btn" onclick="adminSekme('sablonlar', this)">📁 Şablonlar</button>
             <button class="sekme-btn" onclick="adminSekme('ogretmenler', this)">👥 Öğretmen Ayarları</button>
           </div>
+          <div class="mesaj" id="anketGenelMesaj"></div>
           <div class="sekme-icerik aktif" id="asekme-formlar"></div>
           <div class="sekme-icerik" id="asekme-olustur"></div>
           <div class="sekme-icerik" id="asekme-sablonlar"></div>
@@ -1426,7 +1427,7 @@
             kart.querySelector('[data-alan="zorunlu"]')?.checked || false;
           if (!metin) return;
           const s = { metin, tip, zorunlu };
-          if (tip === "tek_secim" || tip === "coklu_secim") {
+          if (tip === "tek_secim" || tip === "coklu_secim" || tip === "dropdown") {
             s.secenekler = Array.from(kart.querySelectorAll(".secenek-input"))
               .map((i) => i.value.trim())
               .filter(Boolean);
@@ -1446,6 +1447,11 @@
         const sorular = sorulariOku();
         if (!sorular.length) {
           mesajGoster("olusturMesaj", "En az 1 soru ekleyin.", "hata");
+          return;
+        }
+        const eksikSecenek = sorular.findIndex((s) => s.secenekler && s.secenekler.length < 2);
+        if (eksikSecenek >= 0) {
+          mesajGoster("olusturMesaj", `${eksikSecenek + 1}. soru için en az 2 seçenek girin.`, "hata");
           return;
         }
 
@@ -1506,7 +1512,14 @@
             aciklama: veri.aciklama || "",
             sonTarih: veri.son_tarih || null,
             hedefIds,
-          }).catch((e) => console.warn("Telegram bildirim hatası:", e));
+          }).then(({ data }) => {
+            const ozet = `${data?.yazilan || 0} öğretmene bildirim gönderildi` +
+              (data?.cihaz ? `, ${data.basarili || 0} telefona ulaştı.` : "; telefon bildirimini açmış öğretmen yok.");
+            mesajGoster("anketGenelMesaj", "📋 " + ozet, "basari");
+          }).catch((e) => {
+            console.warn("Form bildirimi gönderilemedi:", e);
+            mesajGoster("anketGenelMesaj", "Form yayınlandı ama öğretmenlere bildirim gönderilemedi: " + e.message, "hata");
+          });
         } catch (e) {
           console.warn("Telegram bildirim hatası:", e);
         }
@@ -1701,7 +1714,7 @@
               }
               html += "</div>";
             }
-          } else if (s.tip === "tek_secim" || s.tip === "coklu_secim") {
+          } else if (s.tip === "tek_secim" || s.tip === "coklu_secim" || s.tip === "dropdown") {
             const sayimlar = {};
             soruYanitlari.forEach((y) => {
               const degerler = Array.isArray(y) ? y : [y];

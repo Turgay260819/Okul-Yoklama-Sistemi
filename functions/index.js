@@ -2396,6 +2396,11 @@ exports.anketBildir = onCall(async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Giriş yapılmamış.");
 
   const db = admin.firestore();
+  const callerDoc = await db.collection("users").doc(request.auth.uid).get();
+  const callerRole = callerDoc.data()?.rol;
+  if (callerRole !== "admin" && callerRole !== "mudur_yardimcisi") {
+    throw new HttpsError("permission-denied", "Yetkiniz yok.");
+  }
   const { anketId, baslik, aciklama, sonTarih, hedefIds } = request.data;
 
   if (!hedefIds || !hedefIds.length) return { success: true, yazilan: 0 };
@@ -2423,19 +2428,28 @@ exports.anketBildir = onCall(async (request) => {
   }
   await batch.commit();
 
+  // Telefon bildirimi (sesli): bildirimi acmis ogretmenlerin cihazlarina.
+  let push = { cihaz: 0, basarili: 0 };
+  try {
+    const govde = mesajMetni.length > 150 ? mesajMetni.slice(0, 147) + "..." : (mesajMetni || "Portalda doldurmanız gereken yeni bir form var.");
+    push = await ogretmenlerePushGonder(db, [...hedefSet], { baslik: "📋 Yeni form: " + baslik, govde, tag: "anket_" + (anketId || "") });
+  } catch (err) {
+    console.error("Form telefon bildirimi hatasi:", err.message);
+  }
+
   // Admine tek Telegram özeti
   let adminMesaj = `📋 <b>FORM YAYINLANDI</b>\n\n`;
   adminMesaj += `<b>Form:</b> ${baslik}\n`;
   if (aciklama) adminMesaj += `<b>Açıklama:</b> ${aciklama}\n`;
   if (tarihGoster) adminMesaj += `<b>Son Tarih:</b> ${tarihGoster}\n`;
-  adminMesaj += `<b>Bildirim Gönderilen:</b> ${yazilan} öğretmen`;
+  adminMesaj += `<b>Bildirim Gönderilen:</b> ${yazilan} öğretmen (${push.basarili}/${push.cihaz} telefon)`;
   try {
     await telegramMesajGonder(adminMesaj);
   } catch (err) {
     console.error("Admin Telegram hatası:", err.message);
   }
 
-  return { success: true, yazilan };
+  return { success: true, yazilan, cihaz: push.cihaz, basarili: push.basarili };
 });
 
 // ===========================
