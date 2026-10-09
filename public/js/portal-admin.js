@@ -4,7 +4,7 @@ import {
   collection, query, where, doc, serverTimestamp, httpsCallable,
 } from "./portal-config.js";
 import { state } from "./portal-state.js";
-import { esc, mesajGoster, sor_giris } from "./portal-utils.js";
+import { esc, mesajGoster, sor_giris, okuldakiOgretmenler } from "./portal-utils.js";
 import { OGRETMEN_REFRESH_MS, YOKLAMA_PENCERE_DK } from "./portal-config.js";
 
 // ── ANASAYFA ──
@@ -49,6 +49,7 @@ export async function anasayfaYukle() {
 
     await window.ogretmenTakipYukle();
     await window.bosOgretmenlerYukle();
+    window.bransOkuldaYukle(); // gun icinde degismez; periyodik yenilemeye girmez
     await window.yoklamaGirmeyenlerYukle();
     window.bugunNobetcileriYukle(); // gun icinde degismez; periyodik yenilemeye girmez
     if (state.takipInterval) clearInterval(state.takipInterval);
@@ -298,6 +299,49 @@ window.bosOgretmenlerYukle = async function () {
       </tr>`;
     });
     html += "</tbody></table>";
+    container.innerHTML = html;
+  } catch (err) {
+    container.innerHTML = `<div class="bos-mesaj" style="color:#ea4335;">Hata: ${esc(err.message)}</div>`;
+  }
+};
+
+// ── BUGÜN OKULDA OLAN ÖĞRETMENLER (BRANŞA GÖRE) ──
+// Zumre toplantisi planlamak icin: bugun dersi olan (vekil olarak girdigi
+// ders dahil) ogretmenler, brans brans; ilk-son ders ve ara bosluklari.
+// Raporlu ve "gelmedi" isaretlenenler okulda sayilmaz.
+window.bransOkuldaYukle = async function () {
+  const container = document.getElementById("bransOkuldaListesi");
+  if (!container) return;
+  container.innerHTML = '<div class="yukleniyor">Yükleniyor...</div>';
+  try {
+    const [lessonsSnap, devamSnap, raporSnap] = await Promise.all([
+      getDocs(query(collection(db, "today_lessons"), where("date", "==", bugun))),
+      getDocs(query(collection(db, "ogretmen_devam"), where("tarih", "==", bugun))),
+      getDocs(query(collection(db, "ogretmen_rapor"), where("baslangic_tarihi", "<=", bugun))),
+    ]);
+    if (lessonsSnap.empty) {
+      container.innerHTML = '<div class="bos-mesaj">Bugün için ders programı oluşturulmamış.</div>';
+      return;
+    }
+    const yoklar = new Set();
+    devamSnap.forEach((d) => { const v = d.data(); if (v.durum === "gelmedi") yoklar.add(v.ogretmen_id); });
+    raporSnap.forEach((d) => { const r = d.data(); if (r.bitis_tarihi >= bugun) yoklar.add(r.ogretmen_id); });
+
+    const { gruplar, yoklar: yokListe } = okuldakiOgretmenler(lessonsSnap.docs.map((d) => d.data()), state.ogretmenler, yoklar);
+    const toplam = gruplar.reduce((t, g) => t + g.ogretmenler.length, 0);
+    let html = `<div style="font-size:13px;color:var(--text2);margin-bottom:8px;">${toplam} öğretmen, ${gruplar.length} branş</div>`;
+    html += gruplar.map((g) => `<details class="brans-okulda" style="border:1px solid var(--border);border-radius:8px;padding:6px 10px;margin-bottom:6px;" open>
+      <summary style="cursor:pointer;font-weight:700;">${esc(g.ad)} <span style="font-weight:400;color:var(--text2);">(${g.ogretmenler.length} öğretmen)</span></summary>
+      <table style="width:100%;font-size:13px;margin-top:4px;"><tbody>
+        ${g.ogretmenler.map((o) => `<tr>
+          <td style="padding:3px 8px 3px 0;font-weight:600;">${esc(o.ad)}</td>
+          <td style="padding:3px 6px;white-space:nowrap;">${o.ilk === o.son ? `${o.ilk}. ders` : `${o.ilk}–${o.son}. ders`}</td>
+          <td style="padding:3px 0;text-align:right;color:var(--text2);">${o.bos.length ? "boş: " + o.bos.join(", ") : ""}</td>
+        </tr>`).join("")}
+      </tbody></table></details>`).join("");
+    if (yokListe.length) {
+      html += `<div style="font-size:13px;color:var(--text2);margin-top:8px;">Bugün raporlu / gelmedi (${yokListe.length}): ${yokListe.map((o) => esc(o.ad)).join(", ")}</div>`;
+    }
     container.innerHTML = html;
   } catch (err) {
     container.innerHTML = `<div class="bos-mesaj" style="color:#ea4335;">Hata: ${esc(err.message)}</div>`;

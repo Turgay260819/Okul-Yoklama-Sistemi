@@ -44,6 +44,30 @@ export function bransGruplari(ogretmenler) {
 window.bransAnahtar = bransAnahtar;
 window.bransGruplari = bransGruplari;
 
+// Bugun okulda olan ogretmenler, branşa gore. dersler: today_lessons
+// kayitlari; yoklar: raporlu / "gelmedi" ogretmen id'leri (asil dersleri
+// sayilmaz, vekil olarak girdigi ders varsa yine okulda).
+// Donus: { gruplar: [{ ad, ogretmenler: [{ id, ad, ilk, son, bos: [..] }] }], yoklar: [ogretmen] }
+export function okuldakiOgretmenler(dersler, ogretmenler, yoklar = new Set()) {
+  const saatler = {};
+  const isaretle = (id, saat) => { if (id) (saatler[id] ||= new Set()).add(Number(saat)); };
+  dersler.forEach((d) => {
+    if (!yoklar.has(d.teacher_id)) isaretle(d.teacher_id, d.lesson_number);
+    isaretle(d.substitute_teacher_id, d.lesson_number);
+  });
+  const okulda = ogretmenler.filter((o) => saatler[o.id]).map((o) => {
+    const s = [...saatler[o.id]].sort((a, b) => a - b);
+    const bos = [];
+    for (let x = s[0] + 1; x < s[s.length - 1]; x++) if (!saatler[o.id].has(x)) bos.push(x);
+    return { ...o, ilk: s[0], son: s[s.length - 1], bos };
+  });
+  const gruplar = Object.values(bransGruplari(okulda))
+    .map((g) => ({ ad: g.ad, ogretmenler: g.ogretmenler.sort((a, b) => (a.ad || "").localeCompare(b.ad || "", "tr")) }))
+    .sort((a, b) => a.ad.localeCompare(b.ad, "tr"));
+  const okuldaIds = new Set(okulda.map((o) => o.id));
+  return { gruplar, yoklar: ogretmenler.filter((o) => yoklar.has(o.id) && !okuldaIds.has(o.id)) };
+}
+
 // Gün adlarını Türkçe aksan/harf farkından bağımsız, tek bir biçime indirger
 // (örn. "Salı", "sali", "SALI" hepsi "sali" olur). schedule.day / dyk_courses.gun
 // gibi alanlar farklı biçimlerde girilmiş olabileceğinden karşılaştırmalarda
