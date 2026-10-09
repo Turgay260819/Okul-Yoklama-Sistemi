@@ -107,6 +107,12 @@ service cloud.firestore {
       allow read: if isYonetimOkur();
       allow write: if isAdmin();
     }
+    // Dagitim surumleri ve degisiklik gecmisi: sadece eklenir, degistirilemez.
+    match /kelebek_sinavlar/{sinavId}/gecmis/{kayitId} {
+      allow read: if isYonetimOkur();
+      allow create: if isAdmin();
+      allow update, delete: if false;
+    }
 
     match /schedule/{scheduleId} {
       allow read: if isLoggedIn();

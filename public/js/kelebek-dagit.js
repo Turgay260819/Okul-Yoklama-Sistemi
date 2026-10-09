@@ -120,6 +120,29 @@ export function kelebekDagit(ogrenciler, salonlar, siraNo, tohum = 1) {
   return sonuc;
 }
 
+// Sonradan eklenen ogrenci icin salon onerisi: bos yeri olan salonlar
+// arasinda o subeden en az ogrencisi olan, esitlikte en cok bos yeri olan.
+// Donus: { salon, sira|null } ya da (hic bos yer yoksa) null.
+export function salonOner(dagilim, salonlar, sinif, siraNo) {
+  const adaylar = salonlar.map((s) => {
+    const liste = dagilim.filter((d) => d.salon === s.ad);
+    return {
+      salon: s.ad,
+      bos: (Number(s.kapasite) || 0) - liste.length,
+      ayniSube: liste.filter((d) => d.sinif === sinif).length,
+    };
+  }).filter((a) => a.bos > 0);
+  if (!adaylar.length) return null;
+  adaylar.sort((a, b) => a.ayniSube - b.ayniSube || b.bos - a.bos);
+  const salon = adaylar[0].salon;
+  return { salon, sira: siraNo ? sonrakiSira(dagilim, salon) : null };
+}
+
+// Salondaki son sira numarasindan sonraki numara.
+export function sonrakiSira(dagilim, salon) {
+  return dagilim.filter((d) => d.salon === salon).reduce((m, d) => Math.max(m, Number(d.sira) || 0), 0) + 1;
+}
+
 // Onizleme / kontrol: salon basina sayi, sube dagilimi, en buyuk ayni-sube
 // sayisi ve (sira no varsa) yan yana ayni sube sayisi.
 export function kelebekIstatistik(dagilim, salonlar) {
