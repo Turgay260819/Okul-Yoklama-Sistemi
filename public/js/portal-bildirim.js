@@ -52,6 +52,15 @@ window.bildirimPanelToggle = () => {
   if (aciliyor) _bildirimPanelIcerikGoster();
 };
 
+// Uzun mesajlar panelde bu kadar karakterle baslar; "Devamini goster" tam
+// metni acar (bildirimi okundu yapmadan).
+const MESAJ_ONIZLEME = 300;
+
+window.bildirimDevami = (el) => {
+  const b = state.bildirimler.find((x) => x.id === el.dataset.id);
+  if (b) el.parentElement.textContent = b.mesaj;
+};
+
 function _bildirimPanelIcerikGoster() {
   const panel = document.getElementById("bildirimPanel");
   if (!panel) return;
@@ -65,7 +74,9 @@ function _bildirimPanelIcerikGoster() {
     const ikon = tipIkonu[b.tip] || "🔔";
     html += `<div class="bildirim-item" onclick="bildirimOku('${b.id}','${b.tip}','${b.referans_id || ''}')">
       <div class="bildirim-item-baslik">${ikon} ${esc(b.baslik)}</div>
-      ${b.mesaj ? `<div class="bildirim-item-mesaj">${esc(b.mesaj.length > 120 ? b.mesaj.slice(0, 117) + "..." : b.mesaj)}</div>` : ""}
+      ${b.mesaj ? `<div class="bildirim-item-mesaj">${b.mesaj.length > MESAJ_ONIZLEME
+        ? `${esc(b.mesaj.slice(0, MESAJ_ONIZLEME))}… <span class="bildirim-devam" data-id="${esc(b.id)}" onclick="event.stopPropagation(); bildirimDevami(this)">Devamını göster</span>`
+        : esc(b.mesaj)}</div>` : ""}
     </div>`;
   });
   html += `<div class="bildirim-tumunu-oku"><button onclick="tumBildirimleriOku()">Tumunu okundu isaretle</button></div>`;

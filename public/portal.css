@@ -1566,3 +1566,20 @@ tr:last-child td {
   body.kelebek-yazdir .kb-sayfa { page-break-after: always; break-after: page; }
   body.kelebek-yazdir .kb-sayfa:last-child { page-break-after: auto; break-after: auto; }
 }
+
+/* ── Bildirim paneli: tam metin ve telefona sığma ── */
+.bildirim-item-baslik { overflow-wrap: anywhere; white-space: pre-wrap; }
+.bildirim-item-mesaj { overflow-wrap: anywhere; white-space: pre-wrap; font-size: 13px; color: #555; }
+.bildirim-devam { color: #1a73e8; font-weight: 600; cursor: pointer; white-space: nowrap; }
+#idareMesajiListe { overflow-wrap: anywhere; white-space: pre-wrap; }
+@media (max-width: 768px) {
+  /* Zilin sagindaki tarih yuzunden panel sola, ekran disina tasiyordu. */
+  .bildirim-panel {
+    position: fixed;
+    left: 8px;
+    right: 8px;
+    top: calc(var(--topbar-h) + 4px + env(safe-area-inset-top, 0px));
+    width: auto;
+    max-height: calc(100vh - var(--topbar-h) - 16px - env(safe-area-inset-top, 0px));
+  }
+}
