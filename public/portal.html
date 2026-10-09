@@ -507,12 +507,22 @@
                     <button type="button" class="sekme-btn aktif" id="duyuruHedef-hepsi" onclick="duyuruHedefSec('hepsi')">Tüm öğretmenler</button>
                     <button type="button" class="sekme-btn" id="duyuruHedef-zumre" onclick="duyuruHedefSec('zumre')">Zümre</button>
                     <button type="button" class="sekme-btn" id="duyuruHedef-secili" onclick="duyuruHedefSec('secili')">Seçili öğretmenler</button>
+                    <button type="button" class="sekme-btn" id="duyuruHedef-sinif" onclick="duyuruHedefSec('sinif')">Sınıf düzeyi</button>
                   </div>
                   <div id="duyuruHedefDetay"></div>
                 </div>
                 <div id="duyuruOzet" style="margin-bottom:12px;"></div>
                 <button class="btn btn-mavi" id="duyuruGonderBtn" onclick="duyuruGonder()">📢 Gönder</button>
                 <div class="mesaj" id="duyuruSonuc" style="margin-top:10px;"></div>
+              </div>
+              <div class="kart">
+                <div class="kart-baslik">⏰ Zamanlanmış Bildirimler</div>
+                <p style="font-size:13px;color:var(--text2);margin-bottom:10px;">
+                  Seçtiğiniz saatte, o anda seçili şubelerde derste olan öğretmenlere otomatik gider (vekil atanmışsa vekile). Teneffüste ya da öğle arasındaysa bir sonraki derse girecek öğretmenlere gider.
+                  Her hafta seçilen günlerde tekrarlanır (tatil ve okul dönemi dışında gitmez) ya da tek seferlik bir tarihte gider. Saat 07:00–18:59 arası olmalı.
+                </p>
+                <div id="zamanliForm"></div>
+                <div id="zamanliListe" style="margin-top:12px;"><div class="yukleniyor">Yukleniyor...</div></div>
               </div>
               <div class="kart">
                 <div class="kart-baslik">Gönderilen Bildirimler</div>

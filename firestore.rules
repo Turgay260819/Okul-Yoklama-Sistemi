@@ -411,6 +411,11 @@ service cloud.firestore {
       allow read: if isYonetimOkur();
       allow write: if false;
     }
+    // Zamanli bildirim kurallari; gonderimi sunucu (zamanliBildirimGonder) yapar.
+    match /zamanli_bildirimler/{docId} {
+      allow read: if isYonetimOkur();
+      allow write: if isYonetim();
+    }
     match /vekalet_gorulme/{docId} {
       allow read, write: if isLoggedIn();
     }

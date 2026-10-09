@@ -1654,12 +1654,22 @@ exports.idareMesajiGonder = onCall(async (request) => {
   const alicilar = [...new Set(istenen)].filter((id) => gecerli.has(id));
   if (!alicilar.length) throw new HttpsError("invalid-argument", "Geçerli alıcı öğretmen yok.");
 
+  const sonuc = await idareMesajiDagit(db, {
+    baslik, mesaj, hedefOzet, alicilar, gonderenUid: request.auth.uid, gonderenAd: caller.ad || "İdare",
+  });
+  return { success: true, alici: sonuc.alici, cihaz: sonuc.cihaz, basarili: sonuc.basarili };
+});
+
+// Idare mesajini arsivler (idare_mesajlari), her aliciya zil bildirimi yazar
+// ve telefon bildirimi gonderir. Anlik (idareMesajiGonder) ve zamanli
+// (zamanliBildirimGonder) bildirimler ortak kullanir.
+async function idareMesajiDagit(db, { baslik, mesaj, hedefOzet, alicilar, gonderenUid, gonderenAd, zamanliId }) {
   const mesajRef = db.collection("idare_mesajlari").doc();
-  const gonderenAd = caller.ad || "İdare";
   await mesajRef.set({
     baslik, mesaj, hedef_ozet: hedefOzet,
     alici_ids: alicilar, alici_sayisi: alicilar.length,
-    gonderen_uid: request.auth.uid, gonderen_ad: gonderenAd,
+    gonderen_uid: gonderenUid || null, gonderen_ad: gonderenAd,
+    ...(zamanliId ? { zamanli_id: zamanliId } : {}),
     tarih: admin.firestore.FieldValue.serverTimestamp(),
   });
 
@@ -1684,8 +1694,90 @@ exports.idareMesajiGonder = onCall(async (request) => {
   const push = await ogretmenlerePushGonder(db, alicilar, { baslik: "📢 " + baslik, govde, tag: mesajRef.id });
   await mesajRef.update({ push_cihaz: push.cihaz, push_basarili: push.basarili });
   console.log(`Idare mesaji: "${baslik}" -> ${alicilar.length} ogretmen, push ${push.basarili}/${push.cihaz}`);
-  return { success: true, alici: alicilar.length, cihaz: push.cihaz, basarili: push.basarili };
-});
+  return { mesajId: mesajRef.id, alici: alicilar.length, cihaz: push.cihaz, basarili: push.basarili };
+}
+
+// ===========================
+// ZAMANLI BİLDİRİMLER
+// zamanli_bildirimler: { baslik, mesaj, saat "HH:MM", gunler [1..5] (her hafta)
+// ya da tek_tarih "YYYY-MM-DD", hedef_siniflar ["7-A",...], hedef_ozet, aktif,
+// son_gonderim (YYYY-MM-DD), son_sonuc }. Her dakika: saati gelen kurallar
+// icin alicilar o anda suren derse gore bulunur (today_lessons; vekil varsa
+// vekil; vekilsiz raporlu ogretmen haric). Haftalik kurallar tatil / okul
+// donemi disinda gonderilmez.
+// ===========================
+const ZAMANLI_DERS_SURESI_DK = 40;
+
+// Bildirim anindaki ders: baslangici <= dk < baslangic+40 olan; teneffus /
+// ogle arasindaysa siradaki ders; son dersten sonraysa null.
+function andakiDersNo(saatler, dk) {
+  const dersler = Object.entries(saatler || {})
+    .map(([no, s]) => { const [h, m] = String(s).split(":").map(Number); return { no: Number(no), bas: h * 60 + m }; })
+    .filter((x) => x.no && !isNaN(x.bas))
+    .sort((a, b) => a.bas - b.bas);
+  const suren = dersler.filter((x) => x.bas <= dk && dk < x.bas + ZAMANLI_DERS_SURESI_DK).pop();
+  if (suren) return suren.no;
+  const sonraki = dersler.find((x) => x.bas > dk);
+  return sonraki ? sonraki.no : null;
+}
+
+exports.zamanliBildirimGonder = onSchedule(
+  { schedule: "* 7-18 * * 1-5", timeZone: "Europe/Istanbul" },
+  async () => {
+    const db = admin.firestore();
+    const yerel = new Date().toLocaleString("sv-SE", { timeZone: "Europe/Istanbul" });
+    const bugun = yerel.slice(0, 10);
+    const saat = yerel.slice(11, 16);
+    const jsDay = new Date(bugun + "T12:00:00").getDay();
+    const [hh, mm] = saat.split(":").map(Number);
+
+    const snap = await db.collection("zamanli_bildirimler").where("aktif", "==", true).get();
+    const zamani = snap.docs.filter((d) => {
+      const v = d.data();
+      if (v.saat !== saat || v.son_gonderim === bugun) return false;
+      return v.tek_tarih ? v.tek_tarih === bugun : (v.gunler || []).includes(jsDay);
+    });
+    if (!zamani.length) return;
+
+    const [donemDisi, tatilAdi, saatDoc, dersSnap, raporSnap] = await Promise.all([
+      okulDonemDisindaMi(db, bugun),
+      tatilKontrol(db, bugun),
+      db.collection("ders_saatleri").doc("varsayilan").get(),
+      db.collection("today_lessons").where("date", "==", bugun).get(),
+      db.collection("ogretmen_rapor").where("baslangic_tarihi", "<=", bugun).get(),
+    ]);
+    const raporlu = new Set();
+    raporSnap.forEach((d) => { const r = d.data(); if (r.bitis_tarihi >= bugun) raporlu.add(r.ogretmen_id); });
+    const dersNo = andakiDersNo(saatDoc.exists ? saatDoc.data().saatler : {}, hh * 60 + mm);
+    const dersler = dersSnap.docs.map((d) => d.data());
+
+    for (const d of zamani) {
+      const v = d.data();
+      // Once isaretle: yeniden denemede ikinci kez gitmesin.
+      await d.ref.update({ son_gonderim: bugun, ...(v.tek_tarih ? { aktif: false } : {}) });
+      const sonucYaz = (metin) => d.ref.update({ son_sonuc: metin, son_gonderim_zamani: admin.firestore.FieldValue.serverTimestamp() });
+      if (!v.tek_tarih && (donemDisi || tatilAdi)) { await sonucYaz(`Gönderilmedi: ${tatilAdi ? "tatil (" + tatilAdi + ")" : "okul dönemi dışında"}.`); continue; }
+      if (!dersNo) { await sonucYaz("Gönderilmedi: bu saatte ders yok (son dersten sonra)."); continue; }
+      const hedef = new Set(v.hedef_siniflar || []);
+      const alicilar = [...new Set(dersler
+        .filter((x) => Number(x.lesson_number) === dersNo && hedef.has(x.class_id))
+        .map((x) => x.substitute_teacher_id || (raporlu.has(x.teacher_id) ? null : x.teacher_id))
+        .filter(Boolean))];
+      if (!alicilar.length) { await sonucYaz(`Gönderilmedi: ${dersNo}. derste hedef şubelerde ders yok.`); continue; }
+      try {
+        const r = await idareMesajiDagit(db, {
+          baslik: v.baslik, mesaj: v.mesaj, alicilar, zamanliId: d.id,
+          hedefOzet: `⏰ ${v.hedef_ozet || "Zamanlı"} · ${dersNo}. ders`,
+          gonderenUid: v.olusturan_uid || null, gonderenAd: v.olusturan_ad || "İdare",
+        });
+        await sonucYaz(`${r.alici} öğretmene gönderildi (${dersNo}. ders).`);
+      } catch (err) {
+        console.error("Zamanli bildirim gonderilemedi:", d.id, err);
+        await sonucYaz("Hata: " + err.message);
+      }
+    }
+  }
+);
 
 const VEKIL_BILDIRIM_ONCE_DK = 5;
 const VEKIL_BILDIRIM_GEC_DK = 15;
