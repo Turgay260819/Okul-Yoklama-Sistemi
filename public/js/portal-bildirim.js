@@ -68,7 +68,7 @@ function _bildirimPanelIcerikGoster() {
     panel.innerHTML = `<div class="bildirim-bos">🔔 Okunmamis bildirim yok.</div>`;
     return;
   }
-  const tipIkonu = { anket: "📋", gorev: "📌", duyuru: "📢", kura: "🎲", idare_mesaji: "📢", idare_gorevi: "📌", vekil_ders: "🔄", izin_onay: "📄" };
+  const tipIkonu = { anket: "📋", gorev: "📌", duyuru: "📢", kura: "🎲", idare_mesaji: "📢", idare_gorevi: "📌", vekil_ders: "🔄", izin_onay: "📄", vekil_atama: "🔄", vekil_iptal: "❎", izin_karar: "🏥" };
   let html = `<div class="bildirim-panel-baslik"><span>BİLDİRİMLER (${state.bildirimler.length})</span></div>`;
   state.bildirimler.forEach((b) => {
     const ikon = tipIkonu[b.tip] || "🔔";
@@ -96,6 +96,10 @@ window.bildirimOku = async (bildirimId, tip, referansId) => {
     window.rehberIzinOnayaGit?.();
   } else if (tip === "idare_mesaji" && bildirim) {
     window.idareMesajlariniGoster?.([bildirim]);
+  } else if (["vekil_atama", "vekil_iptal", "vekil_ders"].includes(tip)) {
+    window.ogretmenKareTikla?.("vekil-derslerim", "Vekil Derslerim");
+  } else if (tip === "izin_karar") {
+    window.ogretmenKareTikla?.("izin-talebim", "İzin Talebim");
   } else if (tip === "anket") {
     window.location.href = "/anket.html" + (referansId ? "?id=" + referansId : "");
   } else if (tip === "gorev") {

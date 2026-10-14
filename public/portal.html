@@ -306,6 +306,12 @@
 
             <!-- VEKİL ATAMA -->
             <div class="sayfa" id="sayfa-vekil-atama">
+              <div class="kart" id="vekilIzinKart" hidden>
+                <div class="kart-baslik-satir"><div class="kart-baslik">⏳ Onay Bekleyen İzin Talepleri</div>
+                  <button class="btn btn-gri btn-sm" onclick="vekilIzinleriYukle()">🔄 Yenile</button></div>
+                <div id="vekilIzinListesi"></div>
+                <div class="mesaj" id="vekilIzinMesaj"></div>
+              </div>
               <div class="kart">
                 <div class="kart-baslik">🏥 Raporlu Öğretmen Ekle</div>
                 <div class="form-grid" style="margin-bottom:8px;">
@@ -332,7 +338,7 @@
               <div class="kart">
                 <div class="kart-baslik">Bugün Aktif / Yaklaşan Raporlu Öğretmenler</div>
                 <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">
-                  Raporu bugünü kapsayan öğretmenlere her okul sabahı 07:00'de otomatik vekil atanır (önce o saatte boş nöbetçi, sonra boş diğer öğretmen); rapor birden fazla gün sürse de her gün tekrar tıklamanız gerekmez. Rapor sabahtan sonra girildiyse veya atamayı değiştirmek isterseniz "Vekil Ata" butonunu kullanın.
+                  Raporu bugünü kapsayan öğretmenlere her okul sabahı 07:00'de otomatik vekil atanır (önce o saatte boş nöbetçi, sonra boş diğer öğretmen); rapor birden fazla gün sürse de her gün tekrar tıklamanız gerekmez. Rapor sabahtan sonra girildiyse "Vekilsizlere Ata"yı kullanın. Bugünkü atamalar her raporlu öğretmenin altında hep görünür; ders ders "Otomatik Değiştir" ya da elle "Ata" ile değiştirebilirsiniz. Her atama ve değişiklik vekil öğretmene zil ve telefon bildirimi olarak gider.
                 </div>
                 <div id="vekilRaporListesi"><div class="yukleniyor">Yukleniyor...</div></div>
               </div>
@@ -579,6 +585,9 @@
             </div>
 
             <!-- ÖĞRETMENİN VEKİL DERSLERİM -->
+            <!-- ÖĞRETMENİN İZİN TALEPLERİ -->
+            <div class="sayfa" id="sayfa-izin-talebim"></div>
+
             <div class="sayfa" id="sayfa-vekil-derslerim">
               <div id="vekilDerslerimIcerik"><div class="yukleniyor">Yukleniyor...</div></div>
             </div>

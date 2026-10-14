@@ -19,6 +19,7 @@ import { pushHazirla } from "./portal-push.js";
 import "./portal-yoklama.js";
 import { yoklamaGirYukle } from "./portal-yoklama-gir.js";
 import { kelebekYukle } from "./portal-kelebek.js";
+import { izinTalebimYukle } from "./portal-ogretmen-izin.js";
 
 // Backward-compat namespace for portal-raporlar.js and portal-ayarlar.js
 window.__portal = {
@@ -63,6 +64,7 @@ window.sayfaYukle = (id) => {
   else if (id === "vekil-atama")  vekilAtamaSayfasiBaslat();
   else if (id === "vekil-dersler")   vekilDerslerAdminYukle();
   else if (id === "vekil-derslerim") vekilDerslerimYukle();
+  else if (id === "izin-talebim")  izinTalebimYukle();
   else if (id === "bildirim-gonder") bildirimGonderYukle();
   else if (id === "para-toplama")   paraToplamaYukle();
   else if (id === "gorevlerim")   ogretmenGorevleriniYukle();

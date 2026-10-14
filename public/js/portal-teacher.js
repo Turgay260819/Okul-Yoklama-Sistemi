@@ -1046,7 +1046,7 @@ window.rehberIzinOnayaGit = () => {
     if (iframe) iframe.src = src;
     else kap.innerHTML = `<iframe src="${src}" style="width:100%;height:85vh;border:none;border-radius:12px;"></iframe>`;
   }
-  window.ogretmenKareTikla("izin", "İzin Girişi");
+  window.ogretmenKareTikla("izin", "Öğrenci İzni");
 };
 
 // ── İDAREDEN MESAJ KONTROLÜ (admin "Bildirim Gönder") ──
@@ -1065,7 +1065,8 @@ export async function idareMesajiKontrolEt() {
     const mesajlar = [];
     snap.forEach((d) => {
       const data = d.data();
-      if (data.tip === "idare_mesaji") mesajlar.push({ id: d.id, ...data });
+      // Vekil atama / iptali ve izin karari da giriste pencerede gosterilir.
+      if (["idare_mesaji", "vekil_atama", "vekil_iptal", "izin_karar"].includes(data.tip)) mesajlar.push({ id: d.id, ...data });
     });
     if (!mesajlar.length) return;
     idareMesajlariniGoster(mesajlar);

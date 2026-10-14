@@ -1,7 +1,7 @@
 const { setGlobalOptions } = require("firebase-functions/v2");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
-const { onDocumentCreated, onDocumentCreatedWithAuthContext, onDocumentDeletedWithAuthContext } = require("firebase-functions/v2/firestore");
+const { onDocumentCreated, onDocumentUpdated, onDocumentCreatedWithAuthContext, onDocumentDeletedWithAuthContext } = require("firebase-functions/v2/firestore");
 const admin = require("firebase-admin");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { getAuth } = require("firebase-admin/auth");
@@ -1330,7 +1330,11 @@ exports.raporluIcinVekilAta = onCall(async (request) => {
   return raporluVekilAtaCalistir(admin.firestore(), request.data || {});
 });
 
-async function raporluVekilAtaCalistir(db, { ogretmenId, dersIdListesi } = {}) {
+// kuru: hicbir sey yazmadan sadece oneri dondurur (onay bekleyen ogretmen
+// izinleri icin). ekRaporluId: raporu henuz olmayan (onay bekleyen) ogretmeni
+// bugun raporlu sayar. Onay bekleyen diger izinli ogretmenler de vekil
+// havuzuna alinmaz.
+async function raporluVekilAtaCalistir(db, { ogretmenId, dersIdListesi, kuru = false, ekRaporluId = null } = {}) {
   const zorlaMod = Array.isArray(dersIdListesi) && dersIdListesi.length > 0;
   if (!ogretmenId && !zorlaMod) {
     throw new HttpsError("invalid-argument", "ogretmenId veya dersIdListesi gerekli.");
@@ -1353,7 +1357,10 @@ async function raporluVekilAtaCalistir(db, { ogretmenId, dersIdListesi } = {}) {
     hedefOgretmenId = ilkDers.data().teacher_id;
   }
 
-  const raporSnap = await db.collection("ogretmen_rapor").where("baslangic_tarihi", "<=", bugun).get();
+  const [raporSnap, bekleyenIzinler] = await Promise.all([
+    db.collection("ogretmen_rapor").where("baslangic_tarihi", "<=", bugun).get(),
+    bugunBekleyenIzinler(db, bugun),
+  ]);
   const bugunRaporluIds = new Set();
   let raporluAd = null;
   raporSnap.forEach((d) => {
@@ -1363,6 +1370,8 @@ async function raporluVekilAtaCalistir(db, { ogretmenId, dersIdListesi } = {}) {
       if (r.ogretmen_id === hedefOgretmenId) raporluAd = r.ogretmen_ad;
     }
   });
+  bekleyenIzinler.forEach((iz) => bugunRaporluIds.add(iz.ogretmen_id));
+  if (ekRaporluId) bugunRaporluIds.add(ekRaporluId);
   if (!bugunRaporluIds.has(hedefOgretmenId)) {
     return { success: false, message: "Bu öğretmen bugün için raporlu değil." };
   }
@@ -1436,13 +1445,16 @@ async function raporluVekilAtaCalistir(db, { ogretmenId, dersIdListesi } = {}) {
     if (!buCalistirmadaAtananlar[saat]) buCalistirmadaAtananlar[saat] = new Set();
     buCalistirmadaAtananlar[saat].add(secilen.id);
 
-    await ders.ref.update({
-      substitute_teacher_id: secilen.id,
-      substitute_teacher_ad: secilen.ad,
-      substitute_for_teacher_id: hedefOgretmenId,
-      substitute_for_teacher_ad: raporluAd,
-      substitute_assigned_at: admin.firestore.FieldValue.serverTimestamp(),
-    });
+    if (!kuru) {
+      await ders.ref.update({
+        substitute_teacher_id: secilen.id,
+        substitute_teacher_ad: secilen.ad,
+        substitute_for_teacher_id: hedefOgretmenId,
+        substitute_for_teacher_ad: raporluAd,
+        substitute_tier: tier,
+        substitute_assigned_at: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
 
     sonuclar.push({
       dersId: ders.id, classId: ders.data.class_id, lessonName: ders.data.lesson_name || "",
@@ -1470,6 +1482,20 @@ exports.raporluOtomatikVekilAta = onSchedule(
     const raporluIds = [...new Set(
       raporSnap.docs.map((d) => d.data()).filter((r) => r.bitis_tarihi >= bugun).map((r) => r.ogretmen_id),
     )];
+
+    // Onay bekleyen ogretmen izinleri: bugunun vekil onerileri guncellenir ve
+    // admin'e hatirlatilir (onaylanmadikca dersleri vekilsiz kalir).
+    try {
+      for (const iz of await bugunBekleyenIzinler(db, bugun)) {
+        const oneri = await izinOneriYaz(db, iz.id, iz);
+        if (!oneri?.dersler?.length) continue;  // hafta sonu / tatil / dersi yok
+        await telegramMesajGonder(`⏳ <b>Onay bekleyen öğretmen izni</b>\n${htmlKacis(iz.ogretmen_ad)} — ${IZIN_TUR_AD[iz.tur] || ""}, ${izinAralikMetni(iz)}` +
+          `${oneriOzetMetni(oneri)}\nOnaylanmadıkça bugünkü dersleri vekilsiz kalır. Portal › Vekil Atama`);
+      }
+    } catch (err) {
+      console.error("Bekleyen izin hatirlatma hatasi:", err);
+    }
+
     if (!raporluIds.length) {
       console.log("Otomatik vekil: bugun raporlu ogretmen yok.");
       return;
@@ -1594,6 +1620,294 @@ exports.vekilDersOlusturuldu = onDocumentCreatedWithAuthContext("vekil_dersler/{
 
 exports.vekilDersSilindi = onDocumentDeletedWithAuthContext("vekil_dersler/{kayitId}", async (event) => {
   await vekilGecmisYaz(admin.firestore(), event, "silindi");
+});
+
+// ===========================
+// ÖĞRETMEN İZİN TALEBİ (portal "İzin Talebim")
+// Ogretmen ogretmen_izinleri'ne talep yazar (durum beklemede). Girilince
+// admin'e Telegram'dan haber gider ve izin bugunu kapsiyorsa bugunun dersleri
+// icin vekil ONERILIR (yazilmaz). Admin Vekil Atama sayfasindan onaylayinca
+// (ogretmenIzinKarar) ogretmen_rapor olusur, oneriler today_lessons'a yazilir;
+// sonraki gunlerde 07:00 otomatik atama devreye girer. Vekillere bildirim
+// vekilAtamaDegisti tetikleyicisinden gider. Ogretmen onayli iznini yarida
+// kesme talebi (kesme_talebi) de iletebilir; onaylaninca rapor kisalir,
+// bugunun baslamamis vekil dersleri kaldirilir ve vekillere iptal bildirilir.
+// ===========================
+const IZIN_TUR_AD = { mazeret: "Mazeret izni", saglik: "Sağlık izni" };
+const trTarihS = (t) => (t ? String(t).split("-").reverse().join(".") : "");
+const istanbulBugun = () => new Date().toLocaleString("sv-SE", { timeZone: "Europe/Istanbul" }).slice(0, 10);
+function tarihEkleGun(t, n) {
+  const d = new Date(t + "T12:00:00Z");
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+function izinAralikMetni(iz) {
+  if (iz.baslangic_tarihi === iz.bitis_tarihi) return trTarihS(iz.baslangic_tarihi);
+  const gun = Math.round((new Date(iz.bitis_tarihi + "T12:00:00Z") - new Date(iz.baslangic_tarihi + "T12:00:00Z")) / 864e5) + 1;
+  return `${trTarihS(iz.baslangic_tarihi)} – ${trTarihS(iz.bitis_tarihi)} (${gun} gün)`;
+}
+
+// Onay bekleyen ve verilen gunu kapsayan ogretmen izinleri.
+async function bugunBekleyenIzinler(db, bugun) {
+  const snap = await db.collection("ogretmen_izinleri").where("durum", "==", "beklemede").get();
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+    .filter((iz) => iz.baslangic_tarihi <= bugun && iz.bitis_tarihi >= bugun);
+}
+
+// Izin bugunu kapsiyorsa bugunun vekil onerilerini hesaplayip izne yazar.
+async function izinOneriYaz(db, izinId, iz) {
+  const bugun = istanbulBugun();
+  if (!(iz.baslangic_tarihi <= bugun && iz.bitis_tarihi >= bugun)) return null;
+  const r = await raporluVekilAtaCalistir(db, { ogretmenId: iz.ogretmen_id, kuru: true, ekRaporluId: iz.ogretmen_id });
+  if (!r.success) return { mesaj: r.message };
+  const dersler = (r.sonuclar || []).map((s) => ({
+    dersId: s.dersId, lessonNumber: s.lessonNumber, classId: s.classId || "", lessonName: s.lessonName || "",
+    atandi: !!s.atandi, vekilId: s.vekilId || "", vekilAd: s.vekilAd || "", tier: s.tier || "",
+  }));
+  await db.collection("ogretmen_izinleri").doc(izinId).update({
+    oneriler: { tarih: bugun, dersler, hesaplama: admin.firestore.FieldValue.serverTimestamp() },
+  });
+  return { dersler };
+}
+
+function oneriOzetMetni(o) {
+  if (!o) return "";
+  if (!o.dersler) return o.mesaj ? `\n(${htmlKacis(o.mesaj)})` : "";
+  if (!o.dersler.length) return "\nBugün vekil gerektiren dersi yok.";
+  const a = o.dersler.filter((d) => d.atandi).length;
+  return `\nBugün ${o.dersler.length} dersi var: ${a} ders için vekil önerildi${a < o.dersler.length ? `, <b>${o.dersler.length - a} ders için uygun vekil yok</b>` : ""}.`;
+}
+
+// Izni giren ogretmene karar bildirimi (zil + telefon).
+async function izinSahibineBildir(db, iz, izinId, baslik, govde) {
+  await db.collection("bildirimler").add({
+    alici_id: iz.ogretmen_id, tip: "izin_karar", baslik, mesaj: govde, referans_id: izinId,
+    okundu: false, tarih: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  await ogretmenlerePushGonder(db, [iz.ogretmen_id], { baslik, govde, tag: "izin_" + izinId });
+}
+
+exports.ogretmenIzniGirildi = onDocumentCreated("ogretmen_izinleri/{izinId}", async (event) => {
+  const iz = event.data?.data();
+  if (!iz || iz.durum !== "beklemede") return;
+  const db = admin.firestore();
+  let oneri = null;
+  try {
+    oneri = await izinOneriYaz(db, event.params.izinId, iz);
+  } catch (err) {
+    console.error("Izin vekil onerisi hesaplanamadi:", err);
+  }
+  const mesaj = `🏥 <b>Öğretmen izin talebi</b>\n${htmlKacis(iz.ogretmen_ad)} — ${IZIN_TUR_AD[iz.tur] || htmlKacis(iz.tur)}\n${izinAralikMetni(iz)}` +
+    (iz.aciklama ? `\nAçıklama: ${htmlKacis(iz.aciklama)}` : "") + oneriOzetMetni(oneri) +
+    "\n\nOnay bekliyor: Portal › Vekil Atama";
+  try {
+    await telegramMesajGonder(mesaj);
+  } catch (err) {
+    console.error("Izin Telegram hatasi:", err);
+  }
+});
+
+// Yarida kesme talebi geldiginde admin'e Telegram.
+exports.ogretmenIzniGuncellendi = onDocumentUpdated("ogretmen_izinleri/{izinId}", async (event) => {
+  const once = event.data?.before?.data() || {};
+  const iz = event.data?.after?.data() || {};
+  const k = iz.kesme_talebi;
+  if (!k || k.durum !== "beklemede" || once.kesme_talebi?.durum === "beklemede") return;
+  const mesaj = `↩️ <b>İzni yarıda kesme talebi</b>\n${htmlKacis(iz.ogretmen_ad)} — ${IZIN_TUR_AD[iz.tur] || ""} (${izinAralikMetni(iz)})\n` +
+    `Okula dönüş: <b>${trTarihS(k.donus_tarihi)}</b>` + (k.aciklama ? `\nAçıklama: ${htmlKacis(k.aciklama)}` : "") +
+    "\n\nOnaylanınca vekil atamaları ve vekillere giden bildirimler kaldırılır. Portal › Vekil Atama";
+  try {
+    await telegramMesajGonder(mesaj);
+  } catch (err) {
+    console.error("Izin kesme Telegram hatasi:", err);
+  }
+});
+
+exports.ogretmenIzinKarar = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Giriş yapılmamış.");
+  const db = admin.firestore();
+  const caller = (await db.collection("users").doc(request.auth.uid).get()).data() || {};
+  if (caller.rol !== "admin" && caller.rol !== "mudur_yardimcisi") throw new HttpsError("permission-denied", "Yetkiniz yok.");
+  const { izinId, karar, tur = "izin", secimler = {}, not = "" } = request.data || {};
+  if (!izinId || !["onay", "red"].includes(karar)) throw new HttpsError("invalid-argument", "Geçersiz istek.");
+  const ref = db.collection("ogretmen_izinleri").doc(String(izinId));
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError("not-found", "İzin talebi bulunamadı.");
+  const iz = snap.data();
+  const kararVeren = caller.ad || "";
+  const zaman = admin.firestore.FieldValue.serverTimestamp();
+  const notMetni = String(not || "").trim().slice(0, 300);
+
+  if (tur === "kesme") return izinKesmeKarar(db, ref, snap.id, iz, karar, kararVeren, notMetni);
+
+  if (iz.durum !== "beklemede") throw new HttpsError("failed-precondition", "Bu talep zaten sonuçlanmış.");
+  const turAd = IZIN_TUR_AD[iz.tur] || iz.tur;
+  if (karar === "red") {
+    await ref.update({ durum: "reddedildi", red_notu: notMetni, karar_veren_ad: kararVeren, karar_zamani: zaman });
+    await izinSahibineBildir(db, iz, snap.id, "❌ İzin talebiniz reddedildi",
+      `${turAd}, ${izinAralikMetni(iz)}${notMetni ? ` — Not: ${notMetni}` : ""}`);
+    return { success: true, message: "İzin talebi reddedildi." };
+  }
+
+  const raporRef = await db.collection("ogretmen_rapor").add({
+    ogretmen_id: iz.ogretmen_id, ogretmen_ad: iz.ogretmen_ad,
+    baslangic_tarihi: iz.baslangic_tarihi, bitis_tarihi: iz.bitis_tarihi,
+    aciklama: turAd + (iz.aciklama ? " — " + iz.aciklama : ""),
+    izin_id: snap.id, izin_tur: iz.tur, olusturulma: zaman,
+  });
+  await ref.update({ durum: "onaylandi", rapor_id: raporRef.id, karar_veren_ad: kararVeren, karar_zamani: zaman });
+
+  const bugun = istanbulBugun();
+  let atamaMesaji = iz.baslangic_tarihi > bugun
+    ? `Vekiller ${trTarihS(iz.baslangic_tarihi)} sabahı 07:00'de otomatik atanacak.` : "";
+  if (iz.baslangic_tarihi <= bugun && iz.bitis_tarihi >= bugun) {
+    // Once onerilen / admin'in sectigi vekiller (ders hala vekilsizse ve
+    // vekil o saatte bossa), sonra kalan vekilsiz dersler otomatik.
+    const oneriler = iz.oneriler?.tarih === bugun ? iz.oneriler.dersler || [] : [];
+    const istenen = {};
+    oneriler.forEach((d) => { if (d.vekilId) istenen[d.dersId] = d.vekilId; });
+    Object.entries(secimler || {}).forEach(([dersId, vekilId]) => { if (vekilId) istenen[dersId] = String(vekilId); });
+    if (Object.keys(istenen).length) {
+      const [dersSnap, teachersSnap] = await Promise.all([
+        db.collection("today_lessons").where("date", "==", bugun).get(),
+        db.collection("teachers").get(),
+      ]);
+      const adMap = {};
+      teachersSnap.forEach((d) => (adMap[d.id] = d.data().ad || d.id));
+      const dolu = new Set(); // "ogretmenId|saat"
+      const dersler = {};
+      dersSnap.forEach((d) => {
+        const v = d.data();
+        dersler[d.id] = { ref: d.ref, v };
+        if (v.teacher_id) dolu.add(v.teacher_id + "|" + v.lesson_number);
+        if (v.substitute_teacher_id) dolu.add(v.substitute_teacher_id + "|" + v.lesson_number);
+      });
+      for (const [dersId, vekilId] of Object.entries(istenen)) {
+        const d = dersler[dersId];
+        if (!d || d.v.teacher_id !== iz.ogretmen_id || d.v.substitute_teacher_id) continue;
+        if (dolu.has(vekilId + "|" + d.v.lesson_number)) continue;  // otomatik atamaya kalir
+        const oneri = oneriler.find((o) => o.dersId === dersId);
+        await d.ref.update({
+          substitute_teacher_id: vekilId, substitute_teacher_ad: adMap[vekilId] || "",
+          substitute_for_teacher_id: iz.ogretmen_id, substitute_for_teacher_ad: iz.ogretmen_ad,
+          substitute_tier: oneri?.vekilId === vekilId ? (oneri.tier || "diger") : "manuel",
+          substitute_assigned_at: zaman,
+        });
+        dolu.add(vekilId + "|" + d.v.lesson_number);
+      }
+    }
+    const r = await raporluVekilAtaCalistir(db, { ogretmenId: iz.ogretmen_id });
+    const atanamayan = (r.sonuclar || []).filter((s) => !s.atandi).length;
+    atamaMesaji = r.success
+      ? `Bugünün vekilleri atandı ve öğretmenlere bildirildi.${atanamayan ? ` ${atanamayan} ders için uygun vekil bulunamadı; elle atayın.` : ""}`
+      : r.message || "";
+  }
+  await izinSahibineBildir(db, iz, snap.id, "✅ İzin talebiniz onaylandı", `${turAd}, ${izinAralikMetni(iz)}`);
+  return { success: true, message: `İzin onaylandı. ${atamaMesaji}`.trim() };
+});
+
+function vekilKayitId(tarih, sinif, dersNo) {
+  return `${tarih}_${String(sinif).replace(/[\/\s.#\[\]]/g, "-")}_${dersNo}`;
+}
+
+async function izinKesmeKarar(db, ref, izinId, iz, karar, kararVeren, notMetni) {
+  const k = iz.kesme_talebi;
+  if (!k || k.durum !== "beklemede") throw new HttpsError("failed-precondition", "Bekleyen yarıda kesme talebi yok.");
+  const zaman = admin.firestore.FieldValue.serverTimestamp();
+  if (karar === "red") {
+    await ref.update({ "kesme_talebi.durum": "reddedildi", "kesme_talebi.red_notu": notMetni,
+      "kesme_talebi.karar_veren_ad": kararVeren, "kesme_talebi.karar_zamani": zaman });
+    await izinSahibineBildir(db, iz, izinId, "❌ İzni yarıda kesme talebiniz reddedildi", notMetni ? `Not: ${notMetni}` : "İzniniz devam ediyor.");
+    return { success: true, message: "Yarıda kesme talebi reddedildi." };
+  }
+
+  const donus = k.donus_tarihi;
+  const yeniBitis = tarihEkleGun(donus, -1);
+  if (iz.rapor_id) {
+    const rref = db.collection("ogretmen_rapor").doc(iz.rapor_id);
+    if (yeniBitis < iz.baslangic_tarihi) await rref.delete().catch(() => {});
+    else await rref.update({ bitis_tarihi: yeniBitis, aciklama_ek: `Yarıda kesildi, dönüş ${trTarihS(donus)}` }).catch(() => {});
+  }
+  await ref.update({
+    ilk_bitis_tarihi: iz.ilk_bitis_tarihi || iz.bitis_tarihi, bitis_tarihi: yeniBitis,
+    "kesme_talebi.durum": "onaylandi", "kesme_talebi.karar_veren_ad": kararVeren, "kesme_talebi.karar_zamani": zaman,
+  });
+
+  // Donus bugun ya da oncesiyse: bugunun henuz baslamamis ve vekilin derse
+  // girdigi kaydedilmemis derslerindeki vekil kaldirilir. Vekile iptal
+  // bildirimi ve eski bildirimlerin silinmesi vekilAtamaDegisti'nde.
+  const bugun = istanbulBugun();
+  let kaldirilan = 0;
+  if (donus <= bugun) {
+    const [dersSnap, saatDoc] = await Promise.all([
+      db.collection("today_lessons").where("date", "==", bugun).where("teacher_id", "==", iz.ogretmen_id).get(),
+      db.collection("ders_saatleri").doc("varsayilan").get(),
+    ]);
+    const saatler = saatDoc.exists ? (saatDoc.data().saatler || {}) : {};
+    const [hh, mm] = new Date().toLocaleString("sv-SE", { timeZone: "Europe/Istanbul" }).slice(11, 16).split(":").map(Number);
+    const simdiDk = hh * 60 + mm;
+    const sil = admin.firestore.FieldValue.delete();
+    for (const d of dersSnap.docs) {
+      const v = d.data();
+      if (!v.substitute_teacher_id) continue;
+      const bas = String(saatler[v.lesson_number] || "");
+      if (/^\d{1,2}:\d{2}$/.test(bas)) {
+        const [h, m] = bas.split(":").map(Number);
+        if (h * 60 + m <= simdiDk) continue;  // ders basladi
+      }
+      const girdi = await db.collection("vekil_dersler").doc(vekilKayitId(v.date, v.class_id, v.lesson_number)).get();
+      if (girdi.exists) continue;
+      await d.ref.update({
+        substitute_teacher_id: sil, substitute_teacher_ad: sil, substitute_for_teacher_id: sil,
+        substitute_for_teacher_ad: sil, substitute_tier: sil, substitute_assigned_at: sil, vekil_bildirim_gonderilen: sil,
+        substitute_kaldirma_sebebi: "izin_kesildi", substitute_kaldirma_notu: `${iz.ogretmen_ad} okula döndü`,
+      });
+      kaldirilan++;
+    }
+  }
+  await izinSahibineBildir(db, iz, izinId, "✅ İzni yarıda kesme talebiniz onaylandı", `Okula dönüş: ${trTarihS(donus)}`);
+  return { success: true, message: `Yarıda kesme onaylandı.${kaldirilan ? ` Bugün ${kaldirilan} dersin vekil ataması kaldırıldı ve vekillere bildirildi.` : ""}` };
+}
+
+// ===========================
+// VEKİL ATAMASI DEĞİŞİNCE BİLDİRİM
+// today_lessons'ta vekil degisince (izin onayi, 07:00 otomatik, "Vekil Ata",
+// "Otomatik Degistir", elle "Ata", yarida kesme) yeni vekile zil + telefon
+// bildirimi; eski vekilin bu dersle ilgili zil bildirimleri silinir ve ona
+// iptal bildirimi gider (telefona dusmus bildirim geri alinamadigi icin).
+// ===========================
+exports.vekilAtamaDegisti = onDocumentUpdated("today_lessons/{dersId}", async (event) => {
+  const once = event.data?.before?.data() || {};
+  const v = event.data?.after?.data() || {};
+  const eski = once.substitute_teacher_id || "";
+  const yeni = v.substitute_teacher_id || "";
+  if (eski === yeni) return;
+  const bugun = istanbulBugun();
+  if (v.date && v.date < bugun) return;
+  const db = admin.firestore();
+  const dersId = event.params.dersId;
+  const gun = v.date === bugun ? "Bugün" : trTarihS(v.date);
+  const dersMetni = `${gun} ${v.lesson_number}. ders — ${v.class_id || ""} ${v.lesson_name || ""}`.replace(/\s+/g, " ").trim();
+  const zaman = admin.firestore.FieldValue.serverTimestamp();
+
+  if (eski) {
+    const eskiSnap = await db.collection("bildirimler").where("alici_id", "==", eski).where("referans_id", "==", dersId).get();
+    await Promise.all(eskiSnap.docs.filter((d) => ["vekil_atama", "vekil_ders"].includes(d.data().tip)).map((d) => d.ref.delete()));
+    const asil = once.substitute_for_teacher_ad || "?";
+    const sebep = v.substitute_kaldirma_sebebi === "izin_kesildi" && !yeni
+      ? (v.substitute_kaldirma_notu || "öğretmen okula döndü")
+      : yeni ? "başka bir öğretmene atandı" : "vekil ataması kaldırıldı";
+    const baslik = "❎ Vekil göreviniz iptal edildi";
+    const govde = `${dersMetni} (${asil} yerine) — ${sebep}. Bu derse girmenize gerek yok.`;
+    await db.collection("bildirimler").add({ alici_id: eski, tip: "vekil_iptal", baslik, mesaj: govde, referans_id: dersId, okundu: false, tarih: zaman });
+    await ogretmenlerePushGonder(db, [eski], { baslik, govde, tag: "vekil_" + dersId });
+  }
+  if (yeni) {
+    const baslik = "🔄 Vekil görevi";
+    const govde = `${dersMetni} (${v.substitute_for_teacher_ad || "?"} yerine)`;
+    await db.collection("bildirimler").add({ alici_id: yeni, tip: "vekil_atama", baslik, mesaj: govde, referans_id: dersId, okundu: false, tarih: zaman });
+    await ogretmenlerePushGonder(db, [yeni], { baslik, govde, tag: "vekil_" + dersId });
+  }
 });
 
 // ===========================
@@ -1826,6 +2140,7 @@ exports.vekilDersBildirimi = onSchedule(
           tip: "vekil_ders",
           baslik,
           mesaj: govde,
+          referans_id: id,
           okundu: false,
           tarih: admin.firestore.FieldValue.serverTimestamp(),
         }),
