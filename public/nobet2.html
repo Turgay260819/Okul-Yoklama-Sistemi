@@ -256,6 +256,23 @@
         text-align: center;
         line-height: 1.2;
       }
+      .slot-yer {
+        font-size: 10px;
+        color: #555;
+        text-align: center;
+        line-height: 1.2;
+        margin-top: 2px;
+      }
+      .slot-buhafta {
+        font-size: 9px;
+        color: #1557b0;
+        font-weight: 600;
+        text-align: center;
+        line-height: 1.2;
+        margin-top: 3px;
+        padding-top: 2px;
+        border-top: 1px dashed #c5d5ee;
+      }
       .ogr-panel {
         background: #f8f9fa;
         border-radius: 10px;
@@ -561,7 +578,9 @@
         <div class="modal-baslik">✏ Nöbet Yerleşimi</div>
         <p style="font-size: 12px; color: #888; margin-bottom: 10px">
           Öğretmen seç → Sabitlik belirle → Slota tıkla. Dolu slota tıklamak
-          kaldırır.
+          kaldırır. Hücredeki yer öğretmenin başlangıç (yerleşim) yeridir;
+          rotasyonla her hafta ilerler. Mavi "Bu hafta" satırı, ana tablodaki
+          haftada tuttuğu gün ve noktadır.
         </p>
         <div class="ogr-panel">
           <div class="ogr-panel-baslik">
@@ -1218,9 +1237,23 @@
         document.getElementById("yerlesimModal").classList.add("aktif");
       };
 
+      // Yerlesim penceresinde gosterim icin (sadece okuma): ogretmenin
+      // yerlesim (baslangic) yeri ve ana tablodaki haftada tuttugu yer.
+      // Kaydedilmemis duzenlemeler (editSlotlar) de hesaba katilir.
+      const GUN_KISA = ["Pzt", "Sal", "Çar", "Per", "Cum"];
+      function yerlesimKonumlari(s) {
+        const yer = slotToPos(s.baslangic_slot);
+        const buHafta = pozHesapla(s, nobetVerisi.rotasyon_sayaci || 0, editSlotlar);
+        return { yer, buHafta, ayni: yer.gi === buHafta.gi && yer.ni === buHafta.ni };
+      }
+      const konumMetni = (p) => GUN_KISA[p.gi] + " · " + (NOKTALAR[p.ni] || "-");
+      const yerEsc = (t) => String(t ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
       function ogrChiplariGoster(filtre) {
         filtre = filtre || "";
         const yerlesikIds = new Set(editSlotlar.map((s) => s.ogretmen_id));
+        const slotByOgr = {};
+        editSlotlar.forEach((s) => (slotByOgr[s.ogretmen_id] = s));
         document.getElementById("yerlesikSayac").textContent =
           "(" + yerlesikIds.size + "/" + ogretmenler.length + ")";
         const list = ogretmenler.filter(
@@ -1232,11 +1265,18 @@
           .map((o) => {
             const y = yerlesikIds.has(o.id);
             const s = seciliOgr && seciliOgr.id === o.id;
+            let ipucu = "";
+            if (y) {
+              const k = yerlesimKonumlari(slotByOgr[o.id]);
+              ipucu = "Yerleşim: " + konumMetni(k.yer) + " — Bu hafta: " + konumMetni(k.buHafta);
+            }
             return (
               '<span class="ogr-chip' +
               (y ? " yerlesik" : "") +
               (s ? " secili" : "") +
-              '" onclick="ogrSec(\'' +
+              '"' +
+              (ipucu ? ' title="' + yerEsc(ipucu) + '"' : "") +
+              ' onclick="ogrSec(\'' +
               o.id +
               "')\">" +
               (o.ad || "") +
@@ -1288,12 +1328,16 @@
                 '" onclick="slotTikla(' +
                 slot +
                 ')">';
+              const k = yerlesimKonumlari(s);
               html += '<div class="slot-no">' + slotNo + "</div>";
               html += '<div class="slot-isim">' + s.ogretmen_ad + "</div>";
+              html += '<div class="slot-yer">📍 ' + yerEsc(NOKTALAR[ni] || "-") + "</div>";
               if (sb === "sgn")
                 html += '<div style="font-size:9px;color:#888;">S-GN</div>';
               else if (sb === "sabit_gun")
                 html += '<div style="font-size:9px;color:#888;">SABİT GÜN</div>';
+              html += '<div class="slot-buhafta">' +
+                (k.ayni ? "Bu hafta da burada" : "Bu hafta: " + yerEsc(konumMetni(k.buHafta))) + "</div>";
               html += "</div>";
             } else {
               html +=
