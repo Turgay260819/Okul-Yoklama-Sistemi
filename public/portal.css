@@ -1550,6 +1550,11 @@ tr:last-child td {
   body.yazi-yazdir .yazi-kagit { box-shadow: none; padding: 0; max-width: none; }
 }
 
+/* ── Kelebek sınav bilgisi (ekran) ── */
+.kb-bilgi-kutu { border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; margin-bottom: 6px; }
+.kb-bilgi-kutu summary { cursor: pointer; padding: 4px 0; }
+.kb-bilgi-kutu[open] summary { margin-bottom: 6px; }
+
 /* ── Kelebek sınav çıktıları (portal-kelebek.js) ── */
 #kelebekYazdirAlan { display: none; }
 .kb-sayfa { font-family: "Times New Roman", Times, serif; color: #000; padding: 6mm 0; }

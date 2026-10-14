@@ -103,9 +103,11 @@ service cloud.firestore {
     }
 
     // Kelebek sinav dagilimlari: idare gorur, sadece admin olusturur/duzenler.
+    // Silme yok: "Sil" sinavi arsive tasir (silindi: true), veri kaybolmaz.
     match /kelebek_sinavlar/{sinavId} {
       allow read: if isYonetimOkur();
-      allow write: if isAdmin();
+      allow create, update: if isAdmin();
+      allow delete: if false;
     }
     // Dagitim surumleri ve degisiklik gecmisi: sadece eklenir, degistirilemez.
     match /kelebek_sinavlar/{sinavId}/gecmis/{kayitId} {

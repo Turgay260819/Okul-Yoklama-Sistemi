@@ -1,6 +1,6 @@
 import {
   db, functions, httpsCallable, bugunHesapla,
-  getDocs, getDoc, addDoc, setDoc, deleteDoc,
+  getDocs, getDoc, addDoc, setDoc,
   collection, query, where, doc, serverTimestamp,
 } from "./portal-config.js";
 import { state } from "./portal-state.js";
@@ -25,14 +25,25 @@ let _sinav = null;        // duzenlenen sinav
 let _gozetmen = {};       // "salon|saat" -> { id, ad, raporlu, kaynak, asil_id, asil_ad }
 let _secili = new Set();  // sinava girecek ogrenci_id'ler
 let _acikSubeler = new Set(); // acik akordiyonlar (yeniden cizimde korunur)
+let _sinavListesi = [];   // son okunan sinav listesi (yeni sinavda onceki secim icin)
+let _silinenleriGoster = false;
 
 const admin = () => state.rol === "admin";
+// Arsive tasinmis (silinmis) sinav sadece goruntulenir.
+const duzenler = () => admin() && !_sinav?.silindi;
+const _ms = (z) => z?.toMillis?.() ?? 0;
 const kok = () => document.getElementById("sayfa-kelebek");
 const ogretmenAd = (id) => state.ogretmenler.find((o) => o.id === id)?.ad || "";
 const trTarih = (t) => { const [y, m, d] = String(t || "").split("-"); return d ? `${d}.${m}.${y}` : ""; };
 const saatMetni = (s) => (s || []).map((x) => x + ".").join(", ") + " ders";
 
 export async function kelebekYukle() {
+  // Acik sinavda bekleyen kayit once yazilir; yazilamadiysa duzenleyici
+  // kapatilmaz (girilen veri kaybolmasin).
+  if (_sinav) {
+    await _bekleyenKaydiYaz();
+    if (_kirli()) { _duzenleyiciCiz(); mesajGoster("kbMesaj", "Kaydedilmemiş değişiklikler var; sınav açık bırakıldı.", "hata"); return; }
+  }
   kok().innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
   try {
     // Ogrenciler her giriste yeniden okunur: Ayarlar'dan sonradan eklenen
@@ -62,17 +73,19 @@ async function _ogrencileriOku() {
 }
 
 // Sinav acikken baska sekmede ogrenci eklendiyse: secim korunur, yeni
-// ogrenciler isaretsiz gelir, artik bulunmayan secili ogrenciler secimden duser.
+// ogrenciler isaretsiz gelir, artik bulunmayan secili ogrenciler secimden duser
+// (dagitimda olanlar haric: sinav kaydi bozulmasin).
 window.kelebekOgrencileriYenile = async (btn) => {
   if (btn) btn.disabled = true;
   try {
     const onceki = _ogrenciler.length;
     await _ogrencileriOku();
     const mevcut = new Set(_ogrenciler.map((o) => o.ogrenci_id));
-    const dusen = [..._secili].filter((id) => !mevcut.has(id));
+    const dagitimda = new Set(_sinav.dagilim.map((x) => x.ogrenci_id));
+    const dusen = [..._secili].filter((id) => !mevcut.has(id) && !dagitimda.has(id));
     dusen.forEach((id) => _secili.delete(id));
     _ogrencilerCiz(); _salonlarCiz();
-    if (dusen.length) _dagilimDegisti();
+    if (dusen.length) { _dagilimDegisti(); _otoKaydet(); }
     const fark = _ogrenciler.length - onceki;
     mesajGoster("kbMesaj", `Öğrenci listesi yenilendi${fark > 0 ? `: ${fark} yeni öğrenci` : ""}.${dusen.length ? ` ${dusen.length} öğrenci artık kayıtlı değil, seçimden çıkarıldı.` : ""}`, "basari");
   } catch (err) {
@@ -84,56 +97,107 @@ window.kelebekOgrencileriYenile = async (btn) => {
 // ═══════════ SINAV LİSTESİ ═══════════
 async function _listeCiz() {
   const snap = await getDocs(collection(db, "kelebek_sinavlar"));
-  const liste = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (b.tarih || "").localeCompare(a.tarih || ""));
+  _sinavListesi = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (b.tarih || "").localeCompare(a.tarih || ""));
+  const silinenSayi = _sinavListesi.filter((s) => s.silindi).length;
+  const liste = _sinavListesi.filter((s) => _silinenleriGoster || !s.silindi);
+  const kisa = (z) => z?.toDate ? z.toDate().toLocaleString("tr-TR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
   kok().innerHTML = `<div class="kart">
     <div class="kart-baslik-satir"><div class="kart-baslik">🦋 Kelebek Sınavlar</div>
       ${admin() ? '<button class="btn btn-yesil btn-sm" onclick="kelebekYeni()">➕ Yeni Sınav</button>' : ""}</div>
     <p style="font-size:13px;color:var(--text2);margin-bottom:10px;">Öğrenciler salonlara aynı şubeden olanlar mümkün olduğunca bir arada olmayacak şekilde dağıtılır. Gözetmenler, sınav saatlerinde o salonda (sınıfta) dersi olan öğretmenlerdir.</p>
+    ${silinenSayi ? `<label style="display:flex;gap:6px;align-items:center;font-size:13px;margin-bottom:8px;">
+      <input type="checkbox" ${_silinenleriGoster ? "checked" : ""} onchange="kelebekSilinenler(this.checked)"> 🗄 Silinen (arşivdeki) sınavları göster (${silinenSayi})</label>` : ""}
     ${liste.length ? `<div style="overflow-x:auto;"><table><thead><tr><th>Tarih</th><th>Sınav</th><th>Saat</th><th>Öğrenci</th><th>Salon</th><th>Son değişiklik</th><th></th></tr></thead><tbody>
-      ${liste.map((s) => `<tr><td style="white-space:nowrap;">${esc(trTarih(s.tarih))}</td><td><strong>${esc(s.ad)}</strong>${s.sira_no ? ' <span class="rozet rozet-mavi" style="font-size:11px;">sıra no</span>' : ""}</td>
+      ${liste.map((s) => `<tr${s.silindi ? ' style="opacity:.6;"' : ""}><td style="white-space:nowrap;">${esc(trTarih(s.tarih))}</td><td><strong>${esc(s.ad)}</strong>${s.sira_no ? ' <span class="rozet rozet-mavi" style="font-size:11px;">sıra no</span>' : ""}
+          ${s.silindi ? `<div style="font-size:11px;color:#c5221f;">🗄 Silindi ${esc(kisa(s.silme))}${s.silen_ad ? " · " + esc(s.silen_ad) : ""}</div>` : ""}</td>
         <td style="white-space:nowrap;">${esc(saatMetni(s.saatler))}</td><td>${(s.dagilim || []).length}</td><td>${(s.salonlar || []).length}</td>
-        <td style="font-size:12px;white-space:nowrap;">${s.guncelleme?.toDate ? esc(s.guncelleme.toDate().toLocaleString("tr-TR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })) : ""}${s.guncelleyen_ad ? " · " + esc(s.guncelleyen_ad) : ""}</td>
+        <td style="font-size:12px;white-space:nowrap;">${esc(kisa(s.guncelleme))}${s.guncelleyen_ad ? " · " + esc(s.guncelleyen_ad) : ""}</td>
         <td style="white-space:nowrap;"><button class="btn btn-mavi btn-sm" data-id="${esc(s.id)}" onclick="kelebekAc(this.dataset.id)">Aç</button>
-        ${admin() ? `<button class="btn btn-kirmizi btn-sm" data-id="${esc(s.id)}" onclick="kelebekSil(this.dataset.id)">Sil</button>` : ""}</td></tr>`).join("")}
+        ${!admin() ? "" : s.silindi
+          ? `<button class="btn btn-yesil btn-sm" data-id="${esc(s.id)}" onclick="kelebekGeriAl(this.dataset.id)">Geri al</button>`
+          : `<button class="btn btn-kirmizi btn-sm" data-id="${esc(s.id)}" onclick="kelebekSil(this.dataset.id)">Sil</button>`}</td></tr>`).join("")}
       </tbody></table></div>` : '<div class="bos-mesaj">Henüz kelebek sınav yok.</div>'}
+    <div class="mesaj" id="kbListeMesaj"></div>
   </div>`;
 }
 
-window.kelebekYeni = () => {
-  _sinav = { id: null, ad: "", tarih: bugunHesapla(), saatler: [], sira_no: false,
-    salonlar: [{ ad: "", sinif: "", kapasite: 0 }], dagilim: [], gozetmenler: {} };
-  _secili = new Set();
+window.kelebekSilinenler = (acik) => { _silinenleriGoster = acik; _listeCiz(); };
+
+// Secim ogrenci bazinda (ogrenciler). Eski kayitlarda sube + haric vardi.
+function _secimCikar(v) {
+  if (Array.isArray(v.ogrenciler)) return new Set(v.ogrenciler);
+  const subeler = new Set(v.siniflar || []);
+  const haric = new Set(v.haric || []);
+  return new Set(_ogrenciler.filter((o) => subeler.has(o.sinif) && !haric.has(o.ogrenci_id)).map((o) => o.ogrenci_id));
+}
+
+function _duzenleyiciSifirla() {
   _acikSubeler = new Set();
   _acikSalon = null;
   _gecmis = [];
+  _gozetmenCanli = false;
+  _bilgiAcik = new Set();
+  _bilgiArama = "";
+  _degisiklik = _kaydedilen = 0;
+  _cakisma = false;
+  _kayitDurum = { tur: "" };
+}
+
+// Yeni sinavin ogrenci secimi en son olusturulan (silinmemis) sinavdan gelir;
+// o sinavda sonradan kaydedilen degisiklikler de boylece tasinir.
+window.kelebekYeni = () => {
+  _sinav = { id: null, ad: "", tarih: bugunHesapla(), saatler: [], sira_no: false,
+    salonlar: [{ ad: "", sinif: "", kapasite: 0 }], dagilim: [], gozetmenler: {} };
+  const onceki = _sinavListesi.filter((s) => !s.silindi)
+    .sort((a, b) => _ms(b.olusturma) - _ms(a.olusturma) || (b.tarih || "").localeCompare(a.tarih || ""))[0];
+  const aktif = new Set(_ogrenciler.map((o) => o.ogrenci_id));
+  _secili = onceki ? new Set([..._secimCikar(onceki)].filter((id) => aktif.has(id))) : new Set();
+  _duzenleyiciSifirla();
+  _sonKayit = null;
+  _surumDamga = null;
   _duzenleyiciCiz();
+  if (_secili.size) mesajGoster("kbMesaj", `Öğrenci seçimi «${onceki.ad}» (${trTarih(onceki.tarih)}) sınavından getirildi: ${_secili.size} öğrenci. İstediğiniz gibi değiştirebilirsiniz.`, "bilgi");
 };
 
 window.kelebekAc = async (id) => {
   const d = await getDoc(doc(db, "kelebek_sinavlar", id));
   if (!d.exists()) return;
-  _sinav = { id, gozetmenler: {}, dagilim: [], ...d.data() };
-  // Secim ogrenci bazinda (ogrenciler). Eski kayitlarda sube + haric vardi.
-  if (Array.isArray(_sinav.ogrenciler)) {
-    _secili = new Set(_sinav.ogrenciler);
-  } else {
-    const subeler = new Set(_sinav.siniflar || []);
-    const haric = new Set(_sinav.haric || []);
-    _secili = new Set(_ogrenciler.filter((o) => subeler.has(o.sinif) && !haric.has(o.ogrenci_id)).map((o) => o.ogrenci_id));
-  }
-  _acikSubeler = new Set();
-  _acikSalon = null;
-  _gecmis = [];
+  _sinav = { id, gozetmenler: {}, dagilim: [], saatler: [], salonlar: [], ...d.data() };
+  _secili = _secimCikar(_sinav);
+  _duzenleyiciSifirla();
+  _sonKayit = _durumOzeti();
+  _surumDamga = _ms(_sinav.guncelleme) || null;
   _duzenleyiciCiz();
 };
 
+// Silme kalici degildir: sinav arsive tasinir (silindi), tum verisi ve
+// gecmisi saklanir, "Geri al" ile donulur.
 window.kelebekSil = async (id) => {
-  if (!await sor("Sınavı Sil", "Bu kelebek sınav ve dağılımı silinecek.", "Sil", "btn-kirmizi")) return;
-  await deleteDoc(doc(db, "kelebek_sinavlar", id));
-  await _listeCiz();
+  if (!await sor("Sınavı Sil", "Sınav arşive taşınacak. Tüm verisi ve değişiklik geçmişi saklanır; \"Silinen sınavları göster\" ile görülüp geri alınabilir.", "Sil", "btn-kirmizi")) return;
+  await _arsivDurumu(id, true);
 };
+window.kelebekGeriAl = async (id) => { await _arsivDurumu(id, false); };
 
-window.kelebekListeyeDon = () => { _sinav = null; _listeCiz(); };
+async function _arsivDurumu(id, silindi) {
+  try {
+    const kim = state.kullanici?.ad || "";
+    await setDoc(doc(db, "kelebek_sinavlar", id), silindi
+      ? { silindi: true, silen_ad: kim, silme: serverTimestamp() }
+      : { silindi: false, geri_alan_ad: kim, geri_alma: serverTimestamp() }, { merge: true });
+    await addDoc(collection(db, "kelebek_sinavlar", id, "gecmis"), { zaman: serverTimestamp(), yapan_ad: kim,
+      islem: silindi ? "silme" : "geri_al", detay: silindi ? "Sınav arşive taşındı" : "Sınav arşivden geri alındı" });
+    await _listeCiz();
+  } catch (err) {
+    mesajGoster("kbListeMesaj", "İşlem yapılamadı: " + err.message, "hata");
+  }
+}
+
+window.kelebekListeyeDon = async () => {
+  await _bekleyenKaydiYaz();
+  if (_kirli() && !await sor("Kaydedilmemiş Değişiklik", "Son değişiklikler kaydedilemedi (sınav adı/tarihi eksik ya da bağlantı hatası). Çıkarsanız bu değişiklikler kaybolur.", "Yine de çık", "btn-kirmizi")) return;
+  _sinav = null;
+  _listeCiz();
+};
 
 // ═══════════ DÜZENLEYİCİ ═══════════
 function _secilenOgrenciler() {
@@ -149,10 +213,14 @@ function _subeler() {
 }
 
 function _duzenleyiciCiz() {
-  const ro = !admin();
+  const ro = !duzenler();
   const dis = ro ? " disabled" : "";
   kok().innerHTML = `
-    <div style="margin-bottom:10px;"><button class="btn btn-gri btn-sm" onclick="kelebekListeyeDon()">← Sınav listesi</button></div>
+    <div style="margin-bottom:10px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+      <button class="btn btn-gri btn-sm" onclick="kelebekListeyeDon()">← Sınav listesi</button>
+      <span id="kbDurum" style="font-size:13px;"></span></div>
+    ${_sinav.silindi ? `<div class="uyari-kutu-sm">🗄 Bu sınav arşivde (silinmiş). Sadece görüntülenebilir; düzenlemek için listeden "Geri al".</div>` : ""}
+    <div class="kart" id="kbBilgiKart" hidden><div class="kart-baslik">📋 Sınav Bilgisi</div><div id="kbBilgi"></div></div>
     <div class="kart"><div class="kart-baslik">1. Sınav Bilgileri</div>
       <div class="form-grid">
         <div class="form-group"><label>Sınav Adı</label><input id="kbAd" value="${esc(_sinav.ad)}" oninput="kelebekAlan('ad', this.value)"${dis}></div>
@@ -182,16 +250,19 @@ function _duzenleyiciCiz() {
   _gozetmenYukle();
   _ciktiCiz();
   _gecmisYukle();
+  _durumCiz();
 }
 
 window.kelebekAlan = (alan, deger) => {
   _sinav[alan] = deger;
   if (alan === "tarih") _gozetmenYukle();
   if (alan === "sira_no") _dagilimDegisti();
+  _otoKaydet();
 };
 window.kelebekSaat = (s, acik) => {
   _sinav.saatler = acik ? [...new Set([..._sinav.saatler, s])].sort((a, b) => a - b) : _sinav.saatler.filter((x) => x !== s);
   _gozetmenYukle();
+  _otoKaydet();
 };
 
 // Secim / salon / sira no degisti: dagitim kilitlenmez; farklar Dagitim
@@ -207,7 +278,12 @@ function _dagilimDegisti() {
 // karsisinda onay kutusu. Ustte kademe hizli secimi.
 function _ogrencilerCiz() {
   const el = document.getElementById("kbOgrenciler");
-  const ro = !admin();
+  const ro = !duzenler();
+  // Secili ama artik kayitli olmayan (mezun/silinmis) ogrenciler: dagitimdaki
+  // kopyalarindan gosterilir, secimde korunur.
+  const aktif = new Set(_ogrenciler.map((o) => o.ogrenci_id));
+  const kayitsiz = [..._secili].filter((id) => !aktif.has(id))
+    .map((id) => _sinav.dagilim.find((x) => x.ogrenci_id === id) || { ogrenci_id: id, ad: "(bilinmeyen öğrenci)", no: "", sinif: "" });
   const dis = ro ? " disabled" : "";
   const subeler = _subeler();
   const adlar = Object.keys(subeler).sort((a, b) => a.localeCompare(b, "tr", { numeric: true }));
@@ -234,6 +310,9 @@ function _ogrencilerCiz() {
             <span class="ogrenci-no">${esc(o.no)}</span><span class="ogrenci-isim">${esc(o.ad)}</span></label>`).join("")}
         </div></div>`;
     }).join("")}
+    ${kayitsiz.length ? `<div class="uyari-kutu-sm" style="margin-top:8px;">Sistemde artık kayıtlı olmayan (mezun/silinmiş) ${kayitsiz.length} öğrenci bu sınavın kaydında korunuyor:
+      ${kayitsiz.map((x) => `${esc(x.no)} ${esc(x.ad)}${x.sinif ? ` (${esc(x.sinif)}${x.salon ? ", " + esc(x.salon) : ""})` : ""}`).join(" · ")}
+      <div style="font-size:12px;margin-top:4px;">Yeniden dağıtımda yer almazlar.</div></div>` : ""}
     <div id="kbOgrToplam" style="margin-top:8px;font-weight:700;"></div>`;
   _secimGostergeleri();
 }
@@ -259,6 +338,7 @@ function _secimDegisti() {
   _secimGostergeleri();
   _salonlarCiz();
   _dagilimDegisti();
+  _otoKaydet();
 }
 
 window.kelebekSubeAc = (s) => {
@@ -301,7 +381,7 @@ function _salonAd(s) {
 
 function _salonlarCiz() {
   const el = document.getElementById("kbSalonlar");
-  const ro = !admin();
+  const ro = !duzenler();
   const siniflar = state.siniflar.map((s) => s.class_name).filter(Boolean).sort((a, b) => a.localeCompare(b, "tr", { numeric: true }));
   const toplamKap = _sinav.salonlar.reduce((a, s) => a + (Number(s.kapasite) || 0), 0);
   const ogrSayi = _secilenOgrenciler().length;
@@ -324,9 +404,9 @@ function _salonlarCiz() {
 window.kelebekSalonSinif = (i, v) => {
   _sinav.salonlar[i].sinif = v;
   if (v !== DIGER) _sinav.salonlar[i].ad = v;
-  _salonlarCiz(); _dagilimDegisti(); _gozetmenYukle();
+  _salonlarCiz(); _dagilimDegisti(); _gozetmenYukle(); _otoKaydet();
 };
-window.kelebekSalonAd = (i, v) => { _sinav.salonlar[i].ad = v; _dagilimDegisti(); };
+window.kelebekSalonAd = (i, v) => { _sinav.salonlar[i].ad = v; _dagilimDegisti(); _otoKaydet(); };
 window.kelebekSalonKap = (i, v) => {
   _sinav.salonlar[i].kapasite = Math.max(0, parseInt(v, 10) || 0);
   const el = document.getElementById("kbKapasite");
@@ -335,9 +415,10 @@ window.kelebekSalonKap = (i, v) => {
   el.style.color = toplamKap < ogrSayi ? "#ea4335" : "inherit";
   el.textContent = `Toplam yer: ${toplamKap} · Öğrenci: ${ogrSayi}${toplamKap < ogrSayi ? ` — ${ogrSayi - toplamKap} kişilik yer eksik` : ""}`;
   _dagilimDegisti();
+  _otoKaydet();
 };
 window.kelebekSalonEkle = () => { _sinav.salonlar.push({ ad: "", sinif: "", kapasite: 0 }); _salonlarCiz(); };
-window.kelebekSalonSil = (i) => { _sinav.salonlar.splice(i, 1); _salonlarCiz(); _dagilimDegisti(); _gozetmenYukle(); };
+window.kelebekSalonSil = (i) => { _sinav.salonlar.splice(i, 1); _salonlarCiz(); _dagilimDegisti(); _gozetmenYukle(); _otoKaydet(); };
 
 function _gecerliSalonlar() {
   return _sinav.salonlar.map((s) => ({ ad: _salonAd(s), sinif: s.sinif && s.sinif !== DIGER ? s.sinif : null, kapasite: Number(s.kapasite) || 0 }))
@@ -349,7 +430,8 @@ function _gecerliSalonlar() {
 // otomatik kaydedilir ve kelebek_sinavlar/{id}/gecmis'e degistirilemez satir
 // olarak yazilir. dagitim / geri_yukle satirlari dagitimin tam kopyasini
 // (surum) tasir; gecmisten goruntulenip geri yuklenebilir.
-const ISLEM_AD = { dagitim: "🦋 Dağıtım", geri_yukle: "↩️ Geri yükleme", elle_ekle: "➕ Elle ekleme", tasima: "↔️ Taşıma", cikar: "➖ Çıkarma", gozetmen: "👁 Gözetmen" };
+const ISLEM_AD = { dagitim: "🦋 Dağıtım", geri_yukle: "↩️ Geri yükleme", elle_ekle: "➕ Elle ekleme", tasima: "↔️ Taşıma", cikar: "➖ Çıkarma", gozetmen: "👁 Gözetmen",
+  olusturma: "🆕 Oluşturma", duzenleme: "✏️ Düzenleme", silme: "🗄 Silme (arşiv)", geri_al: "♻️ Arşivden geri alma", yerine: "🔁 Yerine girecek" };
 let _acikSalon = null;  // dagitim tablosunda ayrintisi acik salon
 let _gecmis = [];
 
@@ -368,21 +450,157 @@ function _belgeVerisi() {
   };
 }
 
-// Belgeyi yazar (yeni ise olusturur); islem verilirse gecmise de yazar.
-async function _kaydet(islem, detay, surum = false) {
-  if (!(_sinav.ad || "").trim() || !_sinav.tarih) throw new Error("Önce sınav adı ve tarihini girin; değişiklik kaydedilemedi.");
-  const veri = _belgeVerisi();
-  if (_sinav.id) {
-    await setDoc(doc(db, "kelebek_sinavlar", _sinav.id), veri, { merge: true });
-  } else {
-    const ref = await addDoc(collection(db, "kelebek_sinavlar"), { ...veri, olusturan_ad: state.kullanici?.ad || "", olusturma: serverTimestamp() });
-    _sinav.id = ref.id;
+// Gecmisteki "duzenleme" satiri icin kaydedilen durumun ozeti.
+function _durumOzeti() {
+  return {
+    ad: (_sinav.ad || "").trim(), tarih: _sinav.tarih || "", saatler: saatMetni(_sinav.saatler), sira_no: !!_sinav.sira_no,
+    salonlar: _salonlarKayit().filter((s) => s.ad).map((s) => `${s.ad} (${s.kapasite})`).join(", "),
+    ogrenciler: new Set(_secili),
+  };
+}
+
+const _ogrAd = (id) => (_ogrenciler.find((o) => o.ogrenci_id === id) || _sinav.dagilim.find((x) => x.ogrenci_id === id))?.ad || "?";
+const _adListesi = (ids) => ids.slice(0, 10).map(_ogrAd).join(", ") + (ids.length > 10 ? ` +${ids.length - 10}` : "");
+
+function _farkMetni(a, b, ogrenciDahil) {
+  const f = [];
+  if (a.ad !== b.ad) f.push(`Ad: "${a.ad}" → "${b.ad}"`);
+  if (a.tarih !== b.tarih) f.push(`Tarih: ${trTarih(a.tarih)} → ${trTarih(b.tarih)}`);
+  if (a.saatler !== b.saatler) f.push(`Saatler: ${a.saatler} → ${b.saatler}`);
+  if (a.sira_no !== b.sira_no) f.push(`Sıra no: ${b.sira_no ? "açıldı" : "kapatıldı"}`);
+  if (a.salonlar !== b.salonlar) f.push(`Salonlar: ${a.salonlar || "—"} → ${b.salonlar || "—"}`);
+  if (ogrenciDahil) {
+    const eklenen = [...b.ogrenciler].filter((id) => !a.ogrenciler.has(id));
+    const cikan = [...a.ogrenciler].filter((id) => !b.ogrenciler.has(id));
+    if (eklenen.length || cikan.length) {
+      f.push(`Öğrenci seçimi: ${a.ogrenciler.size} → ${b.ogrenciler.size}` +
+        (eklenen.length ? `; eklenen ${eklenen.length}: ${_adListesi(eklenen)}` : "") +
+        (cikan.length ? `; çıkarılan ${cikan.length}: ${_adListesi(cikan)}` : ""));
+    }
   }
-  if (islem) {
-    const kayit = { zaman: serverTimestamp(), yapan_ad: state.kullanici?.ad || "", islem, detay: detay || "" };
-    if (surum) Object.assign(kayit, { dagilim: _sinav.dagilim, salonlar: veri.salonlar, sira_no: veri.sira_no });
-    await addDoc(collection(db, "kelebek_sinavlar", _sinav.id, "gecmis"), kayit);
-    _gecmisYukle();
+  return f.join(" · ");
+}
+
+// ── Otomatik kayıt ──
+// Sinav bilgileri, secim ve salon degisiklikleri 1,5 sn sonra kendiliginden
+// yazilir. Yazimlar sirayla yapilir; baska yerde degismis belgenin uzerine
+// yazilmaz (guncelleme damgasi karsilastirilir).
+let _otoZamanlayici = null;
+let _kayitSirasi = Promise.resolve();
+let _degisiklik = 0, _kaydedilen = 0;  // yerel degisiklik sayaci / son kaydedilen
+let _cakisma = false;
+let _sonKayit = null;    // son kaydedilen durumun ozeti
+let _surumDamga = null;  // belgede son gorulen guncelleme (ms)
+let _kayitDurum = { tur: "" };
+
+const _kirli = () => _degisiklik !== _kaydedilen;
+
+window.addEventListener("beforeunload", (e) => {
+  if (_sinav && (_kirli() || _otoZamanlayici)) { e.preventDefault(); e.returnValue = ""; }
+});
+
+function _durum(tur, metin = "") { _kayitDurum = { tur, metin, zaman: new Date() }; _durumCiz(); }
+
+function _durumCiz() {
+  const el = document.getElementById("kbDurum");
+  if (!el || !duzenler()) { if (el) el.textContent = ""; return; }
+  const d = _kayitDurum;
+  const saat = d.zaman ? d.zaman.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }) : "";
+  const g = {
+    eksik: ["#e65100", "⚠ Kaydetmek için sınav adı ve tarihini girin"],
+    bekliyor: ["var(--text2)", "● Kaydedilecek…"],
+    kaydediliyor: ["var(--text2)", "Kaydediliyor…"],
+    kaydedildi: ["#34a853", `✓ Kaydedildi ${saat}`],
+    hata: ["#ea4335", `⚠ Kaydedilemedi: ${d.metin}`],
+  }[d.tur];
+  el.style.color = g ? g[0] : "";
+  el.textContent = g ? g[1] : (_sinav.id ? "Değişiklikler otomatik kaydedilir" : "");
+}
+
+function _otoKaydet() {
+  if (!duzenler()) return;
+  _degisiklik++;
+  clearTimeout(_otoZamanlayici);
+  _otoZamanlayici = null;
+  if (_cakisma) { _durum("hata", "sınav başka yerde değiştirildi; yeniden açın"); return; }
+  if (!(_sinav.ad || "").trim() || !_sinav.tarih) { _durum("eksik"); return; }
+  _durum("bekliyor");
+  _otoZamanlayici = setTimeout(() => { _otoZamanlayici = null; _otoYaz(); }, 1500);
+}
+
+async function _otoYaz() {
+  try { await _kaydet(null, ""); } catch (err) { /* durum satirinda gosterildi */ }
+}
+
+async function _bekleyenKaydiYaz() {
+  if (_otoZamanlayici) { clearTimeout(_otoZamanlayici); _otoZamanlayici = null; await _otoYaz(); }
+  await _kayitSirasi;
+}
+
+// Belgeyi yazar (yeni ise olusturur). Kaydedilen bilgi/secim/salon farki
+// "duzenleme", islem verilirse o islem de gecmise yazilir.
+function _kaydet(islem, detay, surum = false) {
+  const is = _kayitSirasi.then(() => _kaydetIc(islem, detay, surum));
+  _kayitSirasi = is.catch(() => {});
+  return is;
+}
+
+async function _kaydetIc(islem, detay, surum) {
+  if (!(_sinav.ad || "").trim() || !_sinav.tarih) { _durum("eksik"); throw new Error("Önce sınav adı ve tarihini girin; değişiklik kaydedilemedi."); }
+  if (_cakisma) throw new Error("Bu sınav başka bir yerde değiştirildi; üzerine yazılmaması için kaydedilmedi. Sınavı listeden yeniden açın.");
+  clearTimeout(_otoZamanlayici);
+  _otoZamanlayici = null;
+  const sayac = _degisiklik;
+  const sinav = _sinav;
+  _durum("kaydediliyor");
+  try {
+    const veri = _belgeVerisi();
+    const ozet = _durumOzeti();
+    const kim = state.kullanici?.ad || "";
+    let yeni = false;
+    if (sinav.id) {
+      const ref = doc(db, "kelebek_sinavlar", sinav.id);
+      const mevcut = await getDoc(ref);
+      const damga = _ms(mevcut.data()?.guncelleme) || null;
+      if (damga !== _surumDamga) {
+        _cakisma = true;
+        throw new Error("Bu sınav başka bir yerde (başka sekme ya da kişi) değiştirildi; üzerine yazılmaması için kaydedilmedi. Sınavı listeden yeniden açın.");
+      }
+      // mergeFields: alanlar tumuyle yazilir (ic ice haritalarda silinen
+      // anahtarlar, or. "otomatige don"ulen gozetmen, belgede kalmasin).
+      await setDoc(ref, veri, { mergeFields: Object.keys(veri) });
+    } else {
+      const ref = await addDoc(collection(db, "kelebek_sinavlar"), { ...veri, olusturan_ad: kim, olusturma: serverTimestamp() });
+      sinav.id = ref.id;
+      yeni = true;
+    }
+    _surumDamga = _ms((await getDoc(doc(db, "kelebek_sinavlar", sinav.id))).data()?.guncelleme) || null;
+
+    const gecmisRef = collection(db, "kelebek_sinavlar", sinav.id, "gecmis");
+    const satir = (islemAd, d) => addDoc(gecmisRef, { zaman: serverTimestamp(), yapan_ad: kim, islem: islemAd, detay: d });
+    let yazildi = false;
+    if (yeni) {
+      await satir("olusturma", `${ozet.ad}, ${trTarih(ozet.tarih)}${ozet.saatler.startsWith(" ") ? "" : ", " + ozet.saatler}, ${ozet.ogrenciler.size} öğrenci${ozet.salonlar ? ", salonlar: " + ozet.salonlar : ""}`);
+      yazildi = true;
+    } else if (_sonKayit) {
+      // cikar / geri_yukle secimi kendisi degistirir; ayrica yazilmaz.
+      const fark = _farkMetni(_sonKayit, ozet, !["cikar", "geri_yukle"].includes(islem));
+      if (fark) { await satir("duzenleme", fark); yazildi = true; }
+    }
+    _sonKayit = ozet;
+    if (islem) {
+      const kayit = { zaman: serverTimestamp(), yapan_ad: kim, islem, detay: detay || "" };
+      if (surum) Object.assign(kayit, { dagilim: sinav.dagilim, salonlar: veri.salonlar, sira_no: veri.sira_no });
+      await addDoc(gecmisRef, kayit);
+      yazildi = true;
+    }
+    if (_sinav !== sinav) return;  // bu arada baska sinava gecildi
+    if (sayac >= _kaydedilen) _kaydedilen = sayac;
+    _durum(_kirli() && _otoZamanlayici ? "bekliyor" : "kaydedildi");
+    if (yazildi) _gecmisYukle();
+  } catch (err) {
+    if (_sinav === sinav) _durum("hata", err.message);
+    throw err;
   }
 }
 
@@ -399,13 +617,13 @@ async function _kaydetGoster(islem, detay, surum = false, basari = "") {
 function _dagitimCiz() {
   const el = document.getElementById("kbDagitim");
   if (!el) return;
-  const ro = !admin();
+  const ro = !duzenler();
   const d = _sinav.dagilim;
   let html = ro ? "" : `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
     <button class="btn btn-mavi" onclick="kelebekDagitYap()">${d.length ? "🔀 Yeniden dağıt" : "🦋 Dağıt"}</button>
     <button class="btn btn-yesil" onclick="kelebekKaydet()">💾 Kaydet</button></div>
-    <div style="font-size:12px;color:var(--text2);margin-bottom:8px;">Dağıtım ve sonraki değişiklikler (elle ekleme, taşıma, çıkarma) otomatik kaydedilir. "Kaydet" sınav bilgileri, salonlar ve öğrenci seçimi içindir.</div>`;
-  if (!d.length) { el.innerHTML = html + '<div class="bos-mesaj">Henüz dağıtım yapılmadı.</div>'; return; }
+    <div style="font-size:12px;color:var(--text2);margin-bottom:8px;">Tüm değişiklikler (sınav bilgileri, öğrenci seçimi, salonlar, dağıtım, taşıma, yedek öğrenci) otomatik kaydedilir ve Değişiklik Geçmişi'ne yazılır. "Kaydet" hemen kaydetmek içindir.</div>`;
+  if (!d.length) { el.innerHTML = html + '<div class="bos-mesaj">Henüz dağıtım yapılmadı.</div>'; _bilgiCiz(); return; }
 
   // Secim / salonlar ile dagitim arasindaki farklar
   const dagitimdakiler = new Set(d.map((x) => x.ogrenci_id));
@@ -446,15 +664,18 @@ function _dagitimCiz() {
   html += `<div style="overflow-x:auto;"><table><thead><tr><th>Salon</th><th>Öğrenci</th><th>Şube dağılımı</th><th>En çok aynı şube</th>${_sinav.sira_no ? "<th>Yan yana aynı şube</th>" : ""}<th></th></tr></thead><tbody>
     ${ist.map((s) => {
       const asim = s.kapasite !== "" && s.sayi > s.kapasite;
-      let satir = `<tr><td><strong>${esc(s.salon)}</strong></td><td style="${asim ? "color:#ea4335;font-weight:700;" : ""}">${s.sayi}${s.kapasite !== "" ? "/" + s.kapasite : ""}</td>
+      const yedek = d.filter((x) => x.salon === s.salon && x.yerine).length;
+      let satir = `<tr><td><strong>${esc(s.salon)}</strong></td><td style="${asim ? "color:#ea4335;font-weight:700;" : ""}">${s.sayi}${s.kapasite !== "" ? "/" + s.kapasite : ""}${yedek ? ` <span style="font-size:11px;color:#e65100;font-weight:400;">· ${yedek} yedek</span>` : ""}</td>
         <td style="font-size:12px;">${Object.entries(s.subeler).sort((a, b) => a[0].localeCompare(b[0], "tr", { numeric: true })).map(([k, v]) => `${esc(k)}: ${v}`).join(" · ")}</td>
         <td style="text-align:center;">${s.enBuyuk}</td>${_sinav.sira_no ? `<td style="text-align:center;color:${s.komsuAyni ? "#e65100" : "#34a853"};">${s.komsuAyni}</td>` : ""}
         <td><button class="btn btn-gri btn-sm" data-s="${esc(s.salon)}" onclick="kelebekSalonAyrinti(this.dataset.s)">${_acikSalon === s.salon ? "Gizle" : "Ayrıntı"}</button></td></tr>`;
       if (_acikSalon === s.salon) {
         satir += `<tr><td colspan="${sutun}" style="background:#fafafa;">${_siraliSalon(s.salon).map((x) => `
-          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:3px 0;border-bottom:1px solid #eee;font-size:13px;">
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:3px 0;border-bottom:1px solid #eee;font-size:13px;${x.yerine ? "background:#fff4e5;" : ""}">
             <span style="min-width:36px;color:var(--text2);">${x.sira != null ? x.sira + "." : ""}</span>
             <span style="min-width:220px;">${esc(x.no)} ${esc(x.ad)} <span class="rozet rozet-mavi" style="font-size:11px;">${esc(x.sinif)}</span></span>
+            ${ro ? (x.yerine ? `<span style="color:#e65100;">🔁 Yerine: <strong>${esc(x.yerine)}</strong></span>` : "")
+              : `<input class="kb-yerine" data-id="${esc(x.ogrenci_id)}" value="${esc(x.yerine || "")}" placeholder="Yerine girecek öğrenci" title="Sınava girmeyecekse yerine girecek öğrencinin adını yazın" onchange="kelebekYerine(this.dataset.id, this.value)" style="width:190px;">`}
             ${ro ? "" : `<select class="kb-tasi-salon" data-id="${esc(x.ogrenci_id)}"><option value="">Taşı...</option>${_salonSecenekleri("", s.salon)}</select>
             <button class="btn btn-gri btn-sm" data-id="${esc(x.ogrenci_id)}" onclick="kelebekTasi(this.dataset.id)">Taşı</button>
             <button class="btn btn-kirmizi btn-sm" data-id="${esc(x.ogrenci_id)}" onclick="kelebekDagitimdanCikar(this.dataset.id)">Çıkar</button>`}
@@ -464,7 +685,23 @@ function _dagitimCiz() {
     }).join("")}
     </tbody></table></div>`;
   el.innerHTML = html;
+  _bilgiCiz();
 }
+
+// Sinava girmeyecek ogrencinin yerine girecek ogrenci (elle yazilir); yedek
+// asil ogrencinin salon ve sirasina oturur.
+window.kelebekYerine = async (id, deger) => {
+  const x = _sinav.dagilim.find((d) => d.ogrenci_id === id);
+  if (!x) return;
+  const yeni = String(deger || "").trim();
+  const eski = x.yerine || "";
+  if (yeni === eski) return;
+  if (yeni) x.yerine = yeni; else delete x.yerine;
+  _bilgiCiz();
+  const kim = `${x.ad} (${x.sinif}, ${x.salon}${x.sira != null ? ", sıra " + x.sira : ""})`;
+  await _kaydetGoster("yerine", yeni ? `${kim}: yerine ${yeni} girecek${eski ? ` (önceki: ${eski})` : ""}` : `${kim}: yedek kaldırıldı (${eski})`,
+    false, yeni ? `Kaydedildi: ${x.ad} yerine ${yeni}.` : "Yedek kaldırıldı.");
+};
 
 function _salonSecenekleri(secili, haric) {
   return _gecerliSalonlar().filter((s) => s.ad !== haric).map((s) => {
@@ -487,7 +724,10 @@ window.kelebekDagitYap = async () => {
   if (new Set(salonlar.map((s) => s.ad)).size !== salonlar.length) { mesajGoster("kbMesaj", "Aynı salon iki kez eklenmiş.", "hata"); return; }
   if (_sinav.dagilim.length && !await sor("Yeniden Dağıt", "Yeni bir dağıtım yapılacak. Mevcut dağıtım değişiklik geçmişinde saklanır ve oradan geri yüklenebilir; ancak basılmış listeler geçersiz olur.", "Dağıt", "btn-mavi")) return;
   try {
+    // Yazilmis yedek ogrenciler yeni dagitimda da korunur.
+    const yerine = new Map(_sinav.dagilim.filter((x) => x.yerine).map((x) => [x.ogrenci_id, x.yerine]));
     _sinav.dagilim = kelebekDagit(ogr, salonlar, !!_sinav.sira_no, Date.now());
+    _sinav.dagilim.forEach((x) => { if (yerine.has(x.ogrenci_id)) x.yerine = yerine.get(x.ogrenci_id); });
   } catch (err) {
     mesajGoster("kbMesaj", err.message, "hata");
     return;
@@ -556,8 +796,7 @@ window.kelebekDagitimdanCikar = async (id) => {
 };
 
 window.kelebekKaydet = async () => {
-  if (!_sinav.saatler.length) { mesajGoster("kbMesaj", "En az bir ders saati seçin.", "hata"); return; }
-  await _kaydetGoster(null, "", false, "Kaydedildi.");
+  await _kaydetGoster(null, "", false, _sinav.saatler.length ? "Kaydedildi." : "Kaydedildi. Ders saati seçilmedi; gözetmenler için saat seçin.");
 };
 
 // ── Değişiklik geçmişi ──
@@ -587,7 +826,7 @@ function _gecmisCiz(acikId) {
       let satir = `<tr><td style="white-space:nowrap;font-size:12px;">${esc(_zamanMetni(g.zaman))}</td><td style="font-size:12px;">${esc(g.yapan_ad)}</td>
         <td style="white-space:nowrap;">${esc(ISLEM_AD[g.islem] || g.islem)}</td><td style="font-size:12px;">${esc(g.detay)}</td>
         <td style="white-space:nowrap;">${surum ? `<button class="btn btn-gri btn-sm" data-id="${esc(g.id)}" onclick="kelebekSurumGoster(this.dataset.id)">${acikId === g.id ? "Gizle" : "Görüntüle"}</button>
-          ${admin() ? `<button class="btn btn-mavi btn-sm" data-id="${esc(g.id)}" onclick="kelebekSurumGeriYukle(this.dataset.id)">Geri yükle</button>` : ""}` : ""}</td></tr>`;
+          ${duzenler() ? `<button class="btn btn-mavi btn-sm" data-id="${esc(g.id)}" onclick="kelebekSurumGeriYukle(this.dataset.id)">Geri yükle</button>` : ""}` : ""}</td></tr>`;
       if (surum && acikId === g.id) {
         const ist = kelebekIstatistik(g.dagilim, (g.salonlar || []).map((s) => ({ ad: s.ad, kapasite: s.kapasite })));
         satir += `<tr><td colspan="5" style="background:#fafafa;font-size:12px;">${g.dagilim.length} öğrenci${g.sira_no ? ", sıra numaralı" : ""}<br>
@@ -629,6 +868,16 @@ async function _gozetmenYukle() {
     _gozetmen = {};
     return;
   }
+  // Tarihi gecmis sinav: sinav gunu kaydedilen gozetmen tablosu kullanilir;
+  // program/vekil/rapor sonradan degisse de gecmis bilgi degismez.
+  const kayit = _sinav.gozetmen_kayit;
+  const anahtarlar = salonlar.flatMap((s) => _sinav.saatler.map((saat) => s.ad + "|" + saat));
+  if (!_gozetmenCanli && _sinav.tarih < bugunHesapla() && kayit?.tarih === _sinav.tarih && kayit.oto
+      && anahtarlar.every((k) => k in kayit.oto)) {
+    _gozetmenOlustur(salonlar, kayit.oto, new Set(kayit.raporlu || []));
+    _gozetmenCiz(salonlar, `sınav için kaydedilen liste (${kayit.kaynak || "program"})`, true);
+    return;
+  }
   el.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
   const tarih = _sinav.tarih;
   try {
@@ -647,29 +896,64 @@ async function _gozetmenYukle() {
     const raporlu = new Set();
     raporSnap.forEach((d) => { const r = d.data(); if (r.bitis_tarihi >= tarih) raporlu.add(r.ogretmen_id); });
     if (_sinav.tarih !== tarih) return;
-    _gozetmen = {};
+    const oto = {};
     salonlar.forEach((s) => _sinav.saatler.forEach((saat) => {
-      const anahtar = s.ad + "|" + saat;
       const ders = s.sinif ? dersler.find((d) => d.class_id === s.sinif && Number(d.lesson_number) === saat) : null;
-      const otoId = ders ? (ders.substitute_teacher_id || ders.teacher_id || "") : "";
-      const elle = (_sinav.gozetmenler || {})[anahtar];
-      if (elle) {
-        _gozetmen[anahtar] = { id: elle.ogretmen_id, ad: elle.ad, raporlu: raporlu.has(elle.ogretmen_id), kaynak: "elle",
-          asil_id: otoId, asil_ad: ogretmenAd(otoId) };
-      } else {
-        _gozetmen[anahtar] = { id: otoId, ad: ogretmenAd(otoId), raporlu: !!otoId && raporlu.has(otoId), kaynak: "program" };
-      }
+      const id = ders ? (ders.substitute_teacher_id || ders.teacher_id || "") : "";
+      oto[s.ad + "|" + saat] = { id, ad: ogretmenAd(id) };
     }));
-    _gozetmenCiz(salonlar, kaynak);
+    _gozetmenOlustur(salonlar, oto, raporlu);
+    _gozetmenCiz(salonlar, kaynak, false);
+    _gozetmenKaydiYaz(tarih, kaynak, oto, raporlu);
   } catch (err) {
     el.innerHTML = `<div class="bos-mesaj">Gözetmenler yüklenemedi: ${esc(err.message)}</div>`;
   }
 }
 
-function _gozetmenCiz(salonlar, kaynak) {
+// oto: "salon|saat" -> programdaki ogretmen; elle degisiklikler ustune biner.
+function _gozetmenOlustur(salonlar, oto, raporlu) {
+  _gozetmen = {};
+  salonlar.forEach((s) => _sinav.saatler.forEach((saat) => {
+    const anahtar = s.ad + "|" + saat;
+    const otoId = oto[anahtar]?.id || "";
+    const otoAd = oto[anahtar]?.ad || ogretmenAd(otoId);
+    const elle = (_sinav.gozetmenler || {})[anahtar];
+    if (elle) {
+      _gozetmen[anahtar] = { id: elle.ogretmen_id, ad: elle.ad, raporlu: raporlu.has(elle.ogretmen_id), kaynak: "elle",
+        asil_id: otoId, asil_ad: otoAd };
+    } else {
+      _gozetmen[anahtar] = { id: otoId, ad: otoAd, raporlu: !!otoId && raporlu.has(otoId), kaynak: "program" };
+    }
+  }));
+}
+
+// Hesaplanan gozetmen tablosunu sinava yazar (degistiyse). Sinav gunu gecince
+// bu kayit gosterilir. Gecmise satir yazilmaz; guncelleme damgasi degismez.
+async function _gozetmenKaydiYaz(tarih, kaynak, oto, raporlu) {
+  if (!duzenler() || !_sinav.id) return;
+  const ilgili = new Set(Object.values(oto).map((o) => o.id));
+  Object.values(_sinav.gozetmenler || {}).forEach((g) => ilgili.add(g.ogretmen_id));
+  const yeni = { tarih, kaynak, oto, raporlu: [...raporlu].filter((id) => ilgili.has(id)).sort() };
+  const k = _sinav.gozetmen_kayit;
+  if (k && k.tarih === yeni.tarih && k.kaynak === yeni.kaynak
+      && JSON.stringify(k.raporlu || []) === JSON.stringify(yeni.raporlu)
+      && Object.keys(oto).length === Object.keys(k.oto || {}).length
+      && Object.entries(oto).every(([a, o]) => k.oto?.[a]?.id === o.id && k.oto?.[a]?.ad === o.ad)) return;
+  try {
+    await setDoc(doc(db, "kelebek_sinavlar", _sinav.id), { gozetmen_kayit: yeni }, { mergeFields: ["gozetmen_kayit"] });
+    _sinav.gozetmen_kayit = yeni;
+  } catch (err) { /* sonraki acilista yeniden denenir */ }
+}
+
+let _gozetmenCanli = false;
+window.kelebekGozetmenYenidenHesapla = () => { _gozetmenCanli = true; _gozetmenYukle(); };
+
+function _gozetmenCiz(salonlar, kaynak, kayittan) {
   const el = document.getElementById("kbGozetmen");
-  const ro = !admin();
+  const ro = !duzenler();
   el.innerHTML = `<p style="font-size:13px;color:var(--text2);margin-bottom:8px;">Her ders saatinde o salonda (sınıfta) dersi olan öğretmen gözetmendir; öğretmen kendi dersinin başladığı saatte gelir. Kaynak: ${esc(kaynak)}. Okulda olmayan gözetmenin yerine "Değiştir" ile önce boş nöbetçi, yoksa diğer boş öğretmenlerden birini seçin.</p>
+    ${kayittan ? `<div class="uyari-kutu-sm" style="background:#e8f0fe;">Sınav tarihi geçti: gözetmenler sınav için kaydedilmiş listeden gösteriliyor (program sonradan değişse de bu bilgi korunur).
+      ${ro ? "" : '<button class="btn btn-gri btn-sm" style="margin-left:6px;" onclick="kelebekGozetmenYenidenHesapla()">Programdan yeniden hesapla</button>'}</div>` : ""}
     <div style="overflow-x:auto;"><table><thead><tr><th>Salon</th>${_sinav.saatler.map((s) => `<th>${s}. ders</th>`).join("")}</tr></thead><tbody>
     ${salonlar.map((s) => `<tr><td><strong>${esc(s.ad)}</strong></td>${_sinav.saatler.map((saat) => {
       const g = _gozetmen[s.ad + "|" + saat] || {};
@@ -684,7 +968,8 @@ function _gozetmenCiz(salonlar, kaynak) {
       return `<td style="vertical-align:top;min-width:150px;">${ic}${btn}</td>`;
     }).join("")}</tr>`).join("")}
     </tbody></table></div>
-    ${ro ? "" : '<p style="font-size:12px;color:var(--text2);margin-top:6px;">Gözetmen değişiklikleri "Kaydet" ile saklanır.</p>'}`;
+    ${ro ? "" : '<p style="font-size:12px;color:var(--text2);margin-top:6px;">Gözetmen değişiklikleri otomatik kaydedilir ve geçmişe yazılır.</p>'}`;
+  _bilgiCiz();
 }
 
 window.kelebekGozetmenDegistir = async (anahtar, btn) => {
@@ -730,6 +1015,86 @@ window.kelebekGozetmenOtomatik = async (anahtar) => {
   await _kaydetGoster("gozetmen", `${_gozetmenYeri(anahtar)}: programdaki öğretmene geri dönüldü`, false, "Gözetmen kaydedildi.");
 };
 
+// ── Sınav bilgisi (sinav sirasinda / sonrasinda hizli bakis) ──
+// Sube sube, salon salon liste ve ogrenci arama. Idare de gorur.
+let _bilgiSekme = "sube";
+let _bilgiAcik = new Set();  // acik sube/salon kutulari
+let _bilgiArama = "";
+
+const _kucuk = (s) => String(s || "").toLocaleLowerCase("tr");
+
+function _bilgiCiz() {
+  const kart = document.getElementById("kbBilgiKart");
+  const el = document.getElementById("kbBilgi");
+  if (!kart || !el) return;
+  const d = _sinav.dagilim;
+  kart.hidden = !d.length;
+  if (!d.length) return;
+  const yedekSayi = d.filter((x) => x.yerine).length;
+  const sekme = (id, ad) => `<button class="sekme-btn${_bilgiSekme === id ? " aktif" : ""}" onclick="kelebekBilgiSekme('${id}')">${ad}</button>`;
+  el.innerHTML = `<div style="font-size:13px;color:var(--text2);margin-bottom:8px;">${esc(trTarih(_sinav.tarih))} · ${esc(saatMetni(_sinav.saatler))} ·
+      <strong>${d.length}</strong> öğrenci · ${_salonSirasi().length} salon · ${new Set(d.map((x) => x.sinif)).size} şube${yedekSayi ? ` · ${yedekSayi} yedek` : ""}</div>
+    <div class="sekme-bar" style="margin-bottom:10px;">${sekme("sube", "Şubeye göre")}${sekme("salon", "Salona göre")}${sekme("ara", "🔍 Öğrenci ara")}</div>
+    <div id="kbBilgiIcerik"></div>`;
+  const ic = document.getElementById("kbBilgiIcerik");
+  if (_bilgiSekme === "ara") {
+    ic.innerHTML = `<input id="kbBilgiAra" type="search" placeholder="Öğrenci adı ya da numarası" value="${esc(_bilgiArama)}" oninput="kelebekBilgiAra(this.value)" style="width:100%;max-width:360px;margin-bottom:8px;">
+      <div id="kbBilgiSonuc"></div>`;
+    _bilgiSonucCiz();
+    return;
+  }
+  const siraVar = !!_sinav.sira_no;
+  const yedekVar = yedekSayi > 0;
+  const yedekTd = (x) => (yedekVar ? `<td style="color:#e65100;">${esc(x.yerine || "")}</td>` : "");
+  const kutu = (anahtar, baslik, govde) => `<details class="kb-bilgi-kutu" data-k="${esc(anahtar)}" ${_bilgiAcik.has(anahtar) ? "open" : ""} ontoggle="kelebekBilgiKutu(this)">
+    <summary>${baslik}</summary>${govde}</details>`;
+  if (_bilgiSekme === "sube") {
+    const subeler = [...new Set(d.map((x) => x.sinif))].sort((a, b) => a.localeCompare(b, "tr", { numeric: true }));
+    ic.innerHTML = subeler.map((sube) => {
+      const liste = d.filter((x) => x.sinif === sube).sort((a, b) => a.no.localeCompare(b.no, "tr", { numeric: true }));
+      return kutu("sube|" + sube, `<strong>${esc(sube)}</strong> <span style="color:var(--text2);font-size:12px;">(${liste.length} öğrenci)</span>`,
+        `<div style="overflow-x:auto;"><table><thead><tr><th>No</th><th>Ad Soyad</th><th>Salon</th>${siraVar ? "<th>Sıra</th>" : ""}${yedekVar ? "<th>Yerine Girecek</th>" : ""}</tr></thead><tbody>
+        ${liste.map((x) => `<tr><td>${esc(x.no)}</td><td>${esc(x.ad)}</td><td><strong>${esc(x.salon)}</strong></td>${siraVar ? `<td>${x.sira ?? ""}</td>` : ""}${yedekTd(x)}</tr>`).join("")}
+        </tbody></table></div>`);
+    }).join("");
+  } else {
+    ic.innerHTML = _salonSirasi().map((salon) => {
+      const liste = _siraliSalon(salon);
+      return kutu("salon|" + salon, `<strong>${esc(salon)}</strong> <span style="color:var(--text2);font-size:12px;">(${liste.length} öğrenci)</span>`,
+        `<div style="font-size:12px;margin:6px 0;">👁 ${_gozetmenMetni(salon).map(esc).join(" · ")}</div>
+        <div style="overflow-x:auto;"><table><thead><tr><th>${siraVar ? "Sıra" : "#"}</th><th>No</th><th>Ad Soyad</th><th>Şube</th>${yedekVar ? "<th>Yerine Girecek</th>" : ""}</tr></thead><tbody>
+        ${liste.map((x, i) => `<tr><td>${siraVar ? x.sira ?? "" : i + 1}</td><td>${esc(x.no)}</td><td>${esc(x.ad)}</td><td>${esc(x.sinif)}</td>${yedekTd(x)}</tr>`).join("")}
+        </tbody></table></div>`);
+    }).join("");
+  }
+}
+
+function _bilgiSonucCiz() {
+  const el = document.getElementById("kbBilgiSonuc");
+  if (!el) return;
+  const q = _kucuk(_bilgiArama.trim());
+  if (!q) { el.innerHTML = '<div style="font-size:13px;color:var(--text2);">Ad, numara ya da yedek öğrenci adı yazın.</div>'; return; }
+  const uyan = (ad, no, ek = "") => _kucuk(ad).includes(q) || String(no || "").startsWith(q) || (ek && _kucuk(ek).includes(q));
+  const dagitimda = _sinav.dagilim.filter((x) => uyan(x.ad, x.no, x.yerine));
+  const ids = new Set(_sinav.dagilim.map((x) => x.ogrenci_id));
+  const disarida = _ogrenciler.filter((o) => !ids.has(o.ogrenci_id) && uyan(o.ad, o.no));
+  const satirlar = [
+    ...dagitimda.map((x) => `<div style="padding:6px 0;border-bottom:1px solid #eee;">
+      <strong>${esc(x.ad)}</strong> <span style="color:var(--text2);">(${esc(x.no)}, ${esc(x.sinif)})</span> → <strong>${esc(x.salon)}</strong>${x.sira != null ? `, sıra ${x.sira}` : ""}
+      ${x.yerine ? `<div style="color:#e65100;font-size:13px;">🔁 Yerine girecek: <strong>${esc(x.yerine)}</strong></div>` : ""}
+      <div style="font-size:12px;color:var(--text2);">👁 ${_gozetmenMetni(x.salon).map(esc).join(" · ")}</div></div>`),
+    ...disarida.map((o) => `<div style="padding:6px 0;border-bottom:1px solid #eee;color:var(--text2);">
+      ${esc(o.ad)} (${esc(o.no)}, ${esc(o.sinif)}) — ${_secili.has(o.ogrenci_id) ? "seçili ama dağıtıma eklenmemiş" : "bu sınava girmiyor"}</div>`),
+  ];
+  el.innerHTML = satirlar.length
+    ? satirlar.slice(0, 50).join("") + (satirlar.length > 50 ? `<div style="font-size:12px;color:var(--text2);">… ${satirlar.length - 50} sonuç daha; aramayı daraltın.</div>` : "")
+    : '<div class="bos-mesaj">Eşleşen öğrenci yok.</div>';
+}
+
+window.kelebekBilgiSekme = (s) => { _bilgiSekme = s; _bilgiCiz(); if (s === "ara") document.getElementById("kbBilgiAra")?.focus(); };
+window.kelebekBilgiAra = (v) => { _bilgiArama = v; _bilgiSonucCiz(); };
+window.kelebekBilgiKutu = (el) => { el.open ? _bilgiAcik.add(el.dataset.k) : _bilgiAcik.delete(el.dataset.k); };
+
 // ── Çıktılar ──
 function _ciktiCiz() {
   const el = document.getElementById("kbCikti");
@@ -761,14 +1126,17 @@ function _baslikHtml(altBaslik) {
 
 window.kelebekYazdir = (tur) => {
   const siraVar = !!_sinav.sira_no;
+  const yedekVar = _sinav.dagilim.some((d) => d.yerine);
+  const yTh = yedekVar ? "<th>Yerine Girecek</th>" : "";
+  const yTd = (d) => (yedekVar ? `<td class="kb-sol">${esc(d.yerine || "")}</td>` : "");
   let html = "";
   if (tur === "salon") {
     html = _salonSirasi().map((salon) => {
       const liste = _siraliSalon(salon);
       return `<div class="kb-sayfa">${_baslikHtml("Salon: " + salon + " (" + liste.length + " öğrenci)")}
         <div class="kb-gozetmen">Gözetmenler: ${_gozetmenMetni(salon).map(esc).join(" · ")}</div>
-        <table class="kb-tablo"><thead><tr>${siraVar ? "<th>Sıra</th>" : "<th>#</th>"}<th>No</th><th>Ad Soyad</th><th>Şube</th></tr></thead><tbody>
-        ${liste.map((d, i) => `<tr><td>${siraVar ? d.sira : i + 1}</td><td>${esc(d.no)}</td><td class="kb-sol">${esc(d.ad)}</td><td>${esc(d.sinif)}</td></tr>`).join("")}
+        <table class="kb-tablo"><thead><tr>${siraVar ? "<th>Sıra</th>" : "<th>#</th>"}<th>No</th><th>Ad Soyad</th><th>Şube</th>${yTh}</tr></thead><tbody>
+        ${liste.map((d, i) => `<tr><td>${siraVar ? d.sira : i + 1}</td><td>${esc(d.no)}</td><td class="kb-sol">${esc(d.ad)}</td><td>${esc(d.sinif)}</td>${yTd(d)}</tr>`).join("")}
         </tbody></table></div>`;
     }).join("");
   } else {
@@ -777,8 +1145,8 @@ window.kelebekYazdir = (tur) => {
       const liste = _sinav.dagilim.filter((d) => d.sinif === sube)
         .sort((a, b) => a.no.localeCompare(b.no, "tr", { numeric: true }));
       return `<div class="kb-sayfa">${_baslikHtml("Şube: " + sube + " (" + liste.length + " öğrenci)")}
-        <table class="kb-tablo"><thead><tr><th>No</th><th>Ad Soyad</th><th>Salon</th>${siraVar ? "<th>Sıra</th>" : ""}</tr></thead><tbody>
-        ${liste.map((d) => `<tr><td>${esc(d.no)}</td><td class="kb-sol">${esc(d.ad)}</td><td>${esc(d.salon)}</td>${siraVar ? `<td>${d.sira}</td>` : ""}</tr>`).join("")}
+        <table class="kb-tablo"><thead><tr><th>No</th><th>Ad Soyad</th><th>Salon</th>${siraVar ? "<th>Sıra</th>" : ""}${yTh}</tr></thead><tbody>
+        ${liste.map((d) => `<tr><td>${esc(d.no)}</td><td class="kb-sol">${esc(d.ad)}</td><td>${esc(d.salon)}</td>${siraVar ? `<td>${d.sira}</td>` : ""}${yTd(d)}</tr>`).join("")}
         </tbody></table></div>`;
     }).join("");
   }
@@ -804,23 +1172,27 @@ window.kelebekExcel = async () => {
       return t;
     };
     const siraVar = !!_sinav.sira_no;
+    const yedekVar = _sinav.dagilim.some((d) => d.yerine);
+    const y = (d) => (yedekVar ? [d.yerine || ""] : []);
+    const yB = yedekVar ? ["Yerine Girecek"] : [];
+    const yG = yedekVar ? [26] : [];
     const baslik = [[_okulAd], [_sinav.ad], [`${trTarih(_sinav.tarih)} · ${saatMetni(_sinav.saatler)}`], []];
 
-    const tum = [...baslik, ["Salon", "Sıra", "No", "Ad Soyad", "Şube"]];
-    _salonSirasi().forEach((salon) => _siraliSalon(salon).forEach((d, i) => tum.push([salon, siraVar ? d.sira : i + 1, d.no, d.ad, d.sinif])));
-    XLSX.utils.book_append_sheet(wb, sayfaOlustur(XLSX, tum, [20, 6, 8, 28, 8]), sayfaAdi("Tüm Liste"));
+    const tum = [...baslik, ["Salon", "Sıra", "No", "Ad Soyad", "Şube", ...yB]];
+    _salonSirasi().forEach((salon) => _siraliSalon(salon).forEach((d, i) => tum.push([salon, siraVar ? d.sira : i + 1, d.no, d.ad, d.sinif, ...y(d)])));
+    XLSX.utils.book_append_sheet(wb, sayfaOlustur(XLSX, tum, [20, 6, 8, 28, 8, ...yG]), sayfaAdi("Tüm Liste"));
 
     _salonSirasi().forEach((salon) => {
       const s = [...baslik, [`Salon: ${salon}`], ..._gozetmenMetni(salon).map((g) => ["Gözetmen", g]), [],
-        [siraVar ? "Sıra" : "#", "No", "Ad Soyad", "Şube"],
-        ..._siraliSalon(salon).map((d, i) => [siraVar ? d.sira : i + 1, d.no, d.ad, d.sinif])];
-      XLSX.utils.book_append_sheet(wb, sayfaOlustur(XLSX, s, [10, 26, 28, 8]), sayfaAdi(salon));
+        [siraVar ? "Sıra" : "#", "No", "Ad Soyad", "Şube", ...yB],
+        ..._siraliSalon(salon).map((d, i) => [siraVar ? d.sira : i + 1, d.no, d.ad, d.sinif, ...y(d)])];
+      XLSX.utils.book_append_sheet(wb, sayfaOlustur(XLSX, s, [10, 26, 28, 8, ...yG]), sayfaAdi(salon));
     });
 
-    const sube = [...baslik, ["Şube", "No", "Ad Soyad", "Salon", "Sıra"],
+    const sube = [...baslik, ["Şube", "No", "Ad Soyad", "Salon", "Sıra", ...yB],
       ..._sinav.dagilim.slice().sort((a, b) => a.sinif.localeCompare(b.sinif, "tr", { numeric: true }) || a.no.localeCompare(b.no, "tr", { numeric: true }))
-        .map((d) => [d.sinif, d.no, d.ad, d.salon, siraVar ? d.sira : ""])];
-    XLSX.utils.book_append_sheet(wb, sayfaOlustur(XLSX, sube, [8, 8, 28, 20, 6]), sayfaAdi("Şubeler"));
+        .map((d) => [d.sinif, d.no, d.ad, d.salon, siraVar ? d.sira : "", ...y(d)])];
+    XLSX.utils.book_append_sheet(wb, sayfaOlustur(XLSX, sube, [8, 8, 28, 20, 6, ...yG]), sayfaAdi("Şubeler"));
 
     const goz = [...baslik, ["Salon", "Ders Saati", "Gözetmen", "Kaynak", "Not"]];
     _salonSirasi().forEach((salon) => _sinav.saatler.forEach((saat) => {
