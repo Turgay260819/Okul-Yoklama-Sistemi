@@ -56,6 +56,14 @@ function gunEtiketi(tarih) {
   return `${g}.${m} ${GUN_ADLARI[new Date(tarih + "T12:00:00").getDay()]}`;
 }
 
+const AY_ADLARI = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
+
+// "2026-10-15" -> "15 Ekim 2026 Perşembe"
+function tarihUzun(tarih) {
+  const [y, m, g] = tarih.split("-");
+  return `${Number(g)} ${AY_ADLARI[Number(m) - 1]} ${y} ${GUN_ADLARI[new Date(tarih + "T12:00:00").getDay()]}`;
+}
+
 // Oturumdaki ogretmen adina kayit acar. Once mukerrer kontrolu:
 //  1) ayni sinif-saat icin kayit varsa (kendisi ya da baskasi girmis)
 //  2) ogretmenin ayni gun ayni saatte baska bir sinif icin kaydi varsa
@@ -142,8 +150,9 @@ let _seciliTarih = null;   // null = bugun
 let _bugunDersler = [];    // secili gunun dersleri
 let _bugunKayitlar = {};   // secili gunun vekil_dersler kayitlari
 
-window.vekilGunSec = (secim) => {
-  _seciliTarih = secim === "onceki" ? oncekiIsGunu(bugunHesapla()) : null;
+// "Bugune don" dugmesi
+window.vekilGunSec = () => {
+  _seciliTarih = null;
   vekilDerslerimYukle();
 };
 
@@ -183,7 +192,7 @@ export async function vekilDerslerimYukle() {
     // girilen kayit da listede gorunsun.
     const listeBas = [ayBasi(bugunTarih), onceki, ayBasi(tarih)].sort()[0];
     kok.innerHTML =
-      _gunSeciciHtml(bugunTarih, onceki, tarih) +
+      _gunSeciciHtml(bugunTarih, tarih) +
       _atananlarHtml(ben, tarih, bugunMu) +
       _elleEkleHtml(tarih, bugunMu) +
       _kayitlarimHtml(benimKayitlar.filter((k) => k.tarih >= listeBas && k.tarih <= bugunTarih)) +
@@ -211,12 +220,17 @@ async function _gecmisimYukle() {
   }
 }
 
-function _gunSeciciHtml(bugunTarih, onceki, tarih) {
-  return `<div class="sekme-bar" style="margin-bottom:12px;align-items:center;flex-wrap:wrap;gap:6px;">
-    <button class="sekme-btn${tarih === bugunTarih ? " aktif" : ""}" onclick="vekilGunSec('bugun')">Bugün (${esc(gunEtiketi(bugunTarih))})</button>
-    <button class="sekme-btn${tarih === onceki ? " aktif" : ""}" onclick="vekilGunSec('onceki')">Önceki iş günü (${esc(gunEtiketi(onceki))})</button>
-    <label style="display:flex;align-items:center;gap:6px;font-size:13px;">Başka gün:
-      <input type="date" id="vekilTarihSec" max="${esc(bugunTarih)}" value="${esc(tarih)}" onchange="vekilTarihSecildi(this.value)"></label>
+function _gunSeciciHtml(bugunTarih, tarih) {
+  const bugunMu = tarih === bugunTarih;
+  return `<div class="kart" style="border-left:4px solid var(--mavi);">
+    <div class="kart-baslik"><label for="vekilTarihSec">📅 Vekil Girdiğiniz Tarih</label></div>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:10px;">Derse girdiğiniz günü seçin. Bugün ya da geçmiş bir gün olabilir; ileri tarih seçilemez.</p>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <input type="date" id="vekilTarihSec" max="${esc(bugunTarih)}" value="${esc(tarih)}" onchange="vekilTarihSecildi(this.value)"
+        style="font-size:18px;padding:10px 12px;border:2px solid var(--mavi);border-radius:8px;width:100%;max-width:260px;box-sizing:border-box;">
+      ${bugunMu ? "" : `<button class="btn btn-gri btn-sm" onclick="vekilGunSec('bugun')">Bugüne dön</button>`}
+    </div>
+    <div style="margin-top:8px;font-size:16px;font-weight:700;color:var(--mavi-koyu);">${esc(tarihUzun(tarih))}${bugunMu ? ' <span class="rozet rozet-mavi">Bugün</span>' : ""}</div>
   </div>`;
 }
 
@@ -226,7 +240,7 @@ function _atananlarHtml(ben, tarih, bugunMu) {
     .sort((a, b) => a.lesson_number - b.lesson_number);
   let html = `<div class="kart">
     <div class="kart-baslik">${bugunMu ? "Bugün" : esc(gunEtiketi(tarih))} Size Atanan Vekil Dersler</div>
-    <p style="font-size:13px;color:var(--text2);margin-bottom:10px;">Ücret, sadece sizin "Derse girdim" ile onayladığınız veya aşağıdan eklediğiniz dersler için ödenir. Bugün ya da geçmiş herhangi bir gün için kayıt girebilir (üstten gün seçin), kendi kaydınızı silebilirsiniz.</p>`;
+    <p style="font-size:13px;color:var(--text2);margin-bottom:10px;">Ücret, sadece sizin "Derse girdim" ile onayladığınız veya aşağıdan eklediğiniz dersler için ödenir. Bugün ya da geçmiş herhangi bir gün için kayıt girebilir (üstteki "Vekil Girdiğiniz Tarih" alanından gün seçin), kendi kaydınızı silebilirsiniz.</p>`;
   if (!atananlar.length) {
     html += `<div class="bos-mesaj">${bugunMu ? "Bugün" : "Bu gün"} size atanmış vekil ders yok.</div></div>`;
     return html;
