@@ -64,18 +64,18 @@ const ogretmenKareler = [
   { sayfa: 1, id: "nobet2",          ikon: "📅", ad: "Nöbet Programım",    renk: "#f5f5f5", metinRenk: "#424242" },
   { sayfa: 1, id: "vekil-derslerim", ikon: "🔄", ad: "Vekil Derslerim",    renk: "#e3f2fd", metinRenk: "#1565c0" },
   { sayfa: 1, id: "manuel",          ikon: "✏️", ad: "Manuel Giriş",        renk: "#f5f5f5", metinRenk: "#424242" },
-  { sayfa: 2, id: "izin-talebim",    ikon: "🏥", ad: "İzin Talebim",       renk: "#fce4ec", metinRenk: "#ad1457" },
-  { sayfa: 2, id: "izin",            ikon: "📄", ad: "Öğrenci İzni",       renk: "#e3f2fd", metinRenk: "#1565c0" },
+  { sayfa: 1, id: "izin-talebim",    ikon: "🏥", ad: "İzin Talebim",       renk: "#fce4ec", metinRenk: "#ad1457" },
+  { sayfa: 1, id: "izin",            ikon: "📄", ad: "Öğrenci İzni",       renk: "#e3f2fd", metinRenk: "#1565c0" },
   { sayfa: 2, id: "aksaklik",        ikon: "🛠️", ad: "Aksaklık Bildir",    renk: "#efebe9", metinRenk: "#5d4037" },
   { sayfa: 2, id: "program-talebi",  ikon: "📐", ad: "Program Talebi",     renk: "#f5f5f5", metinRenk: "#424242" },
   { sayfa: 2, id: "anket",           ikon: "📋", ad: "Anket & Formlar",    renk: "#f5f5f5", metinRenk: "#424242" },
   { sayfa: 2, id: "ogrenci-profil",  ikon: "👤", ad: "Öğrenci Profilleri", renk: "#f5f5f5", metinRenk: "#424242" },
   { sayfa: 2, id: "gorevlerim",      ikon: "👥", ad: "Görevlerim",         renk: "#f3e8fd", metinRenk: "#6a1b9a" },
+  { sayfa: 2, id: "kura",            ikon: "🎲", ad: "Kura Sonuçları",     renk: "#fff3e0", metinRenk: "#e65100" },
   // Simdilik gizli
   { sayfa: 2, id: "dyk",             ikon: "📚", ad: "DYK Yoklama",        renk: "#fce8e6", metinRenk: "#c62828", gizli: true },
   { sayfa: 2, id: "kazanimlarim",    ikon: "📖", ad: "Kazanımlarım",       renk: "#e8f5e9", metinRenk: "#1b5e20", gizli: true },
   { sayfa: 2, id: "gezi-kayit",      ikon: "🚌", ad: "Gezi Kaydı",         renk: "#f5f5f5", metinRenk: "#424242", gizli: true },
-  { sayfa: 2, id: "kura",            ikon: "🎲", ad: "Kura Sonuçları",     renk: "#f5f5f5", metinRenk: "#424242", gizli: true },
 ];
 
 let _ogrAktifSayfa = 0;
@@ -104,7 +104,11 @@ function ogretmenAnasayfaOlustur() {
   if (!s1 || !s2) return;
   s1.innerHTML = "";
   s2.innerHTML = "";
-  ogretmenKareler.filter((k) => !k.gizli).forEach((k) => {
+  const gorunur = ogretmenKareler.filter((k) => !k.gizli);
+  // Iki sayfada da ayni satir sayisi: kutucuklar her yerde ayni boyda.
+  const satir = Math.ceil(Math.max(...[1, 2].map((n) => gorunur.filter((k) => k.sayfa === n).length)) / 2);
+  [s1, s2].forEach((s) => s.style.setProperty("--ogr-satir", satir));
+  gorunur.forEach((k) => {
     const hedef = k.sayfa === 1 ? s1 : s2;
     const onclick = k.dis
       ? `window.open('${k.dis}','_blank')`

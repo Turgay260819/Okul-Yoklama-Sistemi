@@ -105,7 +105,8 @@ window.bildirimOku = async (bildirimId, tip, referansId) => {
   } else if (tip === "gorev") {
     window.sayfaGoster("gorevlerim", "Görevlerim", document.getElementById("menu-gorevlerim"));
   } else if (tip === "kura") {
-    window.sayfaGoster("kura", "Kura Sonuçları", document.getElementById("menu-kura"));
+    if (document.body.classList.contains("mod-ogretmen")) window.ogretmenKareTikla?.("kura", "Kura Sonuçları");
+    else window.sayfaGoster("kura", "Kura Sonuçları", document.getElementById("menu-kura"));
   }
 };
 

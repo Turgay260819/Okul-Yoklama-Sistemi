@@ -1087,8 +1087,11 @@ tr:last-child td {
   width: 50%;
   height: 100%;
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr 1fr;
+  /* Esit, ortali kutucuklar: telefonda ekrana sigar, genis ekranda buyumez. */
+  grid-template-columns: repeat(2, minmax(0, 320px));
+  grid-template-rows: repeat(var(--ogr-satir, 4), minmax(0, 170px));
+  justify-content: center;
+  align-content: center;
   gap: 10px;
   padding: 10px 10px 6px 10px;
 }
@@ -1106,6 +1109,9 @@ tr:last-child td {
   -webkit-tap-highlight-color: transparent;
   padding: 10px 8px;
   text-align: center;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 .ogr-kare:active {
   transform: scale(0.93);

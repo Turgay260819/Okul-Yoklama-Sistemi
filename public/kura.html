@@ -123,9 +123,14 @@
           </div>
         </div>
 
+        <div class="kart" id="benimKuralarimKart" style="display:none; border-left:4px solid #e65100;">
+          <div class="kart-baslik" style="color:#e65100;">🎲 Size Çıkan Kuralar</div>
+          <div id="benimKuralarim"></div>
+        </div>
+
         <div class="kart">
           <div class="kart-baslik">Geçmiş Çekilişler</div>
-          <p class="aciklama">Tüm kura sonuçları şeffaflık için burada listelenir.</p>
+          <p class="aciklama">Tüm kura sonuçları şeffaflık için burada listelenir: hangi kura kime çıktı.</p>
           <div id="gecmisListesi"><div class="bos-mesaj">Yükleniyor...</div></div>
         </div>
 
@@ -177,6 +182,7 @@
 
       let rol = "";
       let kullaniciAdi = "";
+      let benimOgretmenId = null; // oturumdaki ogretmenin teachers kaydi
       let ogretmenler = [];
       let torbalar = [];
       let oturumlar = [];
@@ -200,6 +206,7 @@
         const snap = await getDocs(collection(db, "teachers"));
         ogretmenler = [];
         snap.forEach((d) => ogretmenler.push({ id: d.id, ...d.data() }));
+        benimOgretmenId = ogretmenler.find((o) => o.uid && o.uid === auth.currentUser?.uid)?.id || null;
       }
 
       // ── TORBALAR ──
@@ -399,26 +406,41 @@
         _gecmisListesiGoster();
       }
 
+      const tarihYaz = (c2) => (c2.cekilis_tarihi?.toDate ? c2.cekilis_tarihi.toDate().toLocaleString("tr-TR") : "-");
+
+      function _benimKuralarimGoster() {
+        const kart = document.getElementById("benimKuralarimKart");
+        if (!benimOgretmenId) { kart.style.display = "none"; return; }
+        kart.style.display = "block";
+        const benim = cekilisler.filter((c2) => c2.ogretmen_id === benimOgretmenId);
+        document.getElementById("benimKuralarim").innerHTML = benim.length
+          ? `<div style="overflow-x:auto;"><table><thead><tr><th>Oturum</th><th>Görev</th><th>Tarih</th></tr></thead><tbody>
+              ${benim.map((c2) => `<tr><td>${esc(c2.oturum_ad)}</td><td><strong>${esc(c2.gorev)}</strong></td><td>${tarihYaz(c2)}</td></tr>`).join("")}
+            </tbody></table></div>`
+          : '<div class="bos-mesaj">Size çıkan kura yok.</div>';
+      }
+
       function _gecmisListesiGoster() {
+        _benimKuralarimGoster();
         const c = document.getElementById("gecmisListesi");
         if (!cekilisler.length) { c.innerHTML = '<div class="bos-mesaj">Henüz çekiliş yapılmadı.</div>'; return; }
         const yonetim = rol === "admin" || rol === "mudur_yardimcisi" || rol === "idareci_izleyici";
-        let html = `<table><thead><tr>
+        let html = `<div style="overflow-x:auto;"><table><thead><tr>
           <th>Oturum</th><th>Torba</th><th>Öğretmen</th><th>Görev</th><th>Tarih</th><th>Çeken</th>${yonetim ? "<th></th>" : ""}
         </tr></thead><tbody>`;
         cekilisler.forEach((c2) => {
-          const tarih = c2.cekilis_tarihi?.toDate ? c2.cekilis_tarihi.toDate().toLocaleString("tr-TR") : "-";
-          html += `<tr>
+          const benim = benimOgretmenId && c2.ogretmen_id === benimOgretmenId;
+          html += `<tr${benim ? ' style="background:#fff8e1;"' : ""}>
             <td>${esc(c2.oturum_ad)}</td>
             <td>${esc(c2.torba_ad)}</td>
-            <td><strong>${esc(c2.ogretmen_ad)}</strong></td>
+            <td><strong>${esc(c2.ogretmen_ad)}</strong>${benim ? " (siz)" : ""}</td>
             <td>${esc(c2.gorev)}</td>
-            <td>${tarih}</td>
+            <td>${tarihYaz(c2)}</td>
             <td>${esc(c2.cekilis_admin_ad)}</td>
             ${yonetim ? `<td><button class="btn btn-kirmizi btn-sm" onclick="cekilisGeriAl('${c2.id}')">Geri Al</button></td>` : ""}
           </tr>`;
         });
-        html += "</tbody></table>";
+        html += "</tbody></table></div>";
         c.innerHTML = html;
       }
 
@@ -439,6 +461,8 @@
         document.getElementById("anaIcerik").style.display = "block";
         const yonetim = rol === "admin" || rol === "mudur_yardimcisi" || rol === "idareci_izleyici";
         document.getElementById("adminBolum").style.display = yonetim ? "block" : "none";
+        // Ogretmende portal kendi basligini gosteriyor; iframe'deki ikinci baslik gereksiz.
+        if (!yonetim) document.querySelector(".topbar").style.display = "none";
         await ogretmenleriYukle();
         await Promise.all([torbalariYukle(), oturumlariYukle(), gecmisiYukle()]);
       }

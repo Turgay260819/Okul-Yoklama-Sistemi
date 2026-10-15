@@ -2833,19 +2833,28 @@ exports.kuraCek = onCall(async (request) => {
     });
   });
 
-  // Kisisel bildirim (Firestore) — hataya ragmen cekilisi geciriz kilmaz
+  // Kura cikan ogretmene zil (bildirimler) + telefon bildirimi — hataya ragmen cekilisi gecersiz kilmaz
+  const bildirimBaslik = "🎲 Kura Size Çıktı";
+  const bildirimMetin = `${oturumAd} – ${gorev}`;
   try {
     await db.collection("bildirimler").add({
       alici_id: secilen.ogretmen_id,
       tip: "kura",
-      baslik: "Kura Sonucu",
-      mesaj: `${oturumAd} - ${gorev}`,
+      baslik: bildirimBaslik,
+      mesaj: bildirimMetin,
       referans_id: cekilisRef.id,
       okundu: false,
       tarih: admin.firestore.FieldValue.serverTimestamp(),
     });
   } catch (err) {
     console.error("Kura bildirimi yazma hatasi:", err.message);
+  }
+  try {
+    await ogretmenlerePushGonder(db, [secilen.ogretmen_id], {
+      baslik: bildirimBaslik, govde: bildirimMetin, tag: "kura-" + cekilisRef.id, kalici: true,
+    });
+  } catch (err) {
+    console.error("Kura push hatasi:", err.message);
   }
 
   // Telegram ozeti — hataya ragmen fonksiyonu dusurmez
