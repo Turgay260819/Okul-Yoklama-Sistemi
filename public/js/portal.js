@@ -187,7 +187,7 @@ function _iframeYukle(sayfaId, src) {
   div.innerHTML = `<iframe src="${src}?embedded=1" style="width:100%;height:85vh;border:none;border-radius:12px;"></iframe>`;
 }
 
-window.disiplinYukle = () => _iframeYukle("disiplin", "/disiplin.html");
+window.disiplinYukle = () => _iframeYukle("disiplin", "/davranis.html");
 
 // Service Worker
 if ("serviceWorker" in navigator) {

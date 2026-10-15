@@ -231,7 +231,7 @@
             aktifOgretmenAd = ogData.ad;
             aktifOgretmenBrans = ogData.brans;
             aktifOgretmenRehber = !!(ogData.rehberSube || ogData.sinifSeviye);
-            // Yetenek girisi: sadece ders programindaki siniflar (disiplin.html ile ayni yontem)
+            // Yetenek girisi: sadece ders programindaki siniflar (davranis.html ile ayni yontem)
             const progSnap = await getDocs(query(collection(db, "schedule"), where("teacher_id", "==", aktifOgretmenId)));
             progSnap.forEach((d) => ogretmenSiniflari.add(d.data().class_id));
           }
