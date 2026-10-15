@@ -59,7 +59,7 @@ window.sayfaYukle = (id) => {
   else if (id === "ayarlar")      window.ayarlarYukle?.();
   else if (id === "disiplin")     window.disiplinYukle?.();
   else if (id === "izin")           _iframeYukle("izin",           "/izin.html");
-  else if (id === "aksaklik")       _iframeYukle("aksaklik",       "/aksaklik.html");
+  else if (id === "aksaklik")       _iframeYukle("aksaklik",       "/ariza.html");
   else if (id === "gorev")        gorevSayfasiBaslat();
   else if (id === "vekil-atama")  vekilAtamaSayfasiBaslat();
   else if (id === "vekil-dersler")   vekilDerslerAdminYukle();

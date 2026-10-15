@@ -47,6 +47,10 @@
         "destination": "/davranis.html"
       },
       {
+        "source": "/aksaklik.html",
+        "destination": "/ariza.html"
+      },
+      {
         "source": "/nobet.html",
         "destination": "/nobet.html"
       },

@@ -2518,7 +2518,7 @@ exports.disiplinHaftalikRaporTest = onCall(async (request) => {
 
 // ===========================
 // AKSAKLIK BİLDİRİMİ — ACİL OLANLAR TELEGRAM'A
-// Ogretmenin aksaklik.html'den gonderdigi bildirimlerden oncelik "acil"
+// Ogretmenin ariza.html'den gonderdigi bildirimlerden oncelik "acil"
 // olanlar aninda admin Telegram'ina iletilir; digerleri sadece panelde.
 // ===========================
 exports.aksaklikBildirildiginde = onDocumentCreated("aksakliklar/{id}", async (event) => {
