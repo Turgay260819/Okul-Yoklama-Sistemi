@@ -1941,6 +1941,41 @@ exports.izinRehbereBildir = onDocumentCreated("izinler/{izinId}", async (event) 
 });
 
 // ===========================
+// DİSİPLİN KAYDI GİRİLİNCE REHBER ÖĞRETMENE BİLDİRİM
+// davranis.html'de bir giriste secilen her davranis ayri kayittir; hepsi ayni
+// grup_id'yi tasir ve yalniz ilk kayitta grup_davranislar bulunur. Tek
+// bildirim icin sadece o kayitta calisilir (grupsuz eski kayitlar tek tek).
+// Kaydi rehberin kendisi girdiyse bildirim gonderilmez.
+// ===========================
+exports.disiplinRehbereBildir = onDocumentCreated("disiplin_kayitlar/{kayitId}", async (event) => {
+  const v = event.data?.data();
+  if (!v || !v.sinif) return;
+  if (v.grup_id && !v.grup_davranislar) return;
+  const db = admin.firestore();
+
+  const rehberSnap = await db.collection("teachers").where("rehberSube", "==", v.sinif).limit(1).get();
+  if (rehberSnap.empty) return;
+  const rehber = { id: rehberSnap.docs[0].id, ...rehberSnap.docs[0].data() };
+  if (rehber.uid && rehber.uid === v.ogretmen_id) return;
+
+  const davranislar = (v.grup_davranislar || [v.davranis]).filter(Boolean).join(", ");
+  const baslik = "📝 Disiplin kaydı";
+  const govde = `${v.ogrenci_ad || "Öğrenci"} (${v.sinif}) — ${davranislar}. Giren: ${v.ogretmen_ad || "?"}${v.not ? ". Not: " + v.not : ""}`;
+
+  await db.collection("bildirimler").add({
+    alici_id: rehber.id,
+    tip: "disiplin",
+    baslik,
+    mesaj: govde,
+    referans_id: event.params.kayitId,
+    okundu: false,
+    tarih: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  const push = await ogretmenlerePushGonder(db, [rehber.id], { baslik, govde, tag: "disiplin_" + event.params.kayitId });
+  console.log(`Disiplin bildirimi: ${rehber.ad || rehber.id} <- ${v.ogrenci_ad} (${v.sinif}) ${davranislar}, push ${push.basarili}/${push.cihaz}`);
+});
+
+// ===========================
 // İDARE MESAJI GÖNDER (admin "Bildirim Gönder" sayfası)
 // Secilen ogretmenlere zil bildirimi (bildirimler, tip idare_mesaji) yazar,
 // kayitli cihazlarina telefon bildirimi gonderir ve idare_mesajlari'na arsiv

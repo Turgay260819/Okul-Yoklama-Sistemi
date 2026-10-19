@@ -585,6 +585,9 @@
           const scheduleSnap = await getDocs(query(collection(db, 'schedule'), where('teacher_id', '==', teacherDocId)));
           _ogretmenSiniflar = new Set();
           scheduleSnap.forEach(d => _ogretmenSiniflar.add(d.data().class_id));
+          // Rehber ogretmen, dersi olmasa da kendi sinifinin kayitlarini gorur.
+          const rehberSube = teacherSnap.docs[0].data().rehberSube;
+          if (rehberSube) _ogretmenSiniflar.add(rehberSube);
         } else {
           _ogretmenSiniflar = new Set(); // Güvenlik: eşleşme yoksa hiç sınıf gösterme
         }
@@ -771,9 +774,14 @@
       if (not.length > 250) { mesajGoster('kayitMesaj', 'Not en fazla 250 karakter olmali.', 'hata'); return; }
 
       document.getElementById('btnKaydet').disabled = true;
+      // Ayni giriste secilen davranislar tek grup: rehber ogretmene tek bildirim
+      // gider (functions disiplinRehbereBildir, grup_davranislar tasiyan ilk kayit).
+      const grupId = crypto.randomUUID();
       try {
-        for (const davranis of seciliDavranislar) {
+        for (const [i, davranis] of seciliDavranislar.entries()) {
           await addDoc(collection(db, 'disiplin_kayitlar'), {
+            grup_id: grupId,
+            ...(i === 0 ? { grup_davranislar: seciliDavranislar.map(d => d.ad) } : {}),
             ogrenci_id: seciliOgrenci.id,
             ogrenci_no: seciliOgrenci.student_number,
             ogrenci_ad: seciliOgrenci.name,
