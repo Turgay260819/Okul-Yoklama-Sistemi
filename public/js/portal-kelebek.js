@@ -1124,6 +1124,20 @@ const _gozetmenMetni = (salon) => _sinav.saatler.map((saat) => {
   return `${saat}. ders: ${g && g.id ? g.ad : "—"}`;
 });
 
+// Salondaki ogrencilerin seviyeye gore sayisi: "5E" -> 5. sinif; rakamla
+// baslamayan subeler (ANA SINIF, HZİNA) kendi adiyla, sonda.
+function _seviyeDagilimi(liste) {
+  const say = {};
+  liste.forEach((d) => {
+    const sv = (String(d.sinif).match(/^\d+/) || [String(d.sinif)])[0];
+    say[sv] = (say[sv] || 0) + 1;
+  });
+  return Object.entries(say)
+    .sort(([a], [b]) => (/^\d/.test(b) - /^\d/.test(a)) || a.localeCompare(b, "tr", { numeric: true }))
+    .map(([sv, n]) => `<strong>${/^\d+$/.test(sv) ? sv + ". sınıf" : esc(sv)}: ${n}</strong>`)
+    .join(" · ");
+}
+
 function _baslikHtml(altBaslik) {
   return `<div class="kb-baslik"><div>${esc(_okulAd)}</div><div>${esc(_sinav.ad)}</div>
     <div style="font-weight:400;">${esc(trTarih(_sinav.tarih))} · ${esc(saatMetni(_sinav.saatler))}</div>
@@ -1143,7 +1157,8 @@ window.kelebekYazdir = (tur) => {
         <div class="kb-gozetmen">Gözetmenler: ${_gozetmenMetni(salon).map(esc).join(" · ")}</div>
         <table class="kb-tablo"><thead><tr>${siraVar ? "<th>Sıra</th>" : "<th>#</th>"}<th>No</th><th>Ad Soyad</th><th>Şube</th>${yTh}</tr></thead><tbody>
         ${liste.map((d, i) => `<tr><td>${siraVar ? d.sira : i + 1}</td><td>${esc(d.no)}</td><td class="kb-sol">${esc(d.ad)}</td><td>${esc(d.sinif)}</td>${yTd(d)}</tr>`).join("")}
-        </tbody></table></div>`;
+        </tbody></table>
+        <div class="kb-gozetmen" style="margin-top:8px;">Sınıf seviyelerine göre: ${_seviyeDagilimi(liste)} · Toplam: ${liste.length}</div></div>`;
     }).join("");
   } else {
     const subeler = [...new Set(_sinav.dagilim.map((d) => d.sinif))].sort((a, b) => a.localeCompare(b, "tr", { numeric: true }));
