@@ -675,10 +675,16 @@ function _dagitimCiz() {
             <span style="min-width:36px;color:var(--text2);">${x.sira != null ? x.sira + "." : ""}</span>
             <span style="min-width:220px;">${esc(x.no)} ${esc(x.ad)} <span class="rozet rozet-mavi" style="font-size:11px;">${esc(x.sinif)}</span></span>
             ${ro ? (x.yerine ? `<span style="color:#e65100;">🔁 Yerine: <strong>${esc(x.yerine)}</strong></span>` : "")
-              : `<input class="kb-yerine" data-id="${esc(x.ogrenci_id)}" value="${esc(x.yerine || "")}" placeholder="Yerine girecek öğrenci" title="Sınava girmeyecekse yerine girecek öğrencinin adını yazın" onchange="kelebekYerine(this.dataset.id, this.value)" style="width:190px;">`}
-            ${ro ? "" : `<select class="kb-tasi-salon" data-id="${esc(x.ogrenci_id)}"><option value="">Taşı...</option>${_salonSecenekleri("", s.salon)}</select>
-            <button class="btn btn-gri btn-sm" data-id="${esc(x.ogrenci_id)}" onclick="kelebekTasi(this.dataset.id)">Taşı</button>
-            <button class="btn btn-kirmizi btn-sm" data-id="${esc(x.ogrenci_id)}" onclick="kelebekDagitimdanCikar(this.dataset.id)">Çıkar</button>`}
+              : `<span style="display:inline-flex;gap:4px;align-items:center;">
+                <span style="color:#e65100;font-size:12px;">🔁 Yerine:</span>
+                <input class="kb-yerine" data-id="${esc(x.ogrenci_id)}" value="${esc(x.yerine || "")}" placeholder="Yerine girecek öğrenci" title="Öğrenci aynı salonda ve sırada kalır; sadece yerine girecek kişi listeye yazılır." onchange="kelebekYerine(this.dataset.id, this.value)" style="width:190px;">
+                <button class="btn btn-gri btn-sm" onclick="const i=this.previousElementSibling; kelebekYerine(i.dataset.id, i.value)">✓ Kaydet</button>
+              </span>`}
+            ${ro ? "" : `<span style="display:inline-flex;gap:4px;align-items:center;margin-left:auto;padding-left:8px;border-left:1px solid #ddd;">
+              <select class="kb-tasi-salon" data-id="${esc(x.ogrenci_id)}"><option value="">Başka salona taşı...</option>${_salonSecenekleri("", s.salon)}</select>
+              <button class="btn btn-gri btn-sm" data-id="${esc(x.ogrenci_id)}" onclick="kelebekTasi(this.dataset.id)">Salona taşı</button>
+              <button class="btn btn-kirmizi btn-sm" data-id="${esc(x.ogrenci_id)}" onclick="kelebekDagitimdanCikar(this.dataset.id)">Çıkar</button>
+            </span>`}
           </div>`).join("") || '<div class="bos-mesaj">Bu salonda öğrenci yok.</div>'}</td></tr>`;
       }
       return satir;
