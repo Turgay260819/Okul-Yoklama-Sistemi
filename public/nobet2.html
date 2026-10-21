@@ -56,6 +56,10 @@
         background: #1a73e8;
         color: white;
       }
+      .btn:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
       .btn-yesil {
         background: #34a853;
         color: white;
@@ -513,6 +517,12 @@
         <button class="btn btn-turuncu" onclick="tumunuSabitGuneCevir()">
           Tümünü Sabit Güne Çevir
         </button>
+        <button class="btn btn-beyaz" onclick="noktaDuzeltAc()">
+          🧭 Noktaları Önceki Sıraya Göre Düzenle
+        </button>
+        <button class="btn btn-beyaz" onclick="siraKontrolAc()">
+          🔍 Sıra / Çakışma Kontrolü
+        </button>
       </div>
     </div>
     <div id="yukleniyor" class="yukleniyor">Yükleniyor...</div>
@@ -572,15 +582,61 @@
       </div>
     </div>
     <div id="yaziYazdirAlan"></div>
+    <!-- SIRA / ÇAKIŞMA KONTROLÜ MODAL (salt-okunur) -->
+    <div class="modal-zemin" id="siraKontrolModal">
+      <div class="modal-kutu" style="max-width: 900px">
+        <div class="modal-baslik">🔍 Sıra / Çakışma Kontrolü</div>
+        <p style="font-size: 12px; color: #666; margin-bottom: 10px">
+          Seçilen haftanın dağılımı (görevlendirme yazısındaki hâli) önceki haftaların arşiviyle
+          karşılaştırılır. Bu rapor hiçbir şeyi kaydetmez.
+        </p>
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px">
+          <label style="font-size: 13px">Hafta:</label>
+          <input type="date" id="siraKontrolTarih"
+            style="padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-family: inherit" />
+          <button class="btn btn-mavi btn-sm" onclick="siraKontrolEt()">Kontrol Et</button>
+        </div>
+        <div id="siraKontrolOzet" style="font-size: 12px; color: #555; margin-bottom: 8px"></div>
+        <div id="siraKontrolTablo" style="max-height: 55vh; overflow: auto"></div>
+        <div class="modal-butonlar">
+          <button class="btn btn-gri" onclick="modalKapat('siraKontrolModal')">Kapat</button>
+        </div>
+      </div>
+    </div>
+    <!-- NOKTA DÜZELTME MODAL -->
+    <div class="modal-zemin" id="noktaDuzeltModal">
+      <div class="modal-kutu" style="max-width: 900px">
+        <div class="modal-baslik">🧭 Noktaları Önceki Sıraya Göre Düzenle</div>
+        <p style="font-size: 12px; color: #666; margin-bottom: 10px">
+          Her öğretmenin görevlendirme arşivindeki son nöbet noktası baz alınır ve
+          her hafta bir sonraki noktaya geçme kuralı devam ettirilir. Öğretmenlerin
+          <b>günleri değişmez</b>, sadece noktaları düzeltilir.
+        </p>
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px">
+          <label style="font-size: 13px">Şu haftadan itibaren:</label>
+          <input type="date" id="noktaDuzeltTarih" value="2026-10-12"
+            style="padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-family: inherit" />
+          <button class="btn btn-mavi btn-sm" onclick="noktaDuzeltOnizle()">Önizle</button>
+        </div>
+        <div id="noktaDuzeltOzet" style="font-size: 12px; color: #555; margin-bottom: 8px"></div>
+        <div id="noktaDuzeltTablo" style="max-height: 55vh; overflow: auto"></div>
+        <div class="modal-butonlar">
+          <button class="btn btn-gri" onclick="modalKapat('noktaDuzeltModal')">İptal</button>
+          <button class="btn btn-yesil" id="btnNoktaDuzeltUygula" onclick="noktaDuzeltUygula()" disabled>
+            ✔ Uygula
+          </button>
+        </div>
+      </div>
+    </div>
     <!-- YERLEŞİM MODAL -->
     <div class="modal-zemin" id="yerlesimModal">
       <div class="modal-kutu">
         <div class="modal-baslik">✏ Nöbet Yerleşimi</div>
         <p style="font-size: 12px; color: #888; margin-bottom: 10px">
           Öğretmen seç → Sabitlik belirle → Slota tıkla. Dolu slota tıklamak
-          kaldırır. Hücredeki yer öğretmenin başlangıç (yerleşim) yeridir;
-          rotasyonla her hafta ilerler. Mavi "Bu hafta" satırı, ana tablodaki
-          haftada tuttuğu gün ve noktadır.
+          kaldırır. Hücreler öğretmenin ana tablodaki haftada tuttuğu gün ve
+          noktayı gösterir; kaydettiğinizde öğretmen bu hafta orada olur ve
+          rotasyon oradan devam eder.
         </p>
         <div class="ogr-panel">
           <div class="ogr-panel-baslik">
@@ -1228,8 +1284,19 @@
         }
       };
 
+      // Yerlesim penceresi ana tablodaki haftanin (rotasyon_sayaci) dagilimiyla
+      // calisir: editSlotlar'daki her kayit o haftaki yerini hedef_slot'ta tutar.
+      // baslangic_slot kaydederken yerlesimBaslangicHesapla ile geri hesaplanir.
       window.yerlesimAc = () => {
-        editSlotlar = JSON.parse(JSON.stringify(nobetVerisi.slotlar || []));
+        const S = nobetVerisi.rotasyon_sayaci || 0;
+        const slotlar = nobetVerisi.slotlar || [];
+        editSlotlar = slotlar.map((s) => {
+          const p = pozHesapla(s, S, slotlar);
+          return { ...JSON.parse(JSON.stringify(s)), hedef_slot: posToSlot(p.gi, p.ni) };
+        });
+        const ayniHucre = editSlotlar.length - new Set(editSlotlar.map((s) => s.hedef_slot)).size;
+        if (ayniHucre)
+          mesaj("Uyarı: bu hafta " + ayniHucre + " hücrede iki öğretmen çakışıyor; tabloda yalnızca biri görünür.", "hata");
         seciliOgr = null;
         document.getElementById("sb-sgun").checked = true;
         ogrChiplariGoster();
@@ -1237,15 +1304,71 @@
         document.getElementById("yerlesimModal").classList.add("aktif");
       };
 
-      // Yerlesim penceresinde gosterim icin (sadece okuma): ogretmenin
-      // yerlesim (baslangic) yeri ve ana tablodaki haftada tuttugu yer.
-      // Kaydedilmemis duzenlemeler (editSlotlar) de hesaba katilir.
-      const GUN_KISA = ["Pzt", "Sal", "Çar", "Per", "Cum"];
-      function yerlesimKonumlari(s) {
-        const yer = slotToPos(s.baslangic_slot);
-        const buHafta = pozHesapla(s, nobetVerisi.rotasyon_sayaci || 0, editSlotlar);
-        return { yer, buHafta, ayni: yer.gi === buHafta.gi && yer.ni === buHafta.ni };
+      // hedef_slot'lardan baslangic_slot'lari geri hesaplar. Bu haftaki yeri zaten
+      // tutan ogretmenin baslangic_slot'u degismez; sadece kayanlar (S-GN eklenince
+      // ayni gunun havuzu kuculur gibi) yeniden hesaplanir (sabitGunPozisyonu ve
+      // serbest rotasyonun tersi).
+      function yerlesimBaslangicHesapla(liste, S) {
+        const serbestMi = (s) => s.sabitlik !== "sgn" && s.sabitlik !== "sabit_gun";
+        const yeni = liste.map(({ hedef_slot, ...s }) => ({
+          ...s,
+          baslangic_slot: s.sabitlik === "sgn" || s.baslangic_slot == null ? hedef_slot : s.baslangic_slot,
+        }));
+        const tutuyor = (i) => {
+          const p = pozHesapla(yeni[i], S, yeni);
+          return posToSlot(p.gi, p.ni) === liste[i].hedef_slot;
+        };
+        const geriAl = (sira, idx) => sira[(((idx - S) % sira.length) + sira.length) % sira.length];
+        liste.forEach((s, i) => {
+          if (s.sabitlik !== "sabit_gun" || tutuyor(i)) return;
+          const h = slotToPos(s.hedef_slot);
+          const havuz = sabitGunNoktaHavuzu(h.gi, yeni);
+          const idx = havuz.indexOf(h.ni);
+          if (idx >= 0) yeni[i].baslangic_slot = posToSlot(h.gi, geriAl(havuz, idx));
+        });
+        // Serbest liste sabit gun ogretmenlerinin bu haftaki yerlerine bagli; onlar bittikten sonra.
+        const serbest = serbestSlotListesi(yeni, S);
+        liste.forEach((s, i) => {
+          if (!serbestMi(s) || tutuyor(i)) return;
+          const idx = serbest.indexOf(s.hedef_slot);
+          if (idx >= 0) yeni[i].baslangic_slot = geriAl(serbest, idx);
+        });
+        return yeni;
       }
+
+      // Hucre -> ogretmen adlari; k hafta sonrasi icin ayni hucreye dusenler.
+      function yerlesimCakismalari(slotlar, S) {
+        const sonuc = new Set();
+        for (let k = 0; k < Math.max(1, N()); k++) {
+          const hucre = {};
+          slotlar.forEach((s) => {
+            const p = pozHesapla(s, S + k, slotlar);
+            (hucre[p.gi + "-" + p.ni] = hucre[p.gi + "-" + p.ni] || []).push(s.ogretmen_ad);
+          });
+          Object.entries(hucre).forEach(([anahtar, adlar]) => {
+            if (adlar.length < 2) return;
+            const [gi, ni] = anahtar.split("-").map(Number);
+            sonuc.add((k ? "+" + k + ". hafta, " : "") + GUN_TAM[gi] + " / " + (NOKTALAR[ni] || "?") + ": " + adlar.join(", "));
+          });
+        }
+        return sonuc;
+      }
+
+      // Kayit oncesi: herkes bu hafta istenen yerde mi, ve yerlesimden once
+      // olmayan yeni bir cakisma (bu hafta + bir tur) dogdu mu.
+      function yerlesimDogrula(liste, yeni, eski, S) {
+        const hatalar = [];
+        liste.forEach((s, i) => {
+          const p = pozHesapla(yeni[i], S, yeni);
+          if (posToSlot(p.gi, p.ni) !== s.hedef_slot)
+            hatalar.push(s.ogretmen_ad + ": " + konumMetni(slotToPos(s.hedef_slot)) + " noktasına yerleştirilemedi");
+        });
+        const onceki = yerlesimCakismalari(eski, S);
+        yerlesimCakismalari(yeni, S).forEach((c) => { if (!onceki.has(c)) hatalar.push("Çakışma: " + c); });
+        return hatalar;
+      }
+
+      const GUN_KISA = ["Pzt", "Sal", "Çar", "Per", "Cum"];
       const konumMetni = (p) => GUN_KISA[p.gi] + " · " + (NOKTALAR[p.ni] || "-");
       const yerEsc = (t) => String(t ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
@@ -1266,10 +1389,7 @@
             const y = yerlesikIds.has(o.id);
             const s = seciliOgr && seciliOgr.id === o.id;
             let ipucu = "";
-            if (y) {
-              const k = yerlesimKonumlari(slotByOgr[o.id]);
-              ipucu = "Yerleşim: " + konumMetni(k.yer) + " — Bu hafta: " + konumMetni(k.buHafta);
-            }
+            if (y) ipucu = "Bu hafta: " + konumMetni(slotToPos(slotByOgr[o.id].hedef_slot));
             return (
               '<span class="ogr-chip' +
               (y ? " yerlesik" : "") +
@@ -1309,7 +1429,7 @@
       function yerlesimGridGoster() {
         const yerlesikMap = {};
         editSlotlar.forEach((s) => {
-          yerlesikMap[s.baslangic_slot] = s;
+          yerlesikMap[s.hedef_slot] = s;
         });
         let html = '<div class="slot-grid">';
         GUNLER.forEach((g) => {
@@ -1328,7 +1448,6 @@
                 '" onclick="slotTikla(' +
                 slot +
                 ')">';
-              const k = yerlesimKonumlari(s);
               html += '<div class="slot-no">' + slotNo + "</div>";
               html += '<div class="slot-isim">' + s.ogretmen_ad + "</div>";
               html += '<div class="slot-yer">📍 ' + yerEsc(NOKTALAR[ni] || "-") + "</div>";
@@ -1336,8 +1455,6 @@
                 html += '<div style="font-size:9px;color:#888;">S-GN</div>';
               else if (sb === "sabit_gun")
                 html += '<div style="font-size:9px;color:#888;">SABİT GÜN</div>';
-              html += '<div class="slot-buhafta">' +
-                (k.ayni ? "Bu hafta da burada" : "Bu hafta: " + yerEsc(konumMetni(k.buHafta))) + "</div>";
               html += "</div>";
             } else {
               html +=
@@ -1354,7 +1471,7 @@
 
       window.slotTikla = function (slot) {
         var idx = editSlotlar.findIndex(function (s) {
-          return s.baslangic_slot === slot;
+          return s.hedef_slot === slot;
         });
         if (idx >= 0) {
           editSlotlar.splice(idx, 1);
@@ -1373,7 +1490,7 @@
           ogretmen_id: seciliOgr.id,
           ogretmen_ad: seciliOgr.ad,
           sabitlik: sabitlik,
-          baslangic_slot: slot,
+          hedef_slot: slot,
         });
         seciliOgr = null;
         document.getElementById("sb-sgun").checked = true;
@@ -1390,11 +1507,28 @@
       };
 
       window.yerlesimKaydet = async function () {
-        nobetVerisi.slotlar = editSlotlar;
-        await setDoc(doc(db, "nobet2_ayarlar", "mevcut"), {
+        const S = nobetVerisi.rotasyon_sayaci || 0;
+        const eskiSlotlar = nobetVerisi.slotlar || [];
+        const yeniSlotlar = yerlesimBaslangicHesapla(editSlotlar, S);
+        const hatalar = yerlesimDogrula(editSlotlar, yeniSlotlar, eskiSlotlar, S);
+        if (hatalar.length) {
+          mesaj("Kaydedilemedi: " + hatalar[0] + (hatalar.length > 1 ? " (+" + (hatalar.length - 1) + " sorun daha)" : ""), "hata");
+          console.warn("Yerlesim hatalari:", hatalar);
+          return;
+        }
+        const yeniVeri = {
           ...nobetVerisi,
-          son_guncelleme: serverTimestamp(),
-        });
+          slotlar: yeniSlotlar,
+          slotlar_yedek: eskiSlotlar,
+          slotlar_yedek_tarih: new Date().toISOString(),
+        };
+        try {
+          await setDoc(doc(db, "nobet2_ayarlar", "mevcut"), { ...yeniVeri, son_guncelleme: serverTimestamp() });
+        } catch (e) {
+          mesaj("Kaydedilemedi: " + e.message, "hata");
+          return;
+        }
+        nobetVerisi = yeniVeri;
         modalKapat("yerlesimModal");
         tabloGoster();
         mesaj("Yerleşim kaydedildi.", "basari");
@@ -1694,6 +1828,407 @@
         window.addEventListener("afterprint", bitir);
         window.print();
         setTimeout(bitir, 1000);
+      };
+
+      // ══════════ NOKTALARI ÖNCEKİ SIRAYA GÖRE DÜZENLE ══════════
+      // Gun/yerlesim degisikliginden sonra noktasi siradan kayan ogretmenler icin:
+      // nobet2_gorevlendirmeler arsivindeki son noktasindan, her (tam tatil olmayan)
+      // hafta bir sonraki noktaya gecme kurali devam ettirilir. Gun (gi) korunur,
+      // sadece baslangic_slot'un nokta kismi, hedef haftada hedef noktaya dusecek
+      // sekilde geri hesaplanir (sabitGunPozisyonu'nun tersi).
+      let noktaDuzeltSonuc = null; // { hedef, yeniSlotlar, arsivHaftalari }
+
+      window.noktaDuzeltAc = () => {
+        try {
+          noktaDuzeltSonuc = null;
+          document.getElementById("noktaDuzeltOzet").textContent = "";
+          document.getElementById("noktaDuzeltTablo").innerHTML = "";
+          document.getElementById("btnNoktaDuzeltUygula").disabled = true;
+          document.getElementById("noktaDuzeltModal").classList.add("aktif");
+          window.noktaDuzeltOnizle();
+        } catch (e) {
+          mesaj("Açılamadı: " + e.message, "hata");
+        }
+      };
+
+      // Hedef haftadan onceki arsivler, en yeniden eskiye.
+      function oncekiArsivler(arsivler, hedef) {
+        return arsivler.filter((a) => a.id < hedef).sort((a, b) => (a.id < b.id ? 1 : -1));
+      }
+      // Arsiv atamasinin guncel NOKTALAR'daki indeksi (once ada gore, yoksa ni).
+      function atamaNi(x) {
+        const ni = NOKTALAR.indexOf(x.nokta);
+        if (ni >= 0) return ni;
+        return typeof x.ni === "number" && x.ni < N() ? x.ni : -1;
+      }
+      // Ogretmenin verilen (yeniden eskiye sirali) arsivlerdeki en son kaydi.
+      function arsivSonKayit(oncekiler, ogretmenId) {
+        for (const a of oncekiler) {
+          const x = (a.atamalar || []).find((t) => t.ogretmen_id === ogretmenId);
+          if (!x) continue;
+          const ni = atamaNi(x);
+          if (ni < 0) continue;
+          return { hafta: a.id, ni, gi: x.gi, nokta: x.nokta };
+        }
+        return null;
+      }
+      // Hs'den hedef haftaya kadar (hedef dahil) tam tatil olmayan hafta sayisi.
+      function gecenHafta(Hs, hedef) {
+        let n = 0;
+        for (let x = haftaTarihEkle(Hs, 7); x <= hedef; x = haftaTarihEkle(x, 7)) if (!haftaTamamenTatilMi(x)) n++;
+        return n;
+      }
+
+      async function noktaDuzeltHesapla(hedef) {
+        const slotlar = nobetVerisi.slotlar || [];
+        const S = haftaSayaci(hedef);
+        const arsivSnap = await getDocs(collection(db, "nobet2_gorevlendirmeler"));
+        const arsivler = [];
+        arsivSnap.forEach((d) => arsivler.push({ id: d.id, ...d.data() }));
+        const oncekiler = oncekiArsivler(arsivler, hedef);
+        const sonKayit = (ogretmenId) => arsivSonKayit(oncekiler, ogretmenId);
+
+        const satirlar = slotlar.map((s, i) => {
+          const simdi = pozHesapla(s, S, slotlar);
+          const kayit = s.sabitlik === "sgn" ? null : sonKayit(s.ogretmen_id);
+          return { i, s, simdi, kayit, gunDegisti: !!kayit && kayit.gi !== simdi.gi };
+        });
+        // Cakismada noktada kalacak olanin onceligi: gecmisi olan > gunu degismemis
+        // (sirasi gercekten devam eden) > arsiv kaydi daha yeni olan > slot sirasi.
+        // Sonra gelen, gunun siradaki bos noktasina kayar.
+        const sira = [...satirlar].sort(
+          (a, b) =>
+            (b.kayit ? 1 : 0) - (a.kayit ? 1 : 0) ||
+            (a.gunDegisti ? 1 : 0) - (b.gunDegisti ? 1 : 0) ||
+            ((b.kayit && b.kayit.hafta) || "").localeCompare((a.kayit && a.kayit.hafta) || "") ||
+            a.i - b.i,
+        );
+        const dolu = new Set(); // "gi-ni"
+        slotlar.forEach((s) => {
+          if (s.sabitlik === "sgn") { const p = slotToPos(s.baslangic_slot); dolu.add(p.gi + "-" + p.ni); }
+        });
+
+        const r = { hedef, S, satirlar, yeniSlotlar: slotlar.map((s) => ({ ...s })) };
+        sira.forEach((x) => {
+          if (x.s.sabitlik === "sgn") { x.durum = "sabit (S-GN)"; x.yeniNi = x.simdi.ni; return; }
+          x.gi = x.simdi.gi;
+          x.havuz = sabitGunNoktaHavuzu(x.gi, slotlar);
+          const L = x.havuz.length;
+          let hedefIdx;
+          if (x.kayit) {
+            x.gecen = gecenHafta(x.kayit.hafta, hedef);
+            let sonIdx = x.havuz.indexOf(x.kayit.ni);
+            if (sonIdx < 0) sonIdx = x.havuz.findIndex((ni) => ni > x.kayit.ni);
+            if (sonIdx < 0) sonIdx = 0;
+            hedefIdx = (sonIdx + x.gecen) % L;
+          } else {
+            hedefIdx = Math.max(0, x.havuz.indexOf(x.simdi.ni));
+          }
+          let k = 0;
+          while (k < L && dolu.has(x.gi + "-" + x.havuz[(hedefIdx + k) % L])) k++;
+          x.cakisma = k > 0;
+          x.gunDolu = k >= L; // gunde bos nokta kalmadi
+          if (!x.gunDolu) hedefIdx = (hedefIdx + k) % L;
+          dolu.add(x.gi + "-" + x.havuz[hedefIdx]);
+          noktaDuzeltNiAyarla(r, x, x.havuz[hedefIdx]);
+          x.durum = x.gunDolu ? "❌ gün dolu" : !x.kayit ? "geçmiş yok" : x.cakisma ? "⚠ çakışma, kaydırıldı" : x.yeniNi === x.simdi.ni ? "aynı" : "değişti";
+          if (x.s.sabitlik !== "sabit_gun") x.durum += " (serbest → sabit gün)";
+        });
+
+        r.arsivHaftalari = arsivler.map((a) => a.id).filter((h) => h >= hedef);
+        if (!r.arsivHaftalari.includes(hedef)) r.arsivHaftalari.push(hedef);
+        return r;
+      }
+
+      // Satirin hedef haftadaki noktasini ni yapar: baslangic noktasi, sabitGunPozisyonu
+      // hedef haftanin sayaci S ile ni'yi verecek sekilde geri hesaplanir.
+      function noktaDuzeltNiAyarla(r, x, ni) {
+        const L = x.havuz.length;
+        const hedefIdx = x.havuz.indexOf(ni);
+        const basNi = x.havuz[(((hedefIdx - r.S) % L) + L) % L];
+        r.yeniSlotlar[x.i] = { ...x.s, sabitlik: "sabit_gun", baslangic_slot: posToSlot(x.gi, basNi) };
+        x.yeniNi = ni;
+      }
+
+      // Uygula oncesi guvenlik kontrolu: gun kapasitesi, hedef haftada beklenen
+      // nokta ve hedef haftadan itibaren tam bir tur (N hafta) boyunca ayni
+      // gun-noktaya iki ogretmen dusmemesi.
+      function noktaDuzeltDogrula(r) {
+        const hatalar = [];
+        const gunSayisi = [0, 0, 0, 0, 0];
+        const gunHavuz = [0, 0, 0, 0, 0];
+        r.satirlar.forEach((x) => {
+          if (x.s.sabitlik === "sgn") return;
+          gunSayisi[x.gi]++;
+          gunHavuz[x.gi] = x.havuz.length;
+        });
+        gunSayisi.forEach((n, gi) => {
+          if (n > gunHavuz[gi])
+            hatalar.push(GUN_TAM[gi] + ": " + n + " öğretmen / " + gunHavuz[gi] + " nokta — Yerleşim'den bir öğretmenin gününü değiştirin");
+        });
+        r.satirlar.forEach((x) => {
+          const p = pozHesapla(r.yeniSlotlar[x.i], r.S, r.yeniSlotlar);
+          if (p.gi !== x.simdi.gi || p.ni !== x.yeniNi) hatalar.push(x.s.ogretmen_ad + ": hesaplanan nokta tutmuyor");
+        });
+        for (let k = 0; k < Math.max(1, N()) && hatalar.length < 20; k++) {
+          const hucre = {};
+          r.yeniSlotlar.forEach((s) => {
+            const p = pozHesapla(s, r.S + k, r.yeniSlotlar);
+            const anahtar = p.gi + "-" + p.ni;
+            (hucre[anahtar] = hucre[anahtar] || []).push(s.ogretmen_ad);
+          });
+          Object.entries(hucre).forEach(([anahtar, adlar]) => {
+            if (adlar.length < 2) return;
+            const [gi, ni] = anahtar.split("-").map(Number);
+            hatalar.push((k ? "+" + k + ". hafta, " : "") + GUN_TAM[gi] + " / " + (NOKTALAR[ni] || "?") + ": " + adlar.join(", "));
+          });
+        }
+        return [...new Set(hatalar)];
+      }
+
+      function noktaDuzeltCiz() {
+        const r = noktaDuzeltSonuc;
+        const fmtH = (h) => trTarih(h).slice(0, 5);
+        const satirlar = [...r.satirlar].sort((a, b) => a.simdi.gi - b.simdi.gi || a.yeniNi - b.yeniNi);
+        let html = '<table class="nobet-tablo"><thead><tr><th>Öğretmen</th><th>Gün</th><th>Son arşiv</th><th>' +
+          fmtH(r.hedef) + " için şu an</th><th>Yeni nokta</th><th>Durum</th></tr></thead><tbody>";
+        satirlar.forEach((x) => {
+          const degisti = x.yeniNi !== x.simdi.ni;
+          let yeniHucre = yEsc(NOKTALAR[x.yeniNi] || "");
+          if (x.cakisma || x.elle) {
+            // Ayni gun baska ogretmenin (veya S-GN'nin) tuttugu noktalar haric secenekler.
+            const baskasi = new Set(r.satirlar.filter((y) => y !== x && y.simdi.gi === x.gi).map((y) => y.yeniNi));
+            yeniHucre = '<select onchange="noktaDuzeltSec(' + x.i + ', this.value)" style="font-family:inherit;padding:3px;">' +
+              x.havuz.filter((ni) => ni === x.yeniNi || !baskasi.has(ni))
+                .map((ni) => '<option value="' + ni + '"' + (ni === x.yeniNi ? " selected" : "") + ">" + yEsc(NOKTALAR[ni]) + "</option>")
+                .join("") + "</select>";
+          }
+          const arsiv = x.kayit
+            ? fmtH(x.kayit.hafta) + " → " + yEsc(NOKTALAR[x.kayit.ni]) +
+              (x.gunDegisti ? " <small style='color:#b06000'>(" + (GUN_TAM[x.kayit.gi] || "?") + " → " + GUN_TAM[x.simdi.gi] + ")</small>" : "") +
+              " <small>(+" + x.gecen + " hf)</small>"
+            : "—";
+          html += "<tr" + (x.gunDolu ? ' style="background:#fce8e6"' : x.cakisma || x.elle ? ' style="background:#fff4e5"' : "") + ">" +
+            "<td>" + yEsc(x.s.ogretmen_ad) + "</td>" +
+            "<td>" + GUN_TAM[x.simdi.gi] + "</td>" +
+            "<td>" + arsiv + "</td>" +
+            "<td>" + yEsc(NOKTALAR[x.simdi.ni] || "") + "</td>" +
+            "<td" + (degisti ? ' style="font-weight:700;color:#1557b0"' : "") + ">" + yeniHucre + "</td>" +
+            "<td>" + yEsc(x.durum) + "</td></tr>";
+        });
+        html += "</tbody></table>";
+        document.getElementById("noktaDuzeltTablo").innerHTML = html;
+
+        const hatalar = noktaDuzeltDogrula(r);
+        const degisen = r.satirlar.filter((x) => x.yeniNi !== x.simdi.ni).length;
+        const cakisan = r.satirlar.filter((x) => x.cakisma).length;
+        const gecmissiz = r.satirlar.filter((x) => x.durum && x.durum.startsWith("geçmiş yok")).length;
+        document.getElementById("noktaDuzeltOzet").innerHTML =
+          "Hedef hafta: <b>" + trTarih(r.hedef) + "</b> · " + r.satirlar.length + " öğretmen · <b>" +
+          degisen + "</b> öğretmenin noktası değişecek" +
+          (cakisan ? " · <span style='color:#b06000'>" + cakisan + " çakışma kaydırıldı (turuncu satırlardan elle değiştirebilirsiniz)</span>" : "") +
+          (gecmissiz ? " · " + gecmissiz + " öğretmenin arşiv kaydı yok (yerinde kalır)" : "") +
+          (hatalar.length
+            ? "<div style='color:#c5221f;margin-top:6px;'><b>Uygulanamaz:</b><ul style='margin:4px 0 0 18px;'>" +
+              hatalar.map((h) => "<li>" + yEsc(h) + "</li>").join("") + "</ul></div>"
+            : "<div style='color:#188038;margin-top:6px;'><b>Çakışma yok ✔</b></div>");
+        // Buton acik kalir; uygulanamiyorsa noktaDuzeltUygula nedenini mesajla soyler.
+        document.getElementById("btnNoktaDuzeltUygula").disabled = false;
+      }
+
+      window.noktaDuzeltSec = (i, deger) => {
+        const r = noktaDuzeltSonuc;
+        const x = r && r.satirlar.find((y) => y.i === i);
+        if (!x) return;
+        noktaDuzeltNiAyarla(r, x, Number(deger));
+        x.elle = true;
+        x.gunDolu = false;
+        x.durum = "✎ elle seçildi";
+        // Bu secimle cakismasi giderilen diger satirlarin isaretleri yeniden degerlendirilir.
+        noktaDuzeltCiz();
+      };
+
+      window.noktaDuzeltOnizle = async () => {
+        const deger = document.getElementById("noktaDuzeltTarih").value;
+        if (!deger) { mesaj("Tarih seçin.", "hata"); return; }
+        const hedef = pazartesiyeYuvarla(new Date(deger + "T12:00:00")).toISOString().split("T")[0];
+        const tablo = document.getElementById("noktaDuzeltTablo");
+        document.getElementById("btnNoktaDuzeltUygula").disabled = true;
+        tablo.innerHTML = '<div class="yukleniyor">Hesaplanıyor...</div>';
+        try {
+          noktaDuzeltSonuc = await noktaDuzeltHesapla(hedef);
+          noktaDuzeltCiz();
+        } catch (e) {
+          tablo.innerHTML = '<div style="color:#c5221f;padding:12px;">Hata: ' + yEsc(e.message) + "</div>";
+        }
+      };
+
+      window.noktaDuzeltUygula = async () => {
+        const r = noktaDuzeltSonuc;
+        if (!r) { mesaj("Önizleme henüz hazır değil.", "bilgi"); return; }
+        const hatalar = noktaDuzeltDogrula(r);
+        if (hatalar.length) { mesaj("Uygulanamaz: " + hatalar[0] + (hatalar.length > 1 ? " (+" + (hatalar.length - 1) + " sorun daha, listeye bakın)" : ""), "hata"); return; }
+        if (!r.satirlar.some((x) => x.yeniNi !== x.simdi.ni)) { mesaj("Tüm öğretmenler zaten sırasında, değişecek nokta yok.", "bilgi"); return; }
+        if (!confirm(trTarih(r.hedef) + " haftasından itibaren noktalar düzenlenecek (günler değişmez). Onaylıyor musunuz?")) return;
+        const btn = document.getElementById("btnNoktaDuzeltUygula");
+        btn.disabled = true;
+        try {
+          const eskiSlotlar = nobetVerisi.slotlar || [];
+          nobetVerisi = {
+            ...nobetVerisi,
+            slotlar: r.yeniSlotlar,
+            slotlar_yedek: eskiSlotlar,
+            slotlar_yedek_tarih: new Date().toISOString(),
+          };
+          await setDoc(doc(db, "nobet2_ayarlar", "mevcut"), { ...nobetVerisi, son_guncelleme: serverTimestamp() });
+          // Hedef hafta ve sonrasinin gorevlendirme arsivini yeni yerlesimle yeniden yaz.
+          for (const h of r.arsivHaftalari) {
+            if (haftaTamamenTatilMi(h)) continue;
+            const { kaynak, ...veri } = dagilimHesapla(h);
+            await setDoc(doc(db, "nobet2_gorevlendirmeler", h), { ...veri, kaynak: "nokta_duzeltme", olusturma: serverTimestamp() });
+          }
+          modalKapat("noktaDuzeltModal");
+          tabloGoster();
+          mesaj("Noktalar önceki sıraya göre düzenlendi.", "basari");
+        } catch (e) {
+          btn.disabled = false;
+          mesaj("Kaydedilemedi: " + e.message, "hata");
+        }
+      };
+
+      // ══════════ SIRA / ÇAKIŞMA KONTROLÜ (salt-okunur) ══════════
+      // Haftanin dagilimini (arsiv varsa o, yoksa guncel yerlesimden hesaplanan)
+      // onceki arsivlerle karsilastirir: ayni hucrede iki ogretmen, ayni ogretmen
+      // iki kez, "son nokta + gecen hafta" sirasindan sapma ve bos noktalar.
+      window.siraKontrolAc = () => {
+        document.getElementById("siraKontrolTarih").value = nobetVerisi.hafta_baslangic;
+        document.getElementById("siraKontrolOzet").textContent = "";
+        document.getElementById("siraKontrolTablo").innerHTML = "";
+        document.getElementById("siraKontrolModal").classList.add("aktif");
+        siraKontrolEt();
+      };
+
+      async function siraKontrolHesapla(hafta) {
+        const arsivSnap = await getDocs(collection(db, "nobet2_gorevlendirmeler"));
+        const arsivler = [];
+        arsivSnap.forEach((d) => arsivler.push({ id: d.id, ...d.data() }));
+        const hesaplanan = dagilimHesapla(hafta);
+        const buArsiv = arsivler.find((a) => a.id === hafta);
+        const dagilim = buArsiv || hesaplanan;
+        const anahtar = (d) => (d.atamalar || []).map((x) => x.ogretmen_id + ":" + x.gi + ":" + atamaNi(x)).sort().join("|");
+        const yerlesimFarkli = !!buArsiv && anahtar(buArsiv) !== anahtar(hesaplanan);
+
+        const oncekiler = oncekiArsivler(arsivler, hafta);
+        const slotlar = nobetVerisi.slotlar || [];
+        const atamalar = (dagilim.atamalar || []).map((x) => ({ ...x, ni: atamaNi(x) }));
+
+        // a/b. Hucre cakismasi ve ayni ogretmenin birden fazla atanmasi.
+        const hucre = {};
+        const ogrSayi = {};
+        atamalar.forEach((x) => {
+          (hucre[x.gi + "-" + x.ni] = hucre[x.gi + "-" + x.ni] || []).push(x.ogretmen_ad);
+          ogrSayi[x.ogretmen_id] = (ogrSayi[x.ogretmen_id] || 0) + 1;
+        });
+        const cakismalar = Object.entries(hucre)
+          .filter(([, adlar]) => adlar.length > 1)
+          .map(([k, adlar]) => {
+            const [gi, ni] = k.split("-").map(Number);
+            return GUN_TAM[gi] + " / " + (NOKTALAR[ni] || "?") + ": " + adlar.join(", ");
+          });
+        const ikiKez = atamalar
+          .filter((x, i, arr) => ogrSayi[x.ogretmen_id] > 1 && arr.findIndex((y) => y.ogretmen_id === x.ogretmen_id) === i)
+          .map((x) => x.ogretmen_ad + " (" + ogrSayi[x.ogretmen_id] + " kez)");
+
+        // c. Sira kontrolu.
+        const satirlar = atamalar.map((x) => {
+          const slot = slotlar.find((s) => s.ogretmen_id === x.ogretmen_id);
+          const r = { x, kayit: null, beklenenNi: null, durum: "", tip: "" };
+          if (slot && slot.sabitlik === "sgn") { r.durum = "S-GN (sabit)"; r.tip = "ok"; return r; }
+          r.kayit = arsivSonKayit(oncekiler, x.ogretmen_id);
+          if (!r.kayit) { r.durum = "önceki kaydı yok"; r.tip = "bilgi"; return r; }
+          r.gecen = gecenHafta(r.kayit.hafta, hafta);
+          const havuz = sabitGunNoktaHavuzu(x.gi, slotlar);
+          let idx = havuz.indexOf(r.kayit.ni);
+          if (idx < 0) idx = havuz.findIndex((ni) => ni > r.kayit.ni);
+          if (idx < 0) idx = 0;
+          r.beklenenNi = havuz.length ? havuz[(idx + r.gecen) % havuz.length] : null;
+          const gunDegisti = r.kayit.gi !== x.gi;
+          const sirada = r.beklenenNi === x.ni;
+          r.tip = sirada ? "ok" : "sira";
+          r.durum = (sirada ? "✔ sırada" : "✖ sıra dışı") +
+            (gunDegisti ? " · ↔ günü değişti (" + (GUN_TAM[r.kayit.gi] || "?") + " → " + GUN_TAM[x.gi] + ")" : "");
+          r.gunDegisti = gunDegisti;
+          return r;
+        });
+
+        // d. Bos noktalar (tatil/donem disi olmayan gunlerde).
+        const gunDurumu = dagilim.gunDurumu || gunDurumlari(hafta);
+        const bosNoktalar = [];
+        GUN_TAM.forEach((g, gi) => {
+          if (gunDurumu[gi]) return;
+          const bos = NOKTALAR.filter((n, ni) => !hucre[gi + "-" + ni]);
+          if (bos.length) bosNoktalar.push(g + ": " + bos.join(", "));
+        });
+
+        return { hafta, kaynak: buArsiv ? "arşiv" : "hesaplanan", yerlesimFarkli, cakismalar, ikiKez, satirlar, bosNoktalar, sonOnceki: oncekiler[0] && oncekiler[0].id };
+      }
+
+      window.siraKontrolEt = async () => {
+        const deger = document.getElementById("siraKontrolTarih").value;
+        if (!deger) { mesaj("Hafta seçin.", "hata"); return; }
+        const hafta = pazartesiyeYuvarla(new Date(deger + "T12:00:00")).toISOString().split("T")[0];
+        const tablo = document.getElementById("siraKontrolTablo");
+        const ozet = document.getElementById("siraKontrolOzet");
+        tablo.innerHTML = '<div class="yukleniyor">Kontrol ediliyor...</div>';
+        ozet.innerHTML = "";
+        try {
+          const r = await siraKontrolHesapla(hafta);
+          const fmtH = (h) => trTarih(h).slice(0, 5);
+          const siraDisi = r.satirlar.filter((s) => s.tip === "sira").length;
+          const gunDegisen = r.satirlar.filter((s) => s.gunDegisti).length;
+          const liste = (baslik, renk, items) =>
+            "<div style='color:" + renk + ";margin-top:6px;'><b>" + baslik + "</b><ul style='margin:4px 0 0 18px;'>" +
+            items.map((h) => "<li>" + yEsc(h) + "</li>").join("") + "</ul></div>";
+
+          let o = "Hafta: <b>" + trTarih(r.hafta) + "</b> (" + r.kaynak + ") · karşılaştırılan son arşiv: <b>" +
+            (r.sonOnceki ? trTarih(r.sonOnceki) : "yok") + "</b> · " + r.satirlar.length + " atama · " +
+            "<b>" + r.cakismalar.length + "</b> çakışma · <b>" + siraDisi + "</b> sıra dışı · " +
+            gunDegisen + " günü değişen · " + r.bosNoktalar.length + " günde boş nokta";
+          if (r.yerlesimFarkli)
+            o += "<div style='color:#b06000;margin-top:6px;'>⚠ Görevlendirme yazısındaki (arşiv) dağılım güncel yerleşimle uyuşmuyor; rapor yazıdaki dağılıma göredir.</div>";
+          if (r.cakismalar.length) o += liste("Çakışmalar (aynı gün, aynı nokta):", "#c5221f", r.cakismalar);
+          if (r.ikiKez.length) o += liste("Birden fazla atanan öğretmen:", "#c5221f", r.ikiKez);
+          if (!r.cakismalar.length && !r.ikiKez.length && !siraDisi)
+            o += "<div style='color:#188038;margin-top:6px;'><b>Çakışma yok ✔ · Herkes sırasında ✔</b></div>";
+          else if (!r.cakismalar.length && !r.ikiKez.length)
+            o += "<div style='color:#188038;margin-top:6px;'><b>Çakışma yok ✔</b></div>";
+          if (siraDisi)
+            o += "<div style='margin-top:6px;'>Düzeltmek için <b>🧭 Noktaları Önceki Sıraya Göre Düzenle</b>'yi kullanın.</div>";
+          if (r.bosNoktalar.length) o += liste("Boş kalan noktalar:", "#555", r.bosNoktalar);
+          ozet.innerHTML = o;
+
+          const cakisanHucre = new Set();
+          const say = {};
+          r.satirlar.forEach((s) => { const k = s.x.gi + "-" + s.x.ni; say[k] = (say[k] || 0) + 1; });
+          Object.entries(say).forEach(([k, n]) => { if (n > 1) cakisanHucre.add(k); });
+          const satirlar = [...r.satirlar].sort((a, b) => a.x.gi - b.x.gi || a.x.ni - b.x.ni);
+          let html = '<table class="nobet-tablo"><thead><tr><th>Öğretmen</th><th>Gün</th><th>Önceki</th><th>Beklenen</th><th>Bu hafta</th><th>Durum</th></tr></thead><tbody>';
+          satirlar.forEach((s) => {
+            const cakisan = cakisanHucre.has(s.x.gi + "-" + s.x.ni);
+            const bg = cakisan ? "#fce8e6" : s.tip === "sira" ? "#fff4e5" : "";
+            html += "<tr" + (bg ? ' style="background:' + bg + '"' : "") + ">" +
+              "<td>" + yEsc(s.x.ogretmen_ad) + "</td>" +
+              "<td>" + GUN_TAM[s.x.gi] + "</td>" +
+              "<td>" + (s.kayit ? fmtH(s.kayit.hafta) + " → " + yEsc(NOKTALAR[s.kayit.ni] || s.kayit.nokta) + " <small>(+" + s.gecen + " hf)</small>" : "—") + "</td>" +
+              "<td>" + (s.beklenenNi != null ? yEsc(NOKTALAR[s.beklenenNi]) : "—") + "</td>" +
+              "<td" + (s.tip === "sira" ? ' style="font-weight:700;color:#b06000"' : "") + ">" + yEsc(NOKTALAR[s.x.ni] || s.x.nokta) + "</td>" +
+              "<td>" + yEsc((cakisan ? "❌ çakışma · " : "") + s.durum) + "</td></tr>";
+          });
+          html += "</tbody></table>";
+          tablo.innerHTML = html;
+        } catch (e) {
+          tablo.innerHTML = '<div style="color:#c5221f;padding:12px;">Hata: ' + yEsc(e.message) + "</div>";
+        }
       };
 
       function mesaj(metin, tip) {
