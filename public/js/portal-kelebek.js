@@ -163,7 +163,8 @@ let _anaKaynak = "";    // baslangic yapilan sinavin adi
 let _anaGecmisAcik = false;
 
 async function _anaOku() {
-  const d = await getDoc(ANA_REF());
+  const [d, od] = await Promise.all([getDoc(ANA_REF()), getDocs(collection(db, "kelebek_odemeler"))]);
+  _odeme = new Map(od.docs.map((x) => [x.id, x.data()]));
   _anaVar = d.exists();
   _anaCakisma = false;
   _anaDurum = { tur: "" };
@@ -195,11 +196,14 @@ function _anaKartCiz() {
       <div id="kbAnaListe"></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:8px;">
         <span id="kbAnaDurum" style="font-size:13px;"></span>
-        <button class="btn btn-gri btn-sm" onclick="kelebekAnaGecmis()">🕘 ${_anaGecmisAcik ? "Geçmişi gizle" : "Değişiklik geçmişi"}</button></div>
+        <button class="btn btn-gri btn-sm" onclick="kelebekAnaGecmis()">🕘 ${_anaGecmisAcik ? "Geçmişi gizle" : "Değişiklik geçmişi"}</button>
+        <button class="btn btn-yesil btn-sm" onclick="kelebekOdemeDurumu()">💰 ${_odemeAcik ? "Ödeme durumunu gizle" : "Ödeme durumu"}</button></div>
       <div id="kbAnaGecmis"></div>
+      <div id="kbOdeme"></div>
     </div>`;
   if (_anaKartAcik) _ogrencilerCiz("ana");
   if (_anaGecmisAcik) _anaGecmisYukle();
+  if (_odemeAcik) _odemeCiz();
   _anaOzetCiz();
   _anaDurumCiz();
 }
@@ -241,7 +245,7 @@ function _anaOzetCiz() {
   if (!el) return;
   const secilen = _ogrenciler.filter((o) => _anaSecili.has(o.ogrenci_id));
   const z = _anaBilgi.guncelleme?.toDate?.();
-  el.textContent = `— ${secilen.length} öğrenci, ${new Set(secilen.map((o) => o.sinif)).size} şube` +
+  el.textContent = `— ${secilen.length} öğrenci, ${new Set(secilen.map((o) => o.sinif)).size} şube · ${secilen.filter((o) => _odediMi(o.ogrenci_id)).length} ödedi` +
     (z ? ` · son değişiklik ${z.toLocaleString("tr-TR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}${_anaBilgi.guncelleyen_ad ? " · " + _anaBilgi.guncelleyen_ad : ""}` : "");
 }
 
@@ -265,6 +269,7 @@ function _anaDurumCiz() {
 function _anaDegisti() {
   _secimGostergeleri("ana");
   _anaOzetCiz();
+  if (_odemeAcik) _odemeCiz();
   clearTimeout(_anaZamanlayici);
   _anaZamanlayici = null;
   if (_anaCakisma) { _anaDurumYaz("hata", "liste başka yerde değiştirildi; sayfayı yenileyin"); return; }
@@ -336,6 +341,172 @@ async function _anaGecmisYukle() {
     el.innerHTML = `<div class="bos-mesaj">Geçmiş okunamadı: ${esc(err.message)}</div>`;
   }
 }
+
+// ── Ödeme takibi (ana liste) ──
+// kelebek_odemeler/{ogrenciId}: tek odeme (her sinavda sifirlanmaz), tutar yok.
+// Isaret kaldirilinca belge silinmez, odedi:false olur. Ad/no/sube kopyalanir
+// ki ogrenci sonradan silinse de rapor bozulmasin.
+let _odeme = new Map();
+let _odemeAcik = false;
+let _odemeFiltre = "tumu";   // tumu | odedi | odemedi
+let _odemeAcikSube = new Set();
+const _odediMi = (id) => !!_odeme.get(id)?.odedi;
+const _kisaZaman = (z) => z?.toDate ? z.toDate().toLocaleString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
+
+function _odemeBtnHtml(id, gorunur) {
+  const odedi = _odediMi(id);
+  return `<button type="button" class="btn btn-sm kb-odeme-btn${odedi ? " odedi" : ""}" data-id="${esc(id)}"${gorunur ? "" : " hidden"}
+    onclick="event.preventDefault();event.stopPropagation();kelebekOdeme(this.dataset.id)">${odedi ? "💰 Ödedi" : "Ödemedi"}</button>`;
+}
+
+window.kelebekOdeme = async (id) => {
+  const o = _ogrenciler.find((x) => x.ogrenci_id === id);
+  if (!o) return;
+  const onceki = _odeme.get(id);
+  const kayit = { ogrenci_id: id, no: o.no, ad: o.ad, sinif: o.sinif, odedi: !onceki?.odedi,
+    zaman: serverTimestamp(), isaretleyen_ad: state.kullanici?.ad || "" };
+  const guncelle = () => {
+    document.querySelectorAll(`#kbAnaListe .kb-odeme-btn`).forEach((btn) => {
+      if (btn.dataset.id !== id) return;
+      btn.outerHTML = _odemeBtnHtml(id, _anaSecili.has(id));
+    });
+    [...document.querySelectorAll("#kbAnaListe .kb-ogr-chk")].filter((c) => c.value === id)
+      .forEach((c) => c.closest(".ogrenci-satir").classList.toggle("kb-odedi", _odediMi(id)));
+    _secimGostergeleri("ana");
+    _anaOzetCiz();
+    if (_odemeAcik) _odemeCiz();
+  };
+  _odeme.set(id, { ...kayit, zaman: null });
+  guncelle();
+  try {
+    await setDoc(doc(db, "kelebek_odemeler", id), kayit);
+  } catch (err) {
+    if (onceki) _odeme.set(id, onceki); else _odeme.delete(id);
+    guncelle();
+    mesajGoster("kbAnaMesaj", `${o.ad}: ödeme kaydedilemedi: ${err.message}`, "hata");
+  }
+};
+
+window.kelebekOdemeDurumu = () => { _odemeAcik = !_odemeAcik; _anaKartCiz(); };
+window.kelebekOdemeFiltre = (f) => { _odemeFiltre = f; _odemeCiz(); };
+window.kelebekOdemeSube = (el) => { el.open ? _odemeAcikSube.add(el.dataset.k) : _odemeAcikSube.delete(el.dataset.k); };
+
+// Sube -> ana listedeki ogrenciler (numaraya gore), ozet sayilarla.
+function _odemeVerisi() {
+  const subeler = _subeler();
+  const satirlar = Object.keys(subeler).sort((a, b) => a.localeCompare(b, "tr", { numeric: true })).map((sube) => {
+    const liste = subeler[sube].filter((o) => _anaSecili.has(o.ogrenci_id))
+      .map((o) => ({ ...o, odedi: _odediMi(o.ogrenci_id), kayit: _odeme.get(o.ogrenci_id) }));
+    return { sube, liste, odedi: liste.filter((x) => x.odedi).length };
+  }).filter((s) => s.liste.length);
+  // Odeme yapmis ama ana listede (ya da sistemde) olmayanlar
+  const disarida = [..._odeme.values()].filter((k) => k.odedi && !_anaSecili.has(k.ogrenci_id));
+  return { satirlar, disarida };
+}
+
+const _filtrele = (liste) => liste.filter((x) => _odemeFiltre === "tumu" || (_odemeFiltre === "odedi") === x.odedi);
+const _oran = (a, b) => (b ? Math.round((a / b) * 100) + "%" : "—");
+const _filtreAd = () => ({ tumu: "Tüm öğrenciler", odedi: "Ödeyenler", odemedi: "Ödemeyenler" })[_odemeFiltre];
+
+function _odemeCiz() {
+  const el = document.getElementById("kbOdeme");
+  if (!el) return;
+  const { satirlar, disarida } = _odemeVerisi();
+  const top = satirlar.reduce((a, s) => a + s.liste.length, 0);
+  const odedi = satirlar.reduce((a, s) => a + s.odedi, 0);
+  const fbtn = (f, ad) => `<button class="sekme-btn${_odemeFiltre === f ? " aktif" : ""}" onclick="kelebekOdemeFiltre('${f}')">${ad}</button>`;
+  el.innerHTML = `<div class="kb-odeme-kutu">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
+      <strong style="flex:1;">💰 Ödeme Durumu</strong>
+      <button class="btn btn-mavi btn-sm" onclick="kelebekOdemeYazdir()">🖨 Yazdır</button>
+      <button class="btn btn-yesil btn-sm" id="kbOdemeExcelBtn" onclick="kelebekOdemeExcel()">📊 Excel</button></div>
+    <div class="sekme-bar" style="margin-bottom:8px;">${fbtn("tumu", "Tümü")}${fbtn("odedi", "Ödeyenler")}${fbtn("odemedi", "Ödemeyenler")}</div>
+    <div style="overflow-x:auto;"><table><thead><tr><th>Şube</th><th>Sınava girecek</th><th>Ödedi</th><th>Ödemedi</th><th>Oran</th></tr></thead><tbody>
+      ${satirlar.map((s) => `<tr><td><strong>${esc(s.sube)}</strong></td><td>${s.liste.length}</td><td style="color:#1e7e34;font-weight:700;">${s.odedi}</td>
+        <td style="color:${s.liste.length - s.odedi ? "#c5221f" : "inherit"};">${s.liste.length - s.odedi}</td><td>${_oran(s.odedi, s.liste.length)}</td></tr>`).join("")}
+      <tr style="font-weight:700;border-top:2px solid var(--border);"><td>Toplam</td><td>${top}</td><td style="color:#1e7e34;">${odedi}</td><td>${top - odedi}</td><td>${_oran(odedi, top)}</td></tr>
+    </tbody></table></div>
+    <div style="margin-top:10px;">${satirlar.map((s) => {
+      const liste = _filtrele(s.liste);
+      return `<details class="kb-bilgi-kutu" data-k="${esc(s.sube)}" ${_odemeAcikSube.has(s.sube) ? "open" : ""} ontoggle="kelebekOdemeSube(this)">
+        <summary><strong>${esc(s.sube)}</strong> <span style="font-size:12px;color:var(--text2);">(${s.odedi} / ${s.liste.length} ödedi)</span></summary>
+        ${liste.length ? `<div style="overflow-x:auto;"><table><thead><tr><th>No</th><th>Ad Soyad</th><th>Durum</th><th>İşaretleme</th></tr></thead><tbody>
+          ${liste.map((x) => `<tr class="${x.odedi ? "kb-odedi" : ""}"><td>${esc(x.no)}</td><td>${esc(x.ad)}</td>
+            <td style="font-weight:600;color:${x.odedi ? "#1e7e34" : "#c5221f"};">${x.odedi ? "💰 Ödedi" : "Ödemedi"}</td>
+            <td style="font-size:12px;color:var(--text2);">${x.odedi ? esc(_kisaZaman(x.kayit?.zaman)) + (x.kayit?.isaretleyen_ad ? " · " + esc(x.kayit.isaretleyen_ad) : "") : ""}</td></tr>`).join("")}
+          </tbody></table></div>` : '<div class="bos-mesaj">Bu filtrede öğrenci yok.</div>'}</details>`;
+    }).join("")}</div>
+    ${disarida.length ? `<div class="uyari-kutu-sm" style="margin-top:8px;">Ödeme yapmış ama şu an sınava girecekler listesinde olmayan ${disarida.length} öğrenci:
+      ${disarida.map((k) => `${esc(k.ad)} (${esc(k.sinif)})`).join(", ")}</div>` : ""}
+  </div>`;
+}
+
+function _odemeBaslik(alt) {
+  return `<div class="kb-baslik"><div>${esc(_okulAd)}</div><div>KELEBEK SINAV ÖDEME LİSTESİ</div>
+    <div style="font-weight:400;">${esc(new Date().toLocaleDateString("tr-TR"))} · ${esc(_filtreAd())}</div>
+    <div class="kb-alt">${esc(alt)}</div></div>`;
+}
+
+window.kelebekOdemeYazdir = () => {
+  const { satirlar, disarida } = _odemeVerisi();
+  const top = satirlar.reduce((a, s) => a + s.liste.length, 0);
+  const odedi = satirlar.reduce((a, s) => a + s.odedi, 0);
+  let html = `<div class="kb-sayfa">${_odemeBaslik("Şube Özeti")}
+    <table class="kb-tablo"><thead><tr><th>Şube</th><th>Sınava Girecek</th><th>Ödedi</th><th>Ödemedi</th><th>Oran</th></tr></thead><tbody>
+    ${satirlar.map((s) => `<tr><td>${esc(s.sube)}</td><td>${s.liste.length}</td><td>${s.odedi}</td><td>${s.liste.length - s.odedi}</td><td>${_oran(s.odedi, s.liste.length)}</td></tr>`).join("")}
+    <tr><th>Toplam</th><th>${top}</th><th>${odedi}</th><th>${top - odedi}</th><th>${_oran(odedi, top)}</th></tr></tbody></table>
+    ${disarida.length ? `<div class="kb-gozetmen" style="margin-top:8px;">Listede olmayıp ödeme yapan: ${disarida.map((k) => `${esc(k.ad)} (${esc(k.sinif)})`).join(", ")}</div>` : ""}</div>`;
+  html += satirlar.map((s) => {
+    const liste = _filtrele(s.liste);
+    if (!liste.length) return "";
+    return `<div class="kb-sayfa">${_odemeBaslik(`Şube: ${s.sube} (${s.odedi} / ${s.liste.length} ödedi)`)}
+      <table class="kb-tablo"><thead><tr><th>#</th><th>No</th><th>Ad Soyad</th><th>Durum</th></tr></thead><tbody>
+      ${liste.map((x, i) => `<tr><td>${i + 1}</td><td>${esc(x.no)}</td><td class="kb-sol">${esc(x.ad)}</td><td>${x.odedi ? "Ödedi" : "Ödemedi"}</td></tr>`).join("")}
+      </tbody></table></div>`;
+  }).join("");
+  document.getElementById("kelebekYazdirAlan").innerHTML = html;
+  document.body.classList.add("kelebek-yazdir");
+  const bitir = () => { document.body.classList.remove("kelebek-yazdir"); window.removeEventListener("afterprint", bitir); };
+  window.addEventListener("afterprint", bitir);
+  window.print();
+};
+
+window.kelebekOdemeExcel = async () => {
+  const btn = document.getElementById("kbOdemeExcelBtn");
+  if (btn) btn.disabled = true;
+  try {
+    const XLSX = await xlsxYukle();
+    const wb = XLSX.utils.book_new();
+    const { satirlar, disarida } = _odemeVerisi();
+    const baslik = [[_okulAd], ["KELEBEK SINAV ÖDEME LİSTESİ"], [`${new Date().toLocaleDateString("tr-TR")} · ${_filtreAd()}`], []];
+    const top = satirlar.reduce((a, s) => a + s.liste.length, 0);
+    const odedi = satirlar.reduce((a, s) => a + s.odedi, 0);
+    const ozet = [...baslik, ["Şube", "Sınava Girecek", "Ödedi", "Ödemedi", "Oran"],
+      ...satirlar.map((s) => [s.sube, s.liste.length, s.odedi, s.liste.length - s.odedi, _oran(s.odedi, s.liste.length)]),
+      ["Toplam", top, odedi, top - odedi, _oran(odedi, top)]];
+    XLSX.utils.book_append_sheet(wb, sayfaOlustur(XLSX, ozet, [14, 14, 10, 10, 8]), "Özet");
+    const satir = (s, x) => [s.sube, x.no, x.ad, x.odedi ? "Ödedi" : "Ödemedi", x.odedi ? _kisaZaman(x.kayit?.zaman) : "", x.odedi ? x.kayit?.isaretleyen_ad || "" : ""];
+    const bas = ["Şube", "No", "Ad Soyad", "Durum", "İşaretleme Tarihi", "İşaretleyen"];
+    const gen = [14, 8, 28, 10, 18, 20];
+    XLSX.utils.book_append_sheet(wb, sayfaOlustur(XLSX, [...baslik, bas, ...satirlar.flatMap((s) => _filtrele(s.liste).map((x) => satir(s, x)))], gen), "Tüm Liste");
+    const kullanilan = new Set(["özet", "tüm liste"]);
+    satirlar.forEach((s) => {
+      let ad = String(s.sube).replace(/[\\/?*[\]:]/g, "-").slice(0, 28) || "Şube", t = ad, i = 2;
+      while (kullanilan.has(t.toLocaleLowerCase("tr"))) t = `${ad} ${i++}`;
+      kullanilan.add(t.toLocaleLowerCase("tr"));
+      XLSX.utils.book_append_sheet(wb, sayfaOlustur(XLSX, [...baslik, [`Şube: ${s.sube} (${s.odedi} / ${s.liste.length} ödedi)`], bas,
+        ..._filtrele(s.liste).map((x) => satir(s, x))], gen), t);
+    });
+    if (disarida.length) {
+      XLSX.utils.book_append_sheet(wb, sayfaOlustur(XLSX, [...baslik, ["Listede olmayıp ödeme yapan öğrenciler"], ["Şube", "No", "Ad Soyad", "İşaretleme Tarihi", "İşaretleyen"],
+        ...disarida.map((k) => [k.sinif, k.no, k.ad, _kisaZaman(k.zaman), k.isaretleyen_ad || ""])], [14, 8, 28, 18, 20]), "Listede Olmayan");
+    }
+    XLSX.writeFile(wb, dosyaAdi(`Kelebek Odeme Listesi ${new Date().toLocaleDateString("tr-TR")}`) + ".xlsx");
+  } catch (err) {
+    mesajGoster("kbAnaMesaj", "Excel oluşturulamadı: " + err.message, "hata");
+  }
+  if (btn) btn.disabled = false;
+};
 
 // Secim ogrenci bazinda (ogrenciler). Eski kayitlarda sube + haric vardi.
 function _secimCikar(v) {
@@ -537,9 +708,9 @@ function _ogrencilerCiz(b = "sinav") {
           <span style="cursor:pointer;" data-sube="${esc(s)}" onclick="kelebekSubeAc('${b}', this.dataset.sube)">${acik ? "▲" : "▼"}</span>
         </div>
         <div class="accordion-icerik" ${acik ? "" : "hidden"} style="padding:4px 8px;">
-          ${liste.map((o) => `<label class="ogrenci-satir" style="cursor:pointer;padding:6px 10px;margin-bottom:3px;">
+          ${liste.map((o) => `<label class="ogrenci-satir${b === "ana" && _odediMi(o.ogrenci_id) ? " kb-odedi" : ""}" style="cursor:pointer;padding:6px 10px;margin-bottom:3px;">
             <input type="checkbox" class="kb-ogr-chk" value="${esc(o.ogrenci_id)}" ${secim.has(o.ogrenci_id) ? "checked" : ""} onchange="kelebekOgrenci('${b}', this)"${dis}>
-            <span class="ogrenci-no">${esc(o.no)}</span><span class="ogrenci-isim">${esc(o.ad)}</span></label>`).join("")}
+            <span class="ogrenci-no">${esc(o.no)}</span><span class="ogrenci-isim">${esc(o.ad)}</span>${b === "ana" ? _odemeBtnHtml(o.ogrenci_id, secim.has(o.ogrenci_id)) : ""}</label>`).join("")}
         </div></div>`;
     }).join("")}
     ${kayitsiz.length ? `<div class="uyari-kutu-sm" style="margin-top:8px;">Sistemde artık kayıtlı olmayan (mezun/silinmiş) ${kayitsiz.length} öğrenci bu sınavın kaydında korunuyor:
@@ -560,7 +731,10 @@ function _secimGostergeleri(b = "sinav") {
     const chk = kutu.querySelector(".kb-sube-chk");
     chk.checked = n > 0 && n === liste.length;
     chk.indeterminate = n > 0 && n < liste.length;
-    kutu.querySelector(".kb-sube-sayi").textContent = `(${n} / ${liste.length} seçili)`;
+    // Ana listede: odeme dugmesi sadece secili ogrencide; baslikta odeyen sayisi.
+    const odeyen = b === "ana" ? liste.filter((o) => secim.has(o.ogrenci_id) && _odediMi(o.ogrenci_id)).length : 0;
+    if (b === "ana") kutu.querySelectorAll(".kb-odeme-btn").forEach((btn) => (btn.hidden = !secim.has(btn.dataset.id)));
+    kutu.querySelector(".kb-sube-sayi").textContent = `(${n} / ${liste.length} seçili${b === "ana" ? ` · ${odeyen} ödedi` : ""})`;
   });
   const secilen = _ogrenciler.filter((o) => secim.has(o.ogrenci_id));
   const subeSayisi = new Set(secilen.map((o) => o.sinif)).size;

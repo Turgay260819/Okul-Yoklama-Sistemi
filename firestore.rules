@@ -130,6 +130,13 @@ service cloud.firestore {
             && request.resource.data.ogretmen_uid == request.auth.uid && kelebekSinavGunu(sinavId));
       allow delete: if false;
     }
+    // Kelebek odeme takibi: ogrenci basina tek belge; isaret kaldirilinca
+    // odedi:false olur, silinmez.
+    match /kelebek_odemeler/{ogrenciId} {
+      allow read: if isYonetimOkur();
+      allow create, update: if isAdmin();
+      allow delete: if false;
+    }
     // Kelebek ana liste (sinava girecek ogrenciler): sadece admin duzenler,
     // silinmez; degisiklik gecmisi sadece eklenir.
     match /kelebek_ayarlar/{ayarId} {
