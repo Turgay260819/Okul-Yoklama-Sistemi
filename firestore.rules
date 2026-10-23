@@ -115,6 +115,18 @@ service cloud.firestore {
       allow create: if isAdmin();
       allow update, delete: if false;
     }
+    // Kelebek ana liste (sinava girecek ogrenciler): sadece admin duzenler,
+    // silinmez; degisiklik gecmisi sadece eklenir.
+    match /kelebek_ayarlar/{ayarId} {
+      allow read: if isYonetimOkur();
+      allow create, update: if isAdmin();
+      allow delete: if false;
+    }
+    match /kelebek_ayarlar/{ayarId}/gecmis/{kayitId} {
+      allow read: if isYonetimOkur();
+      allow create: if isAdmin();
+      allow update, delete: if false;
+    }
 
     match /schedule/{scheduleId} {
       allow read: if isLoggedIn();
