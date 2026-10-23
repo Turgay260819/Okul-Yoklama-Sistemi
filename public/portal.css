@@ -1560,6 +1560,15 @@ tr:last-child td {
 .kb-bilgi-kutu { border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; margin-bottom: 6px; }
 .kb-bilgi-kutu summary { cursor: pointer; padding: 4px 0; }
 .kb-bilgi-kutu[open] summary { margin-bottom: 6px; }
+/* Salon yoklamasi (kelebek-ortak.js) */
+.kb-gorev { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; }
+.kb-yoklama { border: 2px solid #1a73e8; border-radius: 8px; padding: 10px; margin-top: 8px; background: var(--bg, #fff); }
+.kb-yk-onceki { background: #e6f4ea; border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; font-size: 13px; }
+.kb-yk-satir { display: flex; gap: 8px; align-items: center; padding: 6px 4px; border-bottom: 1px solid #eee; font-size: 14px; }
+.kb-yk-satir .kb-yk-no { min-width: 28px; color: var(--text2); }
+.kb-yk-satir .kb-yk-btn { min-width: 70px; background: #e6f4ea; color: #1e7e34; border: 1px solid #b7dfc2; }
+.kb-yk-satir.yok { background: #fce8e6; }
+.kb-yk-satir.yok .kb-yk-btn { background: #ea4335; color: #fff; border-color: #ea4335; }
 
 /* ── Kelebek sınav çıktıları (portal-kelebek.js) ── */
 #kelebekYazdirAlan { display: none; }

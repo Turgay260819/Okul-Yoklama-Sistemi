@@ -4,9 +4,13 @@ import {
   collection, query, where, doc, serverTimestamp,
 } from "./portal-config.js";
 import { state } from "./portal-state.js";
-import { esc, mesajGoster, sor, normalizeGun } from "./portal-utils.js";
+import { esc, mesajGoster, sor } from "./portal-utils.js";
 import { xlsxYukle, sayfaOlustur, dosyaAdi } from "./portal-excel.js";
 import { kelebekDagit, kelebekIstatistik, kademeAl, salonOner, sonrakiSira } from "./kelebek-dagit.js";
+import {
+  DIGER, trTarih, saatMetni, salonSirasi, siraliSalon, programDersleri, otoGozetmen, gozetmenTablosu, gecmisGozetmenKaydi,
+  yoklamaOku, yoklamaId, yoklamaDurumHtml, yoklamaFormuCiz, yokMetni,
+} from "./kelebek-ortak.js";
 
 // ── KELEBEK SINAV ──
 // Admin sinav olusturur: sube secimi, salonlar (mevcut siniflar ya da elle),
@@ -15,11 +19,8 @@ import { kelebekDagit, kelebekIstatistik, kademeAl, salonOner, sonrakiSira } fro
 // vekil varsa vekil); kaydedilen sadece adminin elle yaptigi degisiklikler
 // (gozetmenler["salon|saat"]). Idare goruntuler; sadece admin duzenler.
 
-const GUNLER = ["pazar", "pazartesi", "sali", "carsamba", "persembe", "cuma", "cumartesi"];
-const DIGER = "__diger";
 
 let _ogrenciler = null;   // tum aktif ogrenciler (ilk acilista)
-let _program = null;      // schedule (ilk ihtiyacta)
 let _okulAd = "AHMET YENİCE ORTAOKULU MÜDÜRLÜĞÜ";
 let _sinav = null;        // duzenlenen sinav
 let _gozetmen = {};       // "salon|saat" -> { id, ad, raporlu, kaynak, asil_id, asil_ad }
@@ -50,8 +51,6 @@ const duzenler = () => admin() && !_sinav?.silindi;
 const _ms = (z) => z?.toMillis?.() ?? 0;
 const kok = () => document.getElementById("sayfa-kelebek");
 const ogretmenAd = (id) => state.ogretmenler.find((o) => o.id === id)?.ad || "";
-const trTarih = (t) => { const [y, m, d] = String(t || "").split("-"); return d ? `${d}.${m}.${y}` : ""; };
-const saatMetni = (s) => (s || []).map((x) => x + ".").join(", ") + " ders";
 
 export async function kelebekYukle() {
   // Acik sinavda bekleyen kayit once yazilir; yazilamadiysa duzenleyici
@@ -320,6 +319,8 @@ function _duzenleyiciSifirla() {
   _degisiklik = _kaydedilen = 0;
   _cakisma = false;
   _kayitDurum = { tur: "" };
+  _yoklama = null;
+  _yoklamaForm = null;
 }
 
 // Yeni sinavin ogrenci secimi ana listeden gelir (ekrandaki son hali). Ana
@@ -425,6 +426,7 @@ function _duzenleyiciCiz() {
     <div class="kart"><div class="kart-baslik">7. Değişiklik Geçmişi</div>
       <p style="font-size:13px;color:var(--text2);margin-bottom:8px;">Her dağıtım ve sonraki değişiklikler (kim, ne zaman) burada tutulur; değiştirilemez. Dağıtım kayıtları görüntülenip geri yüklenebilir.</p>
       <div id="kbGecmis"></div></div>
+    <div class="kart"><div class="kart-baslik">8. Salon Yoklaması</div><div id="kbYoklama"></div></div>
     <div class="mesaj" id="kbMesaj" style="position:sticky;bottom:8px;"></div>`;
   _ogrencilerCiz();
   _salonlarCiz();
@@ -432,6 +434,7 @@ function _duzenleyiciCiz() {
   _gozetmenYukle();
   _ciktiCiz();
   _gecmisYukle();
+  _yoklamaYukle();
   _durumCiz();
 }
 
@@ -1089,61 +1092,24 @@ async function _gozetmenYukle() {
   }
   // Tarihi gecmis sinav: sinav gunu kaydedilen gozetmen tablosu kullanilir;
   // program/vekil/rapor sonradan degisse de gecmis bilgi degismez.
-  const kayit = _sinav.gozetmen_kayit;
-  const anahtarlar = salonlar.flatMap((s) => _sinav.saatler.map((saat) => s.ad + "|" + saat));
-  if (!_gozetmenCanli && _sinav.tarih < bugunHesapla() && kayit?.tarih === _sinav.tarih && kayit.oto
-      && anahtarlar.every((k) => k in kayit.oto)) {
-    _gozetmenOlustur(salonlar, kayit.oto, new Set(kayit.raporlu || []));
+  const kayit = _gozetmenCanli ? null : gecmisGozetmenKaydi(_sinav, salonlar, bugunHesapla());
+  if (kayit) {
+    _gozetmen = gozetmenTablosu(salonlar, _sinav.saatler, kayit.oto, new Set(kayit.raporlu || []), _sinav.gozetmenler, ogretmenAd);
     _gozetmenCiz(salonlar, `sınav için kaydedilen liste (${kayit.kaynak || "program"})`, true);
     return;
   }
   el.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
   const tarih = _sinav.tarih;
   try {
-    const [gunlukSnap, raporSnap] = await Promise.all([
-      getDocs(query(collection(db, "today_lessons"), where("date", "==", tarih))),
-      getDocs(query(collection(db, "ogretmen_rapor"), where("baslangic_tarihi", "<=", tarih))),
-    ]);
-    let dersler = gunlukSnap.docs.map((d) => d.data());
-    let kaynak = "günlük ders tablosu";
-    if (!dersler.length) {
-      if (!_program) _program = (await getDocs(collection(db, "schedule"))).docs.map((d) => d.data());
-      const gun = GUNLER[new Date(tarih + "T12:00:00").getDay()];
-      dersler = _program.filter((d) => normalizeGun(d.day) === gun);
-      kaynak = "haftalık ders programı";
-    }
-    const raporlu = new Set();
-    raporSnap.forEach((d) => { const r = d.data(); if (r.bitis_tarihi >= tarih) raporlu.add(r.ogretmen_id); });
+    const { dersler, kaynak, raporlu } = await programDersleri(tarih);
     if (_sinav.tarih !== tarih) return;
-    const oto = {};
-    salonlar.forEach((s) => _sinav.saatler.forEach((saat) => {
-      const ders = s.sinif ? dersler.find((d) => d.class_id === s.sinif && Number(d.lesson_number) === saat) : null;
-      const id = ders ? (ders.substitute_teacher_id || ders.teacher_id || "") : "";
-      oto[s.ad + "|" + saat] = { id, ad: ogretmenAd(id) };
-    }));
-    _gozetmenOlustur(salonlar, oto, raporlu);
+    const oto = otoGozetmen(salonlar, _sinav.saatler, dersler, ogretmenAd);
+    _gozetmen = gozetmenTablosu(salonlar, _sinav.saatler, oto, raporlu, _sinav.gozetmenler, ogretmenAd);
     _gozetmenCiz(salonlar, kaynak, false);
     _gozetmenKaydiYaz(tarih, kaynak, oto, raporlu);
   } catch (err) {
     el.innerHTML = `<div class="bos-mesaj">Gözetmenler yüklenemedi: ${esc(err.message)}</div>`;
   }
-}
-
-// oto: "salon|saat" -> programdaki ogretmen; elle degisiklikler ustune biner.
-function _gozetmenOlustur(salonlar, oto, raporlu) {
-  _gozetmen = {};
-  salonlar.forEach((s) => _sinav.saatler.forEach((saat) => {
-    const anahtar = s.ad + "|" + saat;
-    const otoId = oto[anahtar]?.id || "";
-    const otoAd = oto[anahtar]?.ad || ogretmenAd(otoId);
-    const elle = (_sinav.gozetmenler || {})[anahtar];
-    if (elle) {
-      _gozetmen[anahtar] = { id: elle.ogretmen_id, ad: elle.ad, raporlu: raporlu.has(elle.ogretmen_id), kaynak: "elle",
-        asil_id: otoId, asil_ad: otoAd };
-    } else {
-      _gozetmen[anahtar] = { id: otoId, ad: otoAd, raporlu: !!otoId && raporlu.has(otoId), kaynak: "program" };
-    }
-  }));
 }
 
 // Hesaplanan gozetmen tablosunu sinava yazar (degistiyse). Sinav gunu gecince
@@ -1189,6 +1155,7 @@ function _gozetmenCiz(salonlar, kaynak, kayittan) {
     </tbody></table></div>
     ${ro ? "" : '<p style="font-size:12px;color:var(--text2);margin-top:6px;">Gözetmen değişiklikleri otomatik kaydedilir ve geçmişe yazılır.</p>'}`;
   _bilgiCiz();
+  if (_yoklama) _yoklamaCiz();
 }
 
 window.kelebekGozetmenDegistir = async (anahtar, btn) => {
@@ -1233,6 +1200,66 @@ window.kelebekGozetmenOtomatik = async (anahtar) => {
   _gozetmenYukle();
   await _kaydetGoster("gozetmen", `${_gozetmenYeri(anahtar)}: programdaki öğretmene geri dönüldü`, false, "Gözetmen kaydedildi.");
 };
+
+// ── Salon yoklaması ──
+// Gozetmenler ogretmen ekranindan (portal-kelebek-ogretmen.js) girer; admin
+// burada gorur, gerekirse kendisi girer/duzeltir.
+let _yoklama = null;      // yoklamaId -> kayit (okununca)
+let _yoklamaForm = null;  // acik form "salon|saat"
+
+async function _yoklamaYukle() {
+  const el = document.getElementById("kbYoklama");
+  if (!el) return;
+  if (!_sinav.id || !_sinav.dagilim.length || !_sinav.saatler.length) {
+    el.innerHTML = '<div class="bos-mesaj">Dağıtım yapılıp ders saatleri seçilince gözetmenlerin girdiği salon yoklamaları burada görünür.</div>';
+    return;
+  }
+  const sinav = _sinav;
+  el.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
+  try {
+    const k = await yoklamaOku(sinav.id);
+    if (_sinav !== sinav) return;
+    _yoklama = k;
+    _yoklamaCiz();
+  } catch (err) {
+    el.innerHTML = `<div class="bos-mesaj">Yoklamalar okunamadı: ${esc(err.message)}</div>`;
+  }
+}
+
+function _yoklamaCiz() {
+  const el = document.getElementById("kbYoklama");
+  if (!el || !_yoklama) return;
+  const ro = !duzenler();
+  const saatler = _sinav.saatler;
+  el.innerHTML = `<p style="font-size:13px;color:var(--text2);margin-bottom:8px;">Her ders saatinin gözetmeni öğretmen ekranından (🦋 Kelebek Sınav) kendi saatinin yoklamasını sınav günü girer; sonraki saatlerin gözetmenleri değişiklik yoksa "aynı" diye onaylar.${ro ? "" : " Gerekirse buradan da girip düzeltebilirsiniz."}</p>
+    <button class="btn btn-gri btn-sm" style="margin-bottom:8px;" onclick="kelebekYoklamaYenile()">🔄 Yenile</button>
+    <div style="overflow-x:auto;"><table><thead><tr><th>Salon</th>${saatler.map((s) => `<th>${s}. ders</th>`).join("")}</tr></thead><tbody>
+    ${_salonSirasi().map((salon) => `<tr><td><strong>${esc(salon)}</strong><div style="font-size:11px;color:var(--text2);">${_siraliSalon(salon).length} öğrenci</div></td>
+      ${saatler.map((saat) => {
+        const k = _yoklama.get(yoklamaId(salon, saat));
+        const g = _gozetmen[salon + "|" + saat];
+        return `<td style="vertical-align:top;min-width:170px;font-size:13px;">${yoklamaDurumHtml(k)}
+          ${k?.yoklar?.length ? `<div style="font-size:12px;color:#ea4335;">${esc(yokMetni(k))}</div>` : ""}
+          <div style="font-size:11px;color:var(--text2);">👁 ${g?.id ? esc(g.ad) : "—"}</div>
+          ${ro ? "" : `<button class="btn btn-gri btn-sm" style="margin-top:4px;" data-s="${esc(salon)}" onclick="kelebekYoklamaAc(this.dataset.s, ${saat})">${k ? "Düzelt" : "Gir"}</button>`}</td>`;
+      }).join("")}</tr>`).join("")}
+    </tbody></table></div>
+    <div id="kbYoklamaForm" style="margin-top:10px;"></div>`;
+  if (!_yoklamaForm) return;
+  const i = _yoklamaForm.lastIndexOf("|");
+  const salon = _yoklamaForm.slice(0, i), saat = Number(_yoklamaForm.slice(i + 1));
+  const kutu = document.getElementById("kbYoklamaForm");
+  yoklamaFormuCiz(kutu, {
+    sinav: _sinav, salon, saat, kayitlar: _yoklama,
+    kim: { id: state.ogretmenDoc?.id || "", ad: state.kullanici?.ad || "" },
+    onKaydet: (k) => { _yoklama.set(yoklamaId(salon, saat), k); _yoklamaForm = null; _yoklamaCiz(); mesajGoster("kbMesaj", `${salon} · ${saat}. ders yoklaması kaydedildi.`, "basari"); },
+    onKapat: () => { _yoklamaForm = null; _yoklamaCiz(); },
+  });
+  kutu.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+window.kelebekYoklamaAc = (salon, saat) => { _yoklamaForm = salon + "|" + saat; _yoklamaCiz(); };
+window.kelebekYoklamaYenile = () => { _yoklamaForm = null; _yoklamaYukle(); };
 
 // ── Sınav bilgisi (sinav sirasinda / sonrasinda hizli bakis) ──
 // Sube sube, salon salon liste ve ogrenci arama. Idare de gorur.
@@ -1325,13 +1352,8 @@ function _ciktiCiz() {
     <button class="btn btn-yesil" id="kbExcelBtn" onclick="kelebekExcel()">📊 Excel</button></div>`;
 }
 
-function _salonSirasi() {
-  const sira = _gecerliSalonlar().map((s) => s.ad);
-  [...new Set(_sinav.dagilim.map((d) => d.salon))].forEach((s) => { if (!sira.includes(s)) sira.push(s); });
-  return sira;
-}
-const _siraliSalon = (salon) => _sinav.dagilim.filter((d) => d.salon === salon)
-  .sort((a, b) => (a.sira ?? 0) - (b.sira ?? 0) || a.ad.localeCompare(b.ad, "tr"));
+const _salonSirasi = () => salonSirasi(_gecerliSalonlar().map((s) => s.ad), _sinav.dagilim);
+const _siraliSalon = (salon) => siraliSalon(_sinav.dagilim, salon);
 const _gozetmenMetni = (salon) => _sinav.saatler.map((saat) => {
   const g = _gozetmen[salon + "|" + saat];
   return `${saat}. ders: ${g && g.id ? g.ad : "—"}`;

@@ -104,8 +104,9 @@ service cloud.firestore {
 
     // Kelebek sinav dagilimlari: idare gorur, sadece admin olusturur/duzenler.
     // Silme yok: "Sil" sinavi arsive tasir (silindi: true), veri kaybolmaz.
+    // Ogretmenler sinavlari (salon, ogrenci, gozetmen) salt okunur gorur.
     match /kelebek_sinavlar/{sinavId} {
-      allow read: if isYonetimOkur();
+      allow read: if isYonetimOkur() || isOgretmen();
       allow create, update: if isAdmin();
       allow delete: if false;
     }
@@ -114,6 +115,20 @@ service cloud.firestore {
       allow read: if isYonetimOkur();
       allow create: if isAdmin();
       allow update, delete: if false;
+    }
+    // Salon yoklamasi: gozetmen ogretmen kendi kaydini sadece sinav gunu
+    // girer/duzeltir; idare her zaman. Silinmez.
+    function kelebekSinavGunu(sinavId) {
+      return get(/databases/$(database)/documents/kelebek_sinavlar/$(sinavId)).data.tarih == bugunTR();
+    }
+    match /kelebek_sinavlar/{sinavId}/yoklama/{yoklamaId} {
+      allow read: if isYonetimOkur() || isOgretmen();
+      allow create: if isYonetim()
+        || (isOgretmen() && request.resource.data.ogretmen_uid == request.auth.uid && kelebekSinavGunu(sinavId));
+      allow update: if isYonetim()
+        || (isOgretmen() && resource.data.ogretmen_uid == request.auth.uid
+            && request.resource.data.ogretmen_uid == request.auth.uid && kelebekSinavGunu(sinavId));
+      allow delete: if false;
     }
     // Kelebek ana liste (sinava girecek ogrenciler): sadece admin duzenler,
     // silinmez; degisiklik gecmisi sadece eklenir.
