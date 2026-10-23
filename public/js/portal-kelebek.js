@@ -185,6 +185,13 @@ function _anaKartCiz() {
     <div ${_anaKartAcik ? "" : "hidden"}>
       <p style="font-size:13px;color:var(--text2);margin-bottom:10px;">Sınavlara girecek öğrencilerin güncel listesi. Yeni sınavın öğrenci seçimi bu listeden gelir: sınava girmekten vazgeçenleri buradan çıkarın, yeni katılanları ekleyin. Var olan sınavlar değişmez (istenirse sınavın içinde "Ana listeyi uygula").</p>
       ${!_anaVar && _anaKaynak ? `<div class="uyari-kutu-sm">Liste henüz kaydedilmedi; başlangıç olarak ${esc(_anaKaynak)} sınavının seçimi gösteriliyor. İlk değişiklikte kaydedilir.</div>` : ""}
+      ${_sinavListesi.some((s) => !s.silindi) ? `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;font-size:13px;">
+        <span style="font-weight:600;">Bir sınavdan aktar:</span>
+        <select id="kbAnaAktarSinav" style="min-width:220px;">
+          ${_sinavListesi.filter((s) => !s.silindi).map((s) => `<option value="${esc(s.id)}">${esc(trTarih(s.tarih))} — ${esc(s.ad)} (${(s.dagilim || []).length || (s.ogrenciler || []).length} öğrenci)</option>`).join("")}
+        </select>
+        <button class="btn btn-mavi btn-sm" onclick="kelebekAnaAktar()">📥 Bu sınavdan aktar</button></div>` : ""}
+      <div class="mesaj" id="kbAnaMesaj"></div>
       <div id="kbAnaListe"></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:8px;">
         <span id="kbAnaDurum" style="font-size:13px;"></span>
@@ -198,6 +205,35 @@ function _anaKartCiz() {
 }
 
 window.kelebekAnaKart = () => { _anaKartAcik = !_anaKartAcik; _anaKartCiz(); };
+
+// Ana liste secilen sinavin ogrencileriyle degistirilir (dagitimdakiler; dagitim
+// yoksa secim). Sinav kaydi degismez; hemen kaydedilir ve gecmise yazilir.
+let _anaNot = "";
+window.kelebekAnaAktar = async () => {
+  const sinav = _sinavListesi.find((s) => s.id === document.getElementById("kbAnaAktarSinav")?.value);
+  if (!sinav) return;
+  const kaynak = (sinav.dagilim || []).length ? new Set(sinav.dagilim.map((x) => x.ogrenci_id)) : _secimCikar(sinav);
+  const aktif = new Set(_ogrenciler.map((o) => o.ogrenci_id));
+  const yeni = new Set([...kaynak].filter((id) => aktif.has(id)));
+  const kayitsiz = kaynak.size - yeni.size;
+  const eklenen = [...yeni].filter((id) => !_anaSecili.has(id)).length;
+  const cikan = [..._anaSecili].filter((id) => !yeni.has(id)).length;
+  const ad = `«${sinav.ad}» (${trTarih(sinav.tarih)})`;
+  if (!await sor("Sınavdan Aktar", `Ana liste ${ad} sınavındaki ${yeni.size} öğrenciyle değiştirilecek: ${eklenen} öğrenci eklenecek, ${cikan} öğrenci çıkarılacak.${kayitsiz ? ` Sistemde artık kayıtlı olmayan ${kayitsiz} öğrenci alınmayacak.` : ""} Sınavın kendisi değişmez.`, "Aktar", "btn-mavi")) return;
+  clearTimeout(_anaZamanlayici);
+  _anaZamanlayici = null;
+  _anaSecili = yeni;
+  _anaNot = `${ad} sınavından aktarıldı`;
+  _anaKartCiz();
+  try {
+    await _anaKaydet();
+    mesajGoster("kbAnaMesaj", `Ana liste ${ad} sınavından aktarıldı: ${yeni.size} öğrenci.${kayitsiz ? ` Kayıtlı olmayan ${kayitsiz} öğrenci alınmadı.` : ""}`, "basari");
+  } catch (err) {
+    mesajGoster("kbAnaMesaj", "Kaydedilemedi: " + err.message, "hata");
+  } finally {
+    _anaNot = "";
+  }
+};
 window.kelebekAnaGecmis = () => { _anaGecmisAcik = !_anaGecmisAcik; _anaKartCiz(); };
 
 function _anaOzetCiz() {
@@ -273,7 +309,7 @@ async function _anaKaydetIc() {
     const adlar = (ids) => ids.slice(0, 10).map(ad).join(", ") + (ids.length > 10 ? ` +${ids.length - 10}` : "");
     await addDoc(collection(db, "kelebek_ayarlar", "ana_liste", "gecmis"), {
       zaman: serverTimestamp(), yapan_ad: kim, ogrenci_sayisi: secim.size,
-      detay: (ilk ? `Liste oluşturuldu: ${secim.size} öğrenci${_anaKaynak ? " (başlangıç: " + _anaKaynak + ")" : ""}` : `${onceki.size} → ${secim.size} öğrenci`) +
+      detay: (_anaNot ? _anaNot + ". " : "") + (ilk ? `Liste oluşturuldu: ${secim.size} öğrenci${_anaKaynak ? " (başlangıç: " + _anaKaynak + ")" : ""}` : `${onceki.size} → ${secim.size} öğrenci`) +
         (!ilk && eklenen.length ? `; eklenen ${eklenen.length}: ${adlar(eklenen)}` : "") +
         (!ilk && cikan.length ? `; çıkarılan ${cikan.length}: ${adlar(cikan)}` : ""),
     });
