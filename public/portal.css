@@ -1560,6 +1560,10 @@ tr:last-child td {
 .kb-bilgi-kutu { border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; margin-bottom: 6px; }
 .kb-bilgi-kutu summary { cursor: pointer; padding: 4px 0; }
 .kb-bilgi-kutu[open] summary { margin-bottom: 6px; }
+/* Kelebek ana liste kilidi ve surumler */
+.kb-kilit { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 8px 10px; margin-bottom: 10px; border-radius: 8px; font-size: 13px; background: #f1f3f4; border: 1px solid #dadce0; }
+.kb-kilit.acik { background: #fff8e1; border-color: #f9ab00; }
+tr.kb-surum td { background: #e8f0fe; }
 /* Kelebek ana liste odeme takibi */
 .ogrenci-satir.kb-odedi, tr.kb-odedi td { background: #e6f4ea; }
 .ogrenci-satir .kb-odeme-btn { margin-left: auto; background: #fff; color: #5f6368; border: 1px solid #dadce0; }

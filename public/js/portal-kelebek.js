@@ -4,7 +4,7 @@ import {
   collection, query, where, doc, serverTimestamp,
 } from "./portal-config.js";
 import { state } from "./portal-state.js";
-import { esc, mesajGoster, sor } from "./portal-utils.js";
+import { esc, mesajGoster, sor, sor_giris } from "./portal-utils.js";
 import { xlsxYukle, sayfaOlustur, dosyaAdi } from "./portal-excel.js";
 import { kelebekDagit, kelebekIstatistik, kademeAl, salonOner, sonrakiSira } from "./kelebek-dagit.js";
 import {
@@ -72,7 +72,7 @@ export async function kelebekYukle() {
       } catch (e) { /* varsayilan */ }
     }
     _sinav = null;
-    if (admin()) { await _anaBekleyenYaz(); await _anaOku(); }
+    if (admin()) { await _anaBekleyenYaz(); _anaKilitli = true; await _anaOku(); }
     await _listeCiz();
   } catch (err) {
     kok().innerHTML = `<div class="bos-mesaj">Yüklenemedi: ${esc(err.message)}</div>`;
@@ -161,6 +161,7 @@ window.kelebekSilinenler = (acik) => { _silinenleriGoster = acik; _listeCiz(); }
 let _anaTohum = false;  // belge yokken son sinavdan baslangic yapildi
 let _anaKaynak = "";    // baslangic yapilan sinavin adi
 let _anaGecmisAcik = false;
+let _anaKilitli = true;   // liste varsayilan olarak kilitli (salt okunur)
 
 async function _anaOku() {
   const [d, od] = await Promise.all([getDoc(ANA_REF()), getDocs(collection(db, "kelebek_odemeler"))]);
@@ -186,7 +187,11 @@ function _anaKartCiz() {
     <div ${_anaKartAcik ? "" : "hidden"}>
       <p style="font-size:13px;color:var(--text2);margin-bottom:10px;">Sınavlara girecek öğrencilerin güncel listesi. Yeni sınavın öğrenci seçimi bu listeden gelir: sınava girmekten vazgeçenleri buradan çıkarın, yeni katılanları ekleyin. Var olan sınavlar değişmez (istenirse sınavın içinde "Ana listeyi uygula").</p>
       ${!_anaVar && _anaKaynak ? `<div class="uyari-kutu-sm">Liste henüz kaydedilmedi; başlangıç olarak ${esc(_anaKaynak)} sınavının seçimi gösteriliyor. İlk değişiklikte kaydedilir.</div>` : ""}
-      ${_sinavListesi.some((s) => !s.silindi) ? `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;font-size:13px;">
+      <div class="kb-kilit${_anaKilitli ? "" : " acik"}">
+        <span style="flex:1;">${_anaKilitli ? "🔒 Liste kilitli; yanlışlıkla değişmesin diye öğrenci seçimi kapalı." : "🔓 Düzenleme açık. Bitince kilitleyin (kart kapanınca kendiliğinden kilitlenir)."}</span>
+        <button class="btn ${_anaKilitli ? "btn-mavi" : "btn-gri"} btn-sm" onclick="kelebekAnaKilit()">${_anaKilitli ? "🔓 Düzenlemeyi aç" : "🔒 Kilitle"}</button>
+        <button class="btn btn-gri btn-sm" onclick="kelebekAnaSurum()">📌 Sürüm olarak kaydet</button></div>
+      ${!_anaKilitli && _sinavListesi.some((s) => !s.silindi) ? `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;font-size:13px;">
         <span style="font-weight:600;">Bir sınavdan aktar:</span>
         <select id="kbAnaAktarSinav" style="min-width:220px;">
           ${_sinavListesi.filter((s) => !s.silindi).map((s) => `<option value="${esc(s.id)}">${esc(trTarih(s.tarih))} — ${esc(s.ad)} (${(s.dagilim || []).length || (s.ogrenciler || []).length} öğrenci)</option>`).join("")}
@@ -208,7 +213,13 @@ function _anaKartCiz() {
   _anaDurumCiz();
 }
 
-window.kelebekAnaKart = () => { _anaKartAcik = !_anaKartAcik; _anaKartCiz(); };
+// Kart kapaninca liste yeniden kilitlenir.
+window.kelebekAnaKart = () => { _anaKartAcik = !_anaKartAcik; if (!_anaKartAcik) _anaKilitli = true; _anaKartCiz(); };
+window.kelebekAnaKilit = async () => {
+  if (!_anaKilitli) await _anaBekleyenYaz();
+  _anaKilitli = !_anaKilitli;
+  _anaKartCiz();
+};
 
 // Ana liste secilen sinavin ogrencileriyle degistirilir (dagitimdakiler; dagitim
 // yoksa secim). Sinav kaydi degismez; hemen kaydedilir ve gecmise yazilir.
@@ -313,7 +324,7 @@ async function _anaKaydetIc() {
     const ad = (id) => _ogrenciler.find((o) => o.ogrenci_id === id)?.ad || "?";
     const adlar = (ids) => ids.slice(0, 10).map(ad).join(", ") + (ids.length > 10 ? ` +${ids.length - 10}` : "");
     await addDoc(collection(db, "kelebek_ayarlar", "ana_liste", "gecmis"), {
-      zaman: serverTimestamp(), yapan_ad: kim, ogrenci_sayisi: secim.size,
+      zaman: serverTimestamp(), yapan_ad: kim, ogrenci_sayisi: secim.size, ogrenciler: [...secim],
       detay: (_anaNot ? _anaNot + ". " : "") + (ilk ? `Liste oluşturuldu: ${secim.size} öğrenci${_anaKaynak ? " (başlangıç: " + _anaKaynak + ")" : ""}` : `${onceki.size} → ${secim.size} öğrenci`) +
         (!ilk && eklenen.length ? `; eklenen ${eklenen.length}: ${adlar(eklenen)}` : "") +
         (!ilk && cikan.length ? `; çıkarılan ${cikan.length}: ${adlar(cikan)}` : ""),
@@ -328,19 +339,103 @@ async function _anaKaydetIc() {
   }
 }
 
+// ── Sürümler ──
+// Her kayitta listenin tam kopyasi gecmise yazilir (ogrenciler); adli surum
+// ("📌 Sürüm olarak kaydet") listeyi degistirmeden kopya ekler. Gecmisteki her
+// kopya goruntulenip geri yuklenebilir (normal kayit yolu; hicbir sey silinmez).
+let _anaGecmisListe = [];
+let _anaSurumAcik = null;  // goruntulenen gecmis satiri id
+
 async function _anaGecmisYukle() {
   const el = document.getElementById("kbAnaGecmis");
   if (!el) return;
   try {
     const snap = await getDocs(collection(db, "kelebek_ayarlar", "ana_liste", "gecmis"));
-    const g = snap.docs.map((d) => d.data()).sort((a, b) => (b.zaman?.toMillis?.() ?? Infinity) - (a.zaman?.toMillis?.() ?? Infinity));
-    el.innerHTML = g.length ? `<div style="overflow-x:auto;margin-top:8px;"><table><thead><tr><th>Ne zaman</th><th>Kim</th><th>Ayrıntı</th></tr></thead><tbody>
-      ${g.map((x) => `<tr><td style="white-space:nowrap;font-size:12px;">${esc(_zamanMetni(x.zaman))}</td><td style="font-size:12px;">${esc(x.yapan_ad)}</td><td style="font-size:12px;">${esc(x.detay)}</td></tr>`).join("")}
-      </tbody></table></div>` : '<div class="bos-mesaj">Henüz kayıtlı değişiklik yok.</div>';
+    _anaGecmisListe = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (b.zaman?.toMillis?.() ?? Infinity) - (a.zaman?.toMillis?.() ?? Infinity));
+    _anaGecmisCiz();
   } catch (err) {
     el.innerHTML = `<div class="bos-mesaj">Geçmiş okunamadı: ${esc(err.message)}</div>`;
   }
 }
+
+function _anaGecmisCiz() {
+  const el = document.getElementById("kbAnaGecmis");
+  if (!el) return;
+  const g = _anaGecmisListe;
+  if (!g.length) { el.innerHTML = '<div class="bos-mesaj">Henüz kayıtlı değişiklik yok.</div>'; return; }
+  el.innerHTML = `<div style="overflow-x:auto;margin-top:8px;"><table><thead><tr><th>Ne zaman</th><th>Kim</th><th>Ayrıntı</th><th></th></tr></thead><tbody>
+    ${g.map((x) => {
+      const kopya = Array.isArray(x.ogrenciler);
+      let satir = `<tr${x.tur === "surum" ? ' class="kb-surum"' : ""}><td style="white-space:nowrap;font-size:12px;">${esc(_zamanMetni(x.zaman))}</td><td style="font-size:12px;">${esc(x.yapan_ad)}</td>
+        <td style="font-size:12px;">${x.tur === "surum" ? `<strong>📌 ${esc(x.ad || "")}</strong> · ` : ""}${esc(x.detay)}${kopya ? ` <span style="color:var(--text2);">(${x.ogrenciler.length} öğrenci)</span>` : ""}</td>
+        <td style="white-space:nowrap;">${kopya ? `<button class="btn btn-gri btn-sm" data-id="${esc(x.id)}" onclick="kelebekAnaSurumGoster(this.dataset.id)">${_anaSurumAcik === x.id ? "Gizle" : "Görüntüle"}</button>
+          ${_anaKilitli ? "" : `<button class="btn btn-mavi btn-sm" data-id="${esc(x.id)}" onclick="kelebekAnaGeriYukle(this.dataset.id)">Geri yükle</button>`}` : ""}</td></tr>`;
+      if (kopya && _anaSurumAcik === x.id) satir += `<tr><td colspan="4" style="background:#fafafa;font-size:12px;">${_surumOzeti(x)}</td></tr>`;
+      return satir;
+    }).join("")}
+    </tbody></table></div>
+    ${_anaKilitli ? '<div style="font-size:12px;color:var(--text2);margin-top:4px;">Geri yüklemek için önce "🔓 Düzenlemeyi aç".</div>' : ""}`;
+}
+
+// Surumdeki sube sayilari ve simdiki listeyle fark.
+function _surumOzeti(x) {
+  const ad = (id) => _ogrenciler.find((o) => o.ogrenci_id === id)?.ad || "(kayıtlı değil)";
+  const surum = new Set(x.ogrenciler);
+  const say = {};
+  _ogrenciler.filter((o) => surum.has(o.ogrenci_id)).forEach((o) => (say[o.sinif] = (say[o.sinif] || 0) + 1));
+  const eklenecek = [...surum].filter((id) => !_anaSecili.has(id));
+  const cikacak = [..._anaSecili].filter((id) => !surum.has(id));
+  const liste = (ids) => ids.slice(0, 30).map(ad).map(esc).join(", ") + (ids.length > 30 ? ` +${ids.length - 30}` : "");
+  return `<div><strong>Şubeler:</strong> ${Object.entries(say).sort((a, b) => a[0].localeCompare(b[0], "tr", { numeric: true })).map(([k, v]) => `${esc(k)}: ${v}`).join(" · ") || "—"}</div>
+    <div style="margin-top:4px;"><strong>Şimdiki listeyle fark:</strong> ${!eklenecek.length && !cikacak.length ? "yok (aynı)" : ""}</div>
+    ${eklenecek.length ? `<div style="color:#1e7e34;">Geri yüklenirse eklenecek ${eklenecek.length}: ${liste(eklenecek)}</div>` : ""}
+    ${cikacak.length ? `<div style="color:#c5221f;">Geri yüklenirse çıkarılacak ${cikacak.length}: ${liste(cikacak)}</div>` : ""}`;
+}
+
+window.kelebekAnaSurumGoster = (id) => { _anaSurumAcik = _anaSurumAcik === id ? null : id; _anaGecmisCiz(); };
+
+window.kelebekAnaSurum = async () => {
+  const ad = (await sor_giris("Sürüm Olarak Kaydet", `Şu anki liste (${_anaSecili.size} öğrenci) adıyla saklanacak; liste değişmez. Sonradan geçmişten görüntülenip geri yüklenebilir.`, "ör. Kesin liste – Ekim") || "").trim();
+  if (!ad) return;
+  try {
+    await _anaBekleyenYaz();
+    await addDoc(collection(db, "kelebek_ayarlar", "ana_liste", "gecmis"), {
+      tur: "surum", ad, ogrenciler: [..._anaSecili], ogrenci_sayisi: _anaSecili.size,
+      detay: `Sürüm kaydedildi`, zaman: serverTimestamp(), yapan_ad: state.kullanici?.ad || "",
+    });
+    _anaGecmisAcik = true;
+    _anaKartCiz();
+    mesajGoster("kbAnaMesaj", `«${ad}» sürümü kaydedildi (${_anaSecili.size} öğrenci).`, "basari");
+  } catch (err) {
+    mesajGoster("kbAnaMesaj", "Sürüm kaydedilemedi: " + err.message, "hata");
+  }
+};
+
+window.kelebekAnaGeriYukle = async (id) => {
+  const x = _anaGecmisListe.find((g) => g.id === id);
+  if (!x || !Array.isArray(x.ogrenciler) || _anaKilitli) return;
+  const aktif = new Set(_ogrenciler.map((o) => o.ogrenci_id));
+  const yeni = new Set(x.ogrenciler.filter((i) => aktif.has(i)));
+  const eklenen = [...yeni].filter((i) => !_anaSecili.has(i)).length;
+  const cikan = [..._anaSecili].filter((i) => !yeni.has(i)).length;
+  const kayitsiz = x.ogrenciler.length - yeni.size;
+  const ad = x.tur === "surum" ? `«${x.ad}» sürümü` : `${_zamanMetni(x.zaman)} tarihli liste`;
+  if (!eklenen && !cikan) { mesajGoster("kbAnaMesaj", "Şimdiki liste bu sürümle zaten aynı.", "bilgi"); return; }
+  if (!await sor("Sürümü Geri Yükle", `Liste ${ad} haline dönecek: ${eklenen} öğrenci eklenecek, ${cikan} öğrenci çıkarılacak.${kayitsiz ? ` Sistemde artık kayıtlı olmayan ${kayitsiz} öğrenci alınmayacak.` : ""} Şimdiki liste de geçmişte saklı kalır.`, "Geri yükle", "btn-mavi")) return;
+  clearTimeout(_anaZamanlayici);
+  _anaZamanlayici = null;
+  _anaSecili = yeni;
+  _anaNot = `${ad} geri yüklendi`;
+  _anaKartCiz();
+  try {
+    await _anaKaydet();
+    mesajGoster("kbAnaMesaj", `${ad} geri yüklendi: ${yeni.size} öğrenci.`, "basari");
+  } catch (err) {
+    mesajGoster("kbAnaMesaj", "Kaydedilemedi: " + err.message, "hata");
+  } finally {
+    _anaNot = "";
+  }
+};
 
 // ── Ödeme takibi (ana liste) ──
 // kelebek_odemeler/{ogrenciId}: tek odeme (her sinavda sifirlanmaz), tutar yok.
@@ -534,6 +629,7 @@ function _duzenleyiciSifirla() {
 // liste hic kaydedilmediyse en son olusturulan (silinmemis) sinavdan.
 window.kelebekYeni = async () => {
   await _anaBekleyenYaz();
+  _anaKilitli = true;
   _sinav = { id: null, ad: "", tarih: bugunHesapla(), saatler: [], sira_no: false,
     salonlar: [{ ad: "", sinif: "", kapasite: 0 }], dagilim: [], gozetmenler: {} };
   const onceki = _sonSinav();
@@ -550,6 +646,7 @@ window.kelebekYeni = async () => {
 
 window.kelebekAc = async (id) => {
   await _anaBekleyenYaz();
+  _anaKilitli = true;
   const d = await getDoc(doc(db, "kelebek_sinavlar", id));
   if (!d.exists()) return;
   _sinav = { id, gozetmenler: {}, dagilim: [], saatler: [], salonlar: [], ...d.data() };
@@ -671,7 +768,7 @@ function _dagilimDegisti() {
 // kullanilir: sinav duzenleyicisi ("sinav") ve liste sayfasindaki ana liste ("ana").
 const _baglam = {
   sinav: { el: "kbOgrenciler", secim: () => _secili, acik: () => _acikSubeler, ro: () => !duzenler(), degisti: () => _secimDegisti() },
-  ana: { el: "kbAnaListe", secim: () => _anaSecili, acik: () => _anaAcik, ro: () => !admin(), degisti: () => _anaDegisti() },
+  ana: { el: "kbAnaListe", secim: () => _anaSecili, acik: () => _anaAcik, ro: () => !admin() || _anaKilitli, degisti: () => _anaDegisti() },
 };
 const _kutular = (b) => document.querySelectorAll(`#${_baglam[b].el} .kb-sube`);
 
@@ -772,14 +869,34 @@ function _subeIsaretle(b, s, acik) {
   kutu?.querySelectorAll(".kb-ogr-chk").forEach((c) => (c.checked = acik));
 }
 
-window.kelebekSube = (b, s, acik) => { _subeIsaretle(b, s, acik); _baglam[b].degisti(); };
+// Ana listede toplu degisiklik (sube / kademe / temizle) once onaylanir;
+// iptalde sube kutusu eski haline doner. Sinav duzenleyicisinde sorulmaz.
+async function _topluOnay(b, ids, acik, baslik) {
+  if (b !== "ana") return true;
+  const degisen = ids.filter((id) => (acik ? !_anaSecili.has(id) : _anaSecili.has(id)));
+  if (!degisen.length) return true;
+  const adlar = degisen.slice(0, 5).map((id) => _ogrenciler.find((o) => o.ogrenci_id === id)?.ad || "?").join(", ") + (degisen.length > 5 ? ` +${degisen.length - 5}` : "");
+  const tamam = await sor(baslik, `${degisen.length} öğrenci sınava girecekler listesine ${acik ? "EKLENECEK" : "listeden ÇIKARILACAK"}: ${adlar}.`,
+    acik ? "Ekle" : "Çıkar", acik ? "btn-mavi" : "btn-kirmizi");
+  if (!tamam) _secimGostergeleri("ana");
+  return tamam;
+}
 
-window.kelebekKademe = (b, k, acik) => {
-  Object.keys(_subeler()).filter((s) => kademeAl(s) === k).forEach((s) => _subeIsaretle(b, s, acik));
+window.kelebekSube = async (b, s, acik) => {
+  if (!await _topluOnay(b, (_subeler()[s] || []).map((o) => o.ogrenci_id), acik, `${s} şubesi`)) return;
+  _subeIsaretle(b, s, acik);
   _baglam[b].degisti();
 };
 
-window.kelebekTumunuKaldir = (b) => {
+window.kelebekKademe = async (b, k, acik) => {
+  const subeler = Object.keys(_subeler()).filter((s) => kademeAl(s) === k);
+  if (!await _topluOnay(b, subeler.flatMap((s) => _subeler()[s].map((o) => o.ogrenci_id)), acik, `${k}. sınıfların tümü`)) return;
+  subeler.forEach((s) => _subeIsaretle(b, s, acik));
+  _baglam[b].degisti();
+};
+
+window.kelebekTumunuKaldir = async (b) => {
+  if (!await _topluOnay(b, [..._baglam[b].secim()], false, "Seçimi temizle")) return;
   _baglam[b].secim().clear();
   document.querySelectorAll(`#${_baglam[b].el} .kb-ogr-chk`).forEach((c) => (c.checked = false));
   _baglam[b].degisti();
