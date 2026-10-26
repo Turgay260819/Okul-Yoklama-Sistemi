@@ -1604,7 +1604,8 @@
           alert("En az 1 nokta olmalı.");
           return;
         }
-        if (liste.length % 5 === 0) {
+        // Sadece ad degisikliginde (sayi ayni) uyarma; rotasyon ni ile calisir.
+        if (liste.length !== NOKTALAR.length && liste.length % 5 === 0) {
           const devam = confirm(
             "Nokta sayısı (" + liste.length + ") 5'e bölünüyor. Bu durumda bazı " +
             "noktalar hep aynı güne kilitlenip rotasyon çeşitliliği azalabilir. " +
