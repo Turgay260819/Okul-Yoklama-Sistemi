@@ -1261,7 +1261,11 @@
       function programMatrisGuncelle(alanId = "programMatrisAlani", saltOkunur = false) {
         const alan = document.getElementById(alanId);
         if (!alan) return;
-        let html = `<div class="matris-wrap"><table class="matris${saltOkunur ? " salt-okunur" : ""}"><thead><tr><th>Gün \\ Ders</th>`;
+        // Ogretmen ekraninda toplam rozette gosteriliyor; admin icin matrisin ustune yaz.
+        let html = saltOkunur
+          ? ""
+          : `<div style="font-size:13px;color:#888;margin-bottom:10px;">Toplam: <strong style="color:#1a73e8;">${Object.keys(programOgretmenSchedule).length} ders saati / hafta</strong></div>`;
+        html += `<div class="matris-wrap"><table class="matris${saltOkunur ? " salt-okunur" : ""}"><thead><tr><th>Gün \\ Ders</th>`;
         DERSLER.forEach((d) => { html += "<th>" + d + ". Ders</th>"; });
         html += "</tr></thead><tbody>";
         GUNLER.forEach((g, gi) => {
