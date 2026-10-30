@@ -560,7 +560,10 @@
                 </div>
                 <div style="display:flex;gap:8px;flex-wrap:wrap;">
                   <button class="btn btn-mavi" onclick="vekilDerslerListele()">Listele</button>
-                  <button class="btn btn-gri" onclick="vekilDersYazdir()">🖨 Yazdır</button>
+                  <button class="btn btn-gri" onclick="vekilDersYazdir('toplam')">🖨 Öğretmen toplamları</button>
+                  <button class="btn btn-gri" onclick="vekilDersYazdir('kayitlar')">🖨 Tüm kayıtlar</button>
+                  <button class="btn btn-gri" onclick="vekilDersYazdir('ogretmen')">🖨 Öğretmen bazında</button>
+                  <button class="btn btn-gri" onclick="vekilDersYazdir('gecmis')">🖨 Onay geçmişi</button>
                   <button class="btn btn-yesil" id="vdExcelBtn" onclick="vekilDersExcel()">📊 Excel'e aktar</button>
                   <button class="btn btn-mavi" onclick="vekilYaziAc()">📄 Günlük Görevlendirme Yazısı</button>
                 </div>
@@ -581,7 +584,7 @@
               </div>
               <div class="kart yazdirma-gizle">
                 <div class="kart-baslik">Onay Geçmişi</div>
-                <p style="font-size:13px;color:var(--text2);margin-bottom:10px;">Seçili tarih aralığındaki derslerle ilgili tüm onaylar, elle girişler ve silmeler (kim, ne zaman). Değiştirilemez; sunucu tarafından tutulur.</p>
+                <p style="font-size:13px;color:var(--text2);margin-bottom:10px;">Seçili tarih aralığındaki derslerle ilgili tüm onaylar, elle girişler ve silmeler (kim, ne zaman), öğretmen adına göre sıralı. Değiştirilemez; sunucu tarafından tutulur.</p>
                 <div id="vdGecmis"></div>
               </div>
             </div>
@@ -1323,6 +1326,7 @@
     </div>
     <div id="vyYazdirAlan"></div>
     <div id="kelebekYazdirAlan"></div>
+    <div id="vdYazdirAlan"></div>
 
     <script type="module" src="/js/portal.js"></script>
   </body>

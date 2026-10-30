@@ -1595,6 +1595,14 @@ tr.kb-surum td { background: #e8f0fe; }
   body.kelebek-yazdir .kb-sayfa { page-break-after: always; break-after: page; }
   body.kelebek-yazdir .kb-sayfa:last-child { page-break-after: auto; break-after: auto; }
 }
+/* Vekil ders kayitlari ciktilari (portal-vekil-ders.js); sayfa gorunumu kb-* siniflari */
+#vdYazdirAlan { display: none; }
+@media print {
+  body.vd-yazdir > * { display: none !important; }
+  body.vd-yazdir > #vdYazdirAlan { display: block !important; }
+  body.vd-yazdir .kb-sayfa { page-break-after: always; break-after: page; }
+  body.vd-yazdir .kb-sayfa:last-child { page-break-after: auto; break-after: auto; }
+}
 
 /* ── Bildirim paneli: tam metin ve telefona sığma ── */
 .bildirim-item-baslik { overflow-wrap: anywhere; white-space: pre-wrap; }

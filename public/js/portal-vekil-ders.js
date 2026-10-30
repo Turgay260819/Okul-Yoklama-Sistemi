@@ -483,7 +483,8 @@ async function _adminGecmisYukle(bas, bit, ogrFiltre) {
     const snap = await getDocs(query(collection(db, "vekil_ders_gecmis"), where("tarih", ">=", bas), where("tarih", "<=", bit)));
     const liste = snap.docs.map((d) => d.data())
       .filter((g) => !ogrFiltre || g.vekil_ogretmen_id === ogrFiltre)
-      .sort((a, b) => (b.zaman?.toMillis?.() || 0) - (a.zaman?.toMillis?.() || 0));
+      .sort((a, b) => (a.vekil_ogretmen_ad || "").localeCompare(b.vekil_ogretmen_ad || "", "tr") ||
+        (b.zaman?.toMillis?.() || 0) - (a.zaman?.toMillis?.() || 0));
     _adminGecmis = liste;
     el.innerHTML = gecmisTabloHtml(liste, false);
   } catch (err) {
@@ -503,11 +504,95 @@ window.vekilDersSil = async (btn) => {
   }
 };
 
-window.vekilDersYazdir = () => window.print();
+// ── Çıktılar (admin): yazdırma ve Excel, Kelebek sınav çıktıları düzeninde ──
+// Ikisi de ekrandaki son Listele verisini (tarih araligi + ogretmen filtresi) kullanir.
+let _okulAd = null;
+async function _okulAdiOku() {
+  if (_okulAd) return _okulAd;
+  try {
+    const y = await getDoc(doc(db, "nobet2_ayarlar", "yazi"));
+    _okulAd = (y.exists() && y.data().okul) || VY_VARSAYILAN.okul;
+  } catch (e) {
+    _okulAd = VY_VARSAYILAN.okul;
+  }
+  return _okulAd;
+}
+
+function _donemMetni() {
+  const { bas, bit, ogretmen } = _adminFiltre;
+  return `${tarihGoster(bas)} – ${tarihGoster(bit)}${ogretmen ? " · " + ogretmenAd(ogretmen) : ""}`;
+}
+
+// Vekil ogretmen basina kayitlar, ada gore (Turkce) sirali.
+function _ogretmenGruplari() {
+  const g = {};
+  _adminKayitlar.forEach((k) => {
+    (g[k.vekil_ogretmen_id] ||= { ad: k.vekil_ogretmen_ad || "?", kayitlar: [] }).kayitlar.push(k);
+  });
+  return Object.values(g).sort((a, b) => a.ad.localeCompare(b.ad, "tr"));
+}
+
+const _gecmisYapanMetni = (g) => g.yapan === "idare" ? "İdare: " + (g.yapan_ad || "?") : g.yapan === "sistem" ? "Sistem" : "Öğretmen";
+const _islemMetni = (g) => (ISLEM_ETIKET[g.islem] || g.islem).replace(/^\S+\s/, "");
+
+function _vdBaslikHtml(altBaslik) {
+  return `<div class="kb-baslik"><div>${esc(_okulAd)}</div><div>Vekil Ders Kayıtları</div>
+    <div style="font-weight:400;">${esc(_donemMetni())}</div>
+    <div class="kb-alt">${esc(altBaslik)}</div></div>`;
+}
+
+function _kayitTabloHtml(kayitlar, vekilSutunu) {
+  return `<table class="kb-tablo"><thead><tr><th>#</th><th>Tarih</th><th>Saat</th><th>Sınıf</th><th>Ders</th><th>Asıl Öğretmen</th>${vekilSutunu ? "<th>Vekil Öğretmen</th>" : ""}<th>Nasıl</th></tr></thead><tbody>
+    ${kayitlar.map((k, i) => `<tr><td>${i + 1}</td><td>${esc(tarihGoster(k.tarih))}</td><td>${esc(k.ders_no)}. ders</td><td>${esc(k.sinif)}</td>
+      <td class="kb-sol">${esc(k.ders_adi)}</td><td class="kb-sol">${esc(k.asil_ogretmen_ad || "-")}</td>
+      ${vekilSutunu ? `<td class="kb-sol">${esc(k.vekil_ogretmen_ad)}</td>` : ""}<td>${esc(KAYNAK_ETIKET[k.kaynak] || k.kaynak || "")}</td></tr>`).join("")}
+    </tbody></table>`;
+}
+
+window.vekilDersYazdir = async (tur) => {
+  if (!_adminFiltre.bas) { mesajGoster("vdMesaj", "Önce Listele'ye basın.", "hata"); return; }
+  await _okulAdiOku();
+  const gruplar = _ogretmenGruplari();
+  let html = "";
+  if (tur === "toplam") {
+    html = `<div class="kb-sayfa">${_vdBaslikHtml("Öğretmen Bazında Vekil Ders Sayıları")}
+      <table class="kb-tablo"><thead><tr><th>#</th><th>Öğretmen</th><th>Vekil Ders Sayısı</th></tr></thead><tbody>
+      ${gruplar.map((g, i) => `<tr><td>${i + 1}</td><td class="kb-sol">${esc(g.ad)}</td><td>${g.kayitlar.length}</td></tr>`).join("")}
+      <tr><th></th><th class="kb-sol">Toplam</th><th>${_adminKayitlar.length}</th></tr>
+      </tbody></table></div>`;
+  } else if (tur === "kayitlar") {
+    html = `<div class="kb-sayfa">${_vdBaslikHtml(`Tüm Kayıtlar (${_adminKayitlar.length} ders)`)}
+      ${_kayitTabloHtml(_adminKayitlar, true)}</div>`;
+  } else if (tur === "ogretmen") {
+    html = gruplar.map((g) => `<div class="kb-sayfa">${_vdBaslikHtml(`${g.ad} (${g.kayitlar.length} ders)`)}
+      ${_kayitTabloHtml(g.kayitlar, false)}
+      <div class="kb-gozetmen" style="margin-top:8px;">Toplam: <strong>${g.kayitlar.length} ders</strong></div></div>`).join("");
+  } else if (tur === "gecmis") {
+    html = `<div class="kb-sayfa">${_vdBaslikHtml(`Onay Geçmişi (${_adminGecmis.length} işlem)`)}
+      <table class="kb-tablo"><thead><tr><th>Öğretmen</th><th>Ne Zaman</th><th>İşlem</th><th>Yapan</th><th>Ders Tarihi</th><th>Saat</th><th>Sınıf</th><th>Ders</th><th>Asıl Öğretmen</th></tr></thead><tbody>
+      ${_adminGecmis.map((g) => `<tr><td class="kb-sol">${esc(g.vekil_ogretmen_ad)}</td><td>${esc(gecmisZaman(g.zaman))}</td>
+        <td>${esc(_islemMetni(g))}</td><td>${esc(_gecmisYapanMetni(g))}</td><td>${esc(tarihGoster(g.tarih))}</td>
+        <td>${esc(g.ders_no)}. ders</td><td>${esc(g.sinif)}</td><td class="kb-sol">${esc(g.ders_adi)}</td><td class="kb-sol">${esc(g.asil_ogretmen_ad || "-")}</td></tr>`).join("")}
+      </tbody></table>
+      ${_adminOnaysizlar.length ? `<div class="kb-alt" style="text-align:center;font-weight:bold;margin:14px 0 8px;">Henüz Onaylanmamış Atamalar (${_adminOnaysizlar.length})</div>
+      <table class="kb-tablo"><thead><tr><th>Tarih</th><th>Saat</th><th>Sınıf</th><th>Ders</th><th>Asıl Öğretmen</th><th>Atanan Vekil</th></tr></thead><tbody>
+      ${_adminOnaysizlar.map((v) => `<tr><td>${esc(tarihGoster(v.date))}</td><td>${esc(v.lesson_number)}. ders</td><td>${esc(v.class_id)}</td>
+        <td class="kb-sol">${esc(v.lesson_name || "")}</td><td class="kb-sol">${esc(v.substitute_for_teacher_ad || ogretmenAd(v.teacher_id))}</td>
+        <td class="kb-sol">${esc(v.substitute_teacher_ad || ogretmenAd(v.substitute_teacher_id))}</td></tr>`).join("")}
+      </tbody></table>` : ""}</div>`;
+  }
+  if (!html) { mesajGoster("vdMesaj", "Yazdırılacak kayıt yok.", "hata"); return; }
+  document.getElementById("vdYazdirAlan").innerHTML = html;
+  document.body.classList.add("vd-yazdir");
+  const bitir = () => { document.body.classList.remove("vd-yazdir"); window.removeEventListener("afterprint", bitir); };
+  window.addEventListener("afterprint", bitir);
+  window.print();
+};
 
 // ── Excel çıktısı (admin) ──
-// Ekranda listelenen veri (tarih araligi + ogretmen filtresi) dort sayfa halinde:
-// Ogretmen Toplamlari (ucret listesi), Kayitlar, Onaylanmamis Atamalar, Onay Gecmisi.
+// Her sayfanin basinda okul / baslik / donem satirlari. Sayfalar: Ogretmen
+// Toplamlari (ucret listesi), Kayitlar, her vekil ogretmen icin ayri sayfa,
+// Onaylanmamis Atamalar, Onay Gecmisi.
 window.vekilDersExcel = async () => {
   const btn = document.getElementById("vdExcelBtn");
   const { bas, bit, ogretmen } = _adminFiltre;
@@ -517,39 +602,54 @@ window.vekilDersExcel = async () => {
   btn.textContent = "Hazırlanıyor...";
   try {
     const XLSX = await xlsxYukle();
+    await _okulAdiOku();
     const zaman = (z) => (z?.toDate ? z.toDate() : "");
+    const baslik = [[_okulAd], ["Vekil Ders Kayıtları"], [`Dönem: ${_donemMetni()}`], []];
+    const kullanilan = new Set();
+    const sayfaAdi = (ad) => {
+      const s = String(ad).replace(/[\\/?*[\]:]/g, "-").slice(0, 28) || "Öğretmen";
+      let t = s, i = 2;
+      while (kullanilan.has(t.toLocaleLowerCase("tr"))) t = `${s} ${i++}`;
+      kullanilan.add(t.toLocaleLowerCase("tr"));
+      return t;
+    };
+    const gruplar = _ogretmenGruplari();
+    const kayitSatiri = (k) => [isoTarih(k.tarih), k.ders_no, k.sinif, k.ders_adi, k.asil_ogretmen_ad || "",
+      k.vekil_ogretmen_ad, KAYNAK_ETIKET[k.kaynak] || k.kaynak || "", zaman(k.olusturma)];
+    const kayitBaslik = ["Tarih", "Saat", "Sınıf", "Ders", "Asıl Öğretmen", "Vekil Öğretmen", "Nasıl", "Kayıt Zamanı"];
+    const kayitGenislik = [12, 6, 8, 20, 24, 24, 14, 18];
 
-    const sayac = {};
-    _adminKayitlar.forEach((k) => {
-      (sayac[k.vekil_ogretmen_id] ||= { ad: k.vekil_ogretmen_ad, sayi: 0 }).sayi++;
-    });
-    const toplamlar = Object.values(sayac).sort((a, b) => a.ad.localeCompare(b.ad, "tr"));
-    const s1 = [["Öğretmen", "Vekil Ders Sayısı"], ...toplamlar.map((t) => [t.ad, t.sayi]),
-      [], ["Toplam", _adminKayitlar.length],
-      [], [`Dönem: ${tarihGoster(bas)} – ${tarihGoster(bit)}${ogretmen ? " · " + ogretmenAd(ogretmen) : ""}`]];
+    const s1 = [...baslik, ["Öğretmen", "Vekil Ders Sayısı"], ...gruplar.map((g) => [g.ad, g.kayitlar.length]),
+      [], ["Toplam", _adminKayitlar.length]];
 
-    const s2 = [["Tarih", "Saat", "Sınıf", "Ders", "Asıl Öğretmen", "Vekil Öğretmen", "Nasıl", "Kayıt Zamanı"],
-      ..._adminKayitlar.map((k) => [isoTarih(k.tarih), k.ders_no, k.sinif, k.ders_adi, k.asil_ogretmen_ad || "",
-        k.vekil_ogretmen_ad, KAYNAK_ETIKET[k.kaynak] || k.kaynak || "", zaman(k.olusturma)])];
+    const s2 = [...baslik, kayitBaslik, ..._adminKayitlar.map(kayitSatiri)];
 
-    const s3 = [["Tarih", "Saat", "Sınıf", "Ders", "Asıl Öğretmen", "Atanan Vekil"],
+    const s3 = [...baslik, ["Tarih", "Saat", "Sınıf", "Ders", "Asıl Öğretmen", "Atanan Vekil"],
       ..._adminOnaysizlar.map((v) => [isoTarih(v.date), v.lesson_number, v.class_id, v.lesson_name || "",
         v.substitute_for_teacher_ad || ogretmenAd(v.teacher_id), v.substitute_teacher_ad || ogretmenAd(v.substitute_teacher_id)])];
 
-    const s4 = [["Ne Zaman", "Öğretmen", "İşlem", "Yapan", "Ders Tarihi", "Saat", "Sınıf", "Ders", "Asıl Öğretmen"],
-      ..._adminGecmis.map((g) => [zaman(g.zaman), g.vekil_ogretmen_ad, (ISLEM_ETIKET[g.islem] || g.islem).replace(/^\S+\s/, ""),
-        g.yapan === "idare" ? "İdare: " + (g.yapan_ad || "?") : g.yapan === "sistem" ? "Sistem" : "Öğretmen",
+    const s4 = [...baslik, ["Öğretmen", "Ne Zaman", "İşlem", "Yapan", "Ders Tarihi", "Saat", "Sınıf", "Ders", "Asıl Öğretmen"],
+      ..._adminGecmis.map((g) => [g.vekil_ogretmen_ad, zaman(g.zaman), _islemMetni(g), _gecmisYapanMetni(g),
         isoTarih(g.tarih), g.ders_no, g.sinif, g.ders_adi, g.asil_ogretmen_ad || ""])];
 
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, sayfaOlustur(XLSX, s1, [32, 18]), "Öğretmen Toplamları");
-    const ws2 = sayfaOlustur(XLSX, s2, [12, 6, 8, 20, 24, 24, 14, 18], [], [0]);
-    XLSX.utils.book_append_sheet(wb, ws2, "Kayıtlar");
-    XLSX.utils.book_append_sheet(wb, sayfaOlustur(XLSX, s3, [12, 6, 8, 20, 24, 24], [], [0]), "Onaylanmamış Atamalar");
-    const ws4 = sayfaOlustur(XLSX, s4, [18, 24, 20, 20, 12, 6, 8, 20, 24], [], [4]);
-    XLSX.utils.book_append_sheet(wb, ws4, "Onay Geçmişi");
+    XLSX.utils.book_append_sheet(wb, sayfaOlustur(XLSX, s1, [32, 18]), sayfaAdi("Öğretmen Toplamları"));
+    const ws2 = sayfaOlustur(XLSX, s2, kayitGenislik, [], [0]);
+    XLSX.utils.book_append_sheet(wb, ws2, sayfaAdi("Kayıtlar"));
+    const tarihSaatli = [[ws2, 7]];
+    gruplar.forEach((g) => {
+      const s = [...baslik, [`Öğretmen: ${g.ad}`], [], kayitBaslik,
+        ...g.kayitlar.map(kayitSatiri), [], ["Toplam", `${g.kayitlar.length} ders`]];
+      const ws = sayfaOlustur(XLSX, s, kayitGenislik, [], [0]);
+      XLSX.utils.book_append_sheet(wb, ws, sayfaAdi(g.ad));
+      tarihSaatli.push([ws, 7]);
+    });
+    XLSX.utils.book_append_sheet(wb, sayfaOlustur(XLSX, s3, [12, 6, 8, 20, 24, 24], [], [0]), sayfaAdi("Onaylanmamış Atamalar"));
+    const ws4 = sayfaOlustur(XLSX, s4, [24, 18, 20, 20, 12, 6, 8, 20, 24], [], [4]);
+    XLSX.utils.book_append_sheet(wb, ws4, sayfaAdi("Onay Geçmişi"));
+    tarihSaatli.push([ws4, 1]);
     // Kayit zamani / islem zamani: tarih + saat bicimi
-    [[ws2, 7], [ws4, 0]].forEach(([ws, c]) => {
+    tarihSaatli.forEach(([ws, c]) => {
       const r = XLSX.utils.decode_range(ws["!ref"]);
       for (let i = 1; i <= r.e.r; i++) {
         const h = ws[XLSX.utils.encode_cell({ r: i, c })];
