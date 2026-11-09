@@ -1549,11 +1549,14 @@ tr:last-child td {
 .yazi-toplam { margin-top: 10px; font-size: 10pt; }
 .yazi-imza { margin-top: 28px; margin-left: auto; width: 45%; text-align: center; }
 .yazi-imza-bosluk { height: 42px; }
-#vyUyari[hidden], #vyYazdirAlan { display: none; }
+#vyUyari[hidden], #vyYazdirAlan, #vyKisayollar[hidden], #vekilYaziModal .form-group[hidden] { display: none !important; }
+.yazi-onizleme-kap .yazi-kagit + .yazi-kagit { margin-top: 12px; }
+.yazi-aralik-ozet { font-size: 13px; color: #333; margin-bottom: 10px; }
 @media print {
   body.yazi-yazdir > * { display: none !important; }
   body.yazi-yazdir > #vyYazdirAlan { display: block !important; }
-  body.yazi-yazdir .yazi-kagit { box-shadow: none; padding: 0; max-width: none; }
+  body.yazi-yazdir .yazi-kagit { box-shadow: none; padding: 0; max-width: none; page-break-after: always; break-after: page; }
+  body.yazi-yazdir .yazi-kagit:last-child { page-break-after: auto; break-after: auto; }
 }
 
 /* ── Kelebek sınav bilgisi (ekran) ── */

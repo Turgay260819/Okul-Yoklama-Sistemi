@@ -678,16 +678,19 @@ const VY_VARSAYILAN = {
 };
 const VY_KAYNAK = { sistem_onay: "Atama onayı", ogretmen: "Elle giriş" };
 let _vyAyar = { ...VY_VARSAYILAN };
-let _vyKayitlar = [];
-let _vyTarih = "";
+// Yuklenen yazilar: kaydi olan her gun icin bir eleman { tarih, kayitlar }.
+// Tek gun modunda en fazla bir eleman; aralik modunda kaydi olmayan gunler atlanir.
+let _vyGunler = [];
+let _vySorgu = ""; // son baslatilan sorgu; yaris durumunda eski sonucu yok saymak icin
+const VY_AZAMI_GUN = 93;
 
 function _vyMetin(tarih) {
   return `Okulumuzda ${tarihGoster(tarih)} ${GUN_ADLARI[new Date(tarih + "T12:00:00").getDay()]} günü, derse giremeyen öğretmenlerin yerine aşağıda belirtilen öğretmenler belirtilen ders saatlerinde Okul Müdürlüğünce vekil öğretmen olarak görevlendirilmiştir.`;
 }
 
-function _vyToplamlar() {
+function _vyToplamlar(kayitlar) {
   const sayac = {};
-  _vyKayitlar.forEach((k) => {
+  kayitlar.forEach((k) => {
     (sayac[k.vekil_ogretmen_id] ||= { ad: k.vekil_ogretmen_ad, sayi: 0 }).sayi++;
   });
   return Object.values(sayac).sort((a, b) => a.ad.localeCompare(b.ad, "tr"));
@@ -695,9 +698,9 @@ function _vyToplamlar() {
 
 // Kayitlar ogretmene gore sirali; ardisik ayni ogretmen bir grup. Her grup
 // tabloda tek Sira / Ogretmen / Imza hucresi (rowspan, Excel'de merge) alir.
-function _vyGruplar() {
+function _vyGruplar(kayitlar) {
   const gruplar = [];
-  _vyKayitlar.forEach((k) => {
+  kayitlar.forEach((k) => {
     const son = gruplar[gruplar.length - 1];
     if (son && son.id === k.vekil_ogretmen_id) son.dersler.push(k);
     else gruplar.push({ id: k.vekil_ogretmen_id, ad: k.vekil_ogretmen_ad, dersler: [k] });
@@ -708,6 +711,14 @@ function _vyGruplar() {
 function _vyButonlar(acik) {
   document.getElementById("vyExcelBtn").disabled = !acik;
   document.getElementById("vyYazdirBtn").disabled = !acik;
+}
+
+function _vyAralikMi() {
+  return document.getElementById("vyMod").value === "aralik";
+}
+
+function _vyTarihStr(d) {
+  return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, "0"), String(d.getDate()).padStart(2, "0")].join("-");
 }
 
 window.vekilYaziAc = async () => {
@@ -722,44 +733,85 @@ window.vekilYaziAc = async () => {
   const tarihEl = document.getElementById("vyTarih");
   if (!tarihEl.value) tarihEl.value = bugunHesapla();
   document.getElementById("vekilYaziModal").classList.add("aktif");
-  await window.vekilYaziYukle();
+  window.vekilYaziModDegis();
 };
 
 window.vekilYaziKapat = () => document.getElementById("vekilYaziModal").classList.remove("aktif");
 
+window.vekilYaziModDegis = () => {
+  const aralik = _vyAralikMi();
+  document.getElementById("vyTekGunAlan").hidden = aralik;
+  document.getElementById("vyBasAlan").hidden = !aralik;
+  document.getElementById("vyBitAlan").hidden = !aralik;
+  document.getElementById("vyKisayollar").hidden = !aralik;
+  if (aralik && !document.getElementById("vyBaslangic").value) {
+    window.vekilYaziAyKisayol(-1); // varsayilan: gecen ay (yukler)
+    return;
+  }
+  window.vekilYaziYukle();
+};
+
+// fark = 0: bu ayin basindan bugune; fark = -1: gecen ayin tamami.
+window.vekilYaziAyKisayol = (fark) => {
+  const bugunStr = bugunHesapla();
+  const b = new Date(bugunStr + "T12:00:00");
+  const bas = new Date(b.getFullYear(), b.getMonth() + fark, 1, 12);
+  const bit = fark === 0 ? b : new Date(b.getFullYear(), b.getMonth() + fark + 1, 0, 12);
+  document.getElementById("vyBaslangic").value = _vyTarihStr(bas);
+  document.getElementById("vyBitis").value = _vyTarihStr(bit);
+  window.vekilYaziYukle();
+};
+
 window.vekilYaziYukle = async () => {
-  const tarih = document.getElementById("vyTarih").value;
+  const aralik = _vyAralikMi();
+  const bas = aralik ? document.getElementById("vyBaslangic").value : document.getElementById("vyTarih").value;
+  const bit = aralik ? document.getElementById("vyBitis").value : bas;
   const onizleme = document.getElementById("vyOnizleme");
   const uyari = document.getElementById("vyUyari");
   uyari.hidden = true;
-  _vyKayitlar = [];
-  _vyTarih = tarih;
+  _vyGunler = [];
   _vyButonlar(false);
-  if (!tarih) { onizleme.innerHTML = '<div class="bos-mesaj">Tarih seçin.</div>'; return; }
+  const sorguAnahtari = `${aralik}|${bas}|${bit}`;
+  _vySorgu = sorguAnahtari;
+  if (!bas || !bit) { onizleme.innerHTML = `<div class="bos-mesaj">${aralik ? "Başlangıç ve bitiş tarihi seçin." : "Tarih seçin."}</div>`; return; }
+  if (bit < bas) { onizleme.innerHTML = '<div class="bos-mesaj">Bitiş tarihi başlangıçtan önce olamaz.</div>'; return; }
+  const gunSayisi = Math.round((new Date(bit + "T12:00:00") - new Date(bas + "T12:00:00")) / 86400000) + 1;
+  if (gunSayisi > VY_AZAMI_GUN) { onizleme.innerHTML = `<div class="bos-mesaj">En fazla ${VY_AZAMI_GUN} günlük aralık seçilebilir.</div>`; return; }
   onizleme.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
   try {
-    const [kayitSnap, dersSnap] = await Promise.all([
-      getDocs(query(collection(db, "vekil_dersler"), where("tarih", "==", tarih))),
-      getDocs(query(collection(db, "today_lessons"), where("date", "==", tarih))),
-    ]);
-    if (document.getElementById("vyTarih").value !== tarih) return; // bu arada tarih degisti
+    const [kayitSnap, dersSnap] = await Promise.all(bas === bit
+      ? [
+          getDocs(query(collection(db, "vekil_dersler"), where("tarih", "==", bas))),
+          getDocs(query(collection(db, "today_lessons"), where("date", "==", bas))),
+        ]
+      : [
+          getDocs(query(collection(db, "vekil_dersler"), where("tarih", ">=", bas), where("tarih", "<=", bit))),
+          getDocs(query(collection(db, "today_lessons"), where("date", ">=", bas), where("date", "<=", bit))),
+        ]);
+    if (_vySorgu !== sorguAnahtari) return; // bu arada secim degisti
     const kayitIdleri = new Set();
-    const liste = [];
+    const gunler = {};
     kayitSnap.forEach((d) => {
       kayitIdleri.add(d.id);
       const k = d.data();
-      if (VY_KAYNAK[k.kaynak]) liste.push(k);
+      if (VY_KAYNAK[k.kaynak]) (gunler[k.tarih] ||= []).push(k);
     });
-    liste.sort((a, b) => (a.vekil_ogretmen_ad || "").localeCompare(b.vekil_ogretmen_ad || "", "tr") || a.ders_no - b.ders_no);
-    _vyKayitlar = liste;
+    _vyGunler = Object.keys(gunler).sort().map((tarih) => ({
+      tarih,
+      kayitlar: gunler[tarih].sort((a, b) => (a.vekil_ogretmen_ad || "").localeCompare(b.vekil_ogretmen_ad || "", "tr") || a.ders_no - b.ders_no),
+    }));
 
-    let onaysiz = 0;
+    const onaysiz = {};
     dersSnap.forEach((d) => {
       const v = d.data();
-      if (v.substitute_teacher_id && !kayitIdleri.has(kayitId(v.date, v.class_id, v.lesson_number))) onaysiz++;
+      if (v.substitute_teacher_id && !kayitIdleri.has(kayitId(v.date, v.class_id, v.lesson_number))) onaysiz[v.date] = (onaysiz[v.date] || 0) + 1;
     });
-    if (onaysiz) {
-      uyari.textContent = `Bu gün ${onaysiz} vekil atama henüz öğretmen tarafından onaylanmamış; bunlar yazıya girmez. Öğretmen onaylarsa yazıyı yeniden alın.`;
+    const onaysizGunler = Object.keys(onaysiz).sort();
+    if (onaysizGunler.length) {
+      const toplam = onaysizGunler.reduce((t, g) => t + onaysiz[g], 0);
+      uyari.textContent = bas === bit
+        ? `Bu gün ${toplam} vekil atama henüz öğretmen tarafından onaylanmamış; bunlar yazıya girmez. Öğretmen onaylarsa yazıyı yeniden alın.`
+        : `${onaysizGunler.length} günde toplam ${toplam} vekil atama henüz öğretmen tarafından onaylanmamış; bunlar yazıya girmez (${onaysizGunler.map((g) => `${tarihGoster(g).slice(0, 5)}: ${onaysiz[g]}`).join(", ")}). Öğretmen onaylarsa yazıları yeniden alın.`;
       uyari.hidden = false;
     }
     window.vekilYaziOnizle();
@@ -768,9 +820,9 @@ window.vekilYaziYukle = async () => {
   }
 };
 
-function _vyHtml() {
+function _vyHtml(tarih, kayitlar) {
   const a = _vyAyar;
-  const satirlar = _vyGruplar().map((g, gi) => g.dersler.map((k, i) => {
+  const satirlar = _vyGruplar(kayitlar).map((g, gi) => g.dersler.map((k, i) => {
     const rs = g.dersler.length > 1 ? ` rowspan="${g.dersler.length}"` : "";
     return `<tr>
       ${i === 0 ? `<td${rs}>${gi + 1}</td><td class="yazi-sol"${rs}>${esc(g.ad)}</td>` : ""}
@@ -778,17 +830,17 @@ function _vyHtml() {
       <td class="yazi-sol">${esc(k.asil_ogretmen_ad || "-")}</td><td>${esc(VY_KAYNAK[k.kaynak])}</td>
       ${i === 0 ? `<td class="yazi-imza-hucre"${rs}></td>` : ""}</tr>`;
   }).join("")).join("");
-  const toplamlar = _vyToplamlar().map((t) => `${esc(t.ad)} – ${t.sayi} ders`).join("; ");
+  const toplamlar = _vyToplamlar(kayitlar).map((t) => `${esc(t.ad)} – ${t.sayi} ders`).join("; ");
   return `<div class="yazi-kagit">
     <div class="yazi-ust">T.C.<br>${esc(a.ilce || VY_VARSAYILAN.ilce)}<br>${esc(a.okul)}</div>
-    <div class="yazi-satir"><span></span><span>${esc(tarihGoster(_vyTarih))}</span></div>
+    <div class="yazi-satir"><span></span><span>${esc(tarihGoster(tarih))}</span></div>
     <div class="yazi-satir"><span>Konu : Vekil Ders Görevlendirmesi</span></div>
     <div class="yazi-hitap">İLGİLİ ÖĞRETMENLERE</div>
-    <p class="yazi-metin">${esc(_vyMetin(_vyTarih))}</p>
+    <p class="yazi-metin">${esc(_vyMetin(tarih))}</p>
     <table class="yazi-tablo"><thead><tr>
       <th>Sıra</th><th>Öğretmen</th><th>Ders Saati</th><th>Sınıf</th><th>Ders</th><th>Yerine Girdiği Öğretmen</th><th>Kayıt Şekli</th><th>İmza</th>
     </tr></thead><tbody>${satirlar}</tbody></table>
-    <div class="yazi-toplam"><b>Toplam ${_vyKayitlar.length} ders:</b> ${toplamlar}</div>
+    <div class="yazi-toplam"><b>Toplam ${kayitlar.length} ders:</b> ${toplamlar}</div>
     <div class="yazi-imza">
       <div>Görevlendiren</div>
       <div class="yazi-imza-bosluk"></div>
@@ -798,21 +850,27 @@ function _vyHtml() {
   </div>`;
 }
 
+function _vyTumHtml() {
+  return _vyGunler.map((g) => _vyHtml(g.tarih, g.kayitlar)).join("");
+}
+
 window.vekilYaziOnizle = () => {
   const onizleme = document.getElementById("vyOnizleme");
-  if (!_vyTarih) return;
-  if (!_vyKayitlar.length) {
-    onizleme.innerHTML = '<div class="bos-mesaj">Bu gün için öğretmen onaylı vekil ders kaydı yok.</div>';
+  if (!_vyGunler.length) {
+    onizleme.innerHTML = `<div class="bos-mesaj">${_vyAralikMi() ? "Bu tarih aralığında" : "Bu gün için"} öğretmen onaylı vekil ders kaydı yok.</div>`;
     _vyButonlar(false);
     return;
   }
-  onizleme.innerHTML = _vyHtml();
+  const ozet = _vyAralikMi()
+    ? `<div class="yazi-aralik-ozet"><b>${_vyGunler.length} gün</b> için ${_vyGunler.length} yazı sayfası, toplam <b>${_vyGunler.reduce((t, g) => t + g.kayitlar.length, 0)} ders</b>. Kaydı olmayan günler atlandı. Yazdır'a basınca her gün ayrı sayfada çıkar.</div>`
+    : "";
+  onizleme.innerHTML = ozet + _vyTumHtml();
   _vyButonlar(true);
 };
 
 window.vekilYaziYazdir = () => {
-  if (!_vyKayitlar.length) return;
-  document.getElementById("vyYazdirAlan").innerHTML = _vyHtml();
+  if (!_vyGunler.length) return;
+  document.getElementById("vyYazdirAlan").innerHTML = _vyTumHtml();
   document.body.classList.add("yazi-yazdir");
   const bitir = () => { document.body.classList.remove("yazi-yazdir"); window.removeEventListener("afterprint", bitir); };
   window.addEventListener("afterprint", bitir);
@@ -820,68 +878,78 @@ window.vekilYaziYazdir = () => {
 };
 
 // Tek sayfa, yazi duzeninde: baslik, metin, tablo, ogretmen toplamlari, imza.
+function _vyExcelSayfa(XLSX, tarih, kayitlar) {
+  const a = _vyAyar;
+  // SheetJS (ucretsiz surum) hucrede satir kaydirma yapamiyor; metin elle bolunur.
+  const metinSatirlari = [];
+  _vyMetin(tarih).split(" ").forEach((kelime) => {
+    const son = metinSatirlari.length - 1;
+    if (son >= 0 && (metinSatirlari[son] + " " + kelime).length <= 95) metinSatirlari[son] += " " + kelime;
+    else metinSatirlari.push(kelime);
+  });
+  const metinBas = 9;
+  const s = [
+    ["T.C."], [a.ilce || VY_VARSAYILAN.ilce], [a.okul], [],
+    ["", "", "", "", "", "", "", tarihGoster(tarih)],
+    ["Konu : Vekil Ders Görevlendirmesi"], [],
+    ["İLGİLİ ÖĞRETMENLERE"], [],
+    ...metinSatirlari.map((m) => [m]), [],
+    ["Sıra", "Öğretmen", "Ders Saati", "Sınıf", "Ders", "Yerine Girdiği Öğretmen", "Kayıt Şekli", "İmza"],
+  ];
+  // Ogretmen basina tek Sira / Ogretmen / Imza hucresi (satirlar boyunca birlesik).
+  const grupMerge = [];
+  const tabloSatirlari = [];
+  _vyGruplar(kayitlar).forEach((g, gi) => {
+    const bas = s.length;
+    g.dersler.forEach((k, i) => {
+      tabloSatirlari.push(s.length);
+      s.push([i === 0 ? gi + 1 : "", i === 0 ? g.ad : "", `${k.ders_no}. ders`, k.sinif, k.ders_adi || "",
+        k.asil_ogretmen_ad || "", VY_KAYNAK[k.kaynak], ""]);
+    });
+    if (g.dersler.length > 1) {
+      const bit = bas + g.dersler.length - 1;
+      [0, 1, 7].forEach((c) => grupMerge.push({ s: { r: bas, c }, e: { r: bit, c } }));
+    }
+  });
+  s.push(
+    [],
+    ["", "Öğretmen", "Vekil Ders Sayısı"],
+    ..._vyToplamlar(kayitlar).map((t) => ["", t.ad, t.sayi]),
+    ["", "Toplam", kayitlar.length],
+    [], [],
+  );
+  const imzaBas = s.length;
+  s.push(["", "", "", "", "", "Görevlendiren"], [], [], ["", "", "", "", "", a.mudur_ad], ["", "", "", "", "", a.mudur_unvan]);
+
+  const ws = XLSX.utils.aoa_to_sheet(s);
+  ws["!cols"] = [6, 26, 10, 8, 20, 26, 14, 18].map((w) => ({ wch: w }));
+  ws["!rows"] = [];
+  tabloSatirlari.forEach((r) => (ws["!rows"][r] = { hpt: 24 })); // imza atilacak yukseklik
+  const tam = (r) => ({ s: { r, c: 0 }, e: { r, c: 7 } });
+  const imza = (r) => ({ s: { r, c: 5 }, e: { r, c: 7 } });
+  ws["!merges"] = [tam(0), tam(1), tam(2), tam(5), tam(7),
+    ...metinSatirlari.map((m, i) => tam(metinBas + i)),
+    ...grupMerge,
+    imza(imzaBas), imza(imzaBas + 3), imza(imzaBas + 4)];
+  return ws;
+}
+
+// Tek gun: tek sayfa. Aralik: her gun ayri sayfa (sayfa adi GG.AA).
 window.vekilYaziExcel = async () => {
-  if (!_vyKayitlar.length) return;
+  if (!_vyGunler.length) return;
   const btn = document.getElementById("vyExcelBtn");
   btn.disabled = true;
   try {
     const XLSX = await xlsxYukle();
-    const a = _vyAyar;
-    // SheetJS (ucretsiz surum) hucrede satir kaydirma yapamiyor; metin elle bolunur.
-    const metinSatirlari = [];
-    _vyMetin(_vyTarih).split(" ").forEach((kelime) => {
-      const son = metinSatirlari.length - 1;
-      if (son >= 0 && (metinSatirlari[son] + " " + kelime).length <= 95) metinSatirlari[son] += " " + kelime;
-      else metinSatirlari.push(kelime);
-    });
-    const metinBas = 9;
-    const s = [
-      ["T.C."], [a.ilce || VY_VARSAYILAN.ilce], [a.okul], [],
-      ["", "", "", "", "", "", "", tarihGoster(_vyTarih)],
-      ["Konu : Vekil Ders Görevlendirmesi"], [],
-      ["İLGİLİ ÖĞRETMENLERE"], [],
-      ...metinSatirlari.map((m) => [m]), [],
-      ["Sıra", "Öğretmen", "Ders Saati", "Sınıf", "Ders", "Yerine Girdiği Öğretmen", "Kayıt Şekli", "İmza"],
-    ];
-    // Ogretmen basina tek Sira / Ogretmen / Imza hucresi (satirlar boyunca birlesik).
-    const grupMerge = [];
-    const tabloSatirlari = [];
-    _vyGruplar().forEach((g, gi) => {
-      const bas = s.length;
-      g.dersler.forEach((k, i) => {
-        tabloSatirlari.push(s.length);
-        s.push([i === 0 ? gi + 1 : "", i === 0 ? g.ad : "", `${k.ders_no}. ders`, k.sinif, k.ders_adi || "",
-          k.asil_ogretmen_ad || "", VY_KAYNAK[k.kaynak], ""]);
-      });
-      if (g.dersler.length > 1) {
-        const bit = bas + g.dersler.length - 1;
-        [0, 1, 7].forEach((c) => grupMerge.push({ s: { r: bas, c }, e: { r: bit, c } }));
-      }
-    });
-    s.push(
-      [],
-      ["", "Öğretmen", "Vekil Ders Sayısı"],
-      ..._vyToplamlar().map((t) => ["", t.ad, t.sayi]),
-      ["", "Toplam", _vyKayitlar.length],
-      [], [],
-    );
-    const imzaBas = s.length;
-    s.push(["", "", "", "", "", "Görevlendiren"], [], [], ["", "", "", "", "", a.mudur_ad], ["", "", "", "", "", a.mudur_unvan]);
-
-    const ws = XLSX.utils.aoa_to_sheet(s);
-    ws["!cols"] = [6, 26, 10, 8, 20, 26, 14, 18].map((w) => ({ wch: w }));
-    ws["!rows"] = [];
-    tabloSatirlari.forEach((r) => (ws["!rows"][r] = { hpt: 24 })); // imza atilacak yukseklik
-    const tam = (r) => ({ s: { r, c: 0 }, e: { r, c: 7 } });
-    const imza = (r) => ({ s: { r, c: 5 }, e: { r, c: 7 } });
-    ws["!merges"] = [tam(0), tam(1), tam(2), tam(5), tam(7),
-      ...metinSatirlari.map((m, i) => tam(metinBas + i)),
-      ...grupMerge,
-      imza(imzaBas), imza(imzaBas + 3), imza(imzaBas + 4)];
-
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Görevlendirme");
-    XLSX.writeFile(wb, dosyaAdi(`Vekil Ders Gorevlendirme ${tarihGoster(_vyTarih)}`) + ".xlsx");
+    const tek = _vyGunler.length === 1 && !_vyAralikMi();
+    _vyGunler.forEach((g) => {
+      XLSX.utils.book_append_sheet(wb, _vyExcelSayfa(XLSX, g.tarih, g.kayitlar), tek ? "Görevlendirme" : tarihGoster(g.tarih).slice(0, 5));
+    });
+    const ad = _vyAralikMi()
+      ? `Vekil Ders Gorevlendirme ${tarihGoster(document.getElementById("vyBaslangic").value)}-${tarihGoster(document.getElementById("vyBitis").value)}`
+      : `Vekil Ders Gorevlendirme ${tarihGoster(_vyGunler[0].tarih)}`;
+    XLSX.writeFile(wb, dosyaAdi(ad) + ".xlsx");
   } catch (err) {
     mesajGoster("vyMesaj", err.message, "hata");
   }

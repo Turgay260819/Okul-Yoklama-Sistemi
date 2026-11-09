@@ -1312,7 +1312,19 @@
           Okul ve müdür bilgileri Gün Değişme Nöbeti yazı ayarlarından alınır.
         </p>
         <div class="form-grid">
-          <div class="form-group"><label>Tarih</label><input type="date" id="vyTarih" onchange="vekilYaziYukle()" /></div>
+          <div class="form-group"><label>Kapsam</label>
+            <select id="vyMod" onchange="vekilYaziModDegis()">
+              <option value="gun">Tek gün</option>
+              <option value="aralik">Tarih aralığı (her gün ayrı yazı)</option>
+            </select>
+          </div>
+          <div class="form-group" id="vyTekGunAlan"><label>Tarih</label><input type="date" id="vyTarih" onchange="vekilYaziYukle()" /></div>
+          <div class="form-group" id="vyBasAlan" hidden><label>Başlangıç</label><input type="date" id="vyBaslangic" onchange="vekilYaziYukle()" /></div>
+          <div class="form-group" id="vyBitAlan" hidden><label>Bitiş</label><input type="date" id="vyBitis" onchange="vekilYaziYukle()" /></div>
+        </div>
+        <div id="vyKisayollar" hidden style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+          <button class="btn btn-gri btn-sm" onclick="vekilYaziAyKisayol(-1)">Geçen ay</button>
+          <button class="btn btn-gri btn-sm" onclick="vekilYaziAyKisayol(0)">Bu ay</button>
         </div>
         <div class="uyari-kutu" id="vyUyari" hidden></div>
         <div class="yazi-onizleme-kap" id="vyOnizleme"><div class="yukleniyor">Yukleniyor...</div></div>
