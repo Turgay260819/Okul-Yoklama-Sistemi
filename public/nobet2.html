@@ -451,6 +451,9 @@
       .gun-degisme-nobet tr:hover td { background: #f0f4ff; }
       .gdn-buHafta td { background: #fff8e1 !important; }
       .gdn-gecti td { opacity: 0.45; }
+      .gdn-ayni-gun { font-size: 13px; line-height: 1.5; white-space: normal; }
+      .gdn-ayni-gun .gdn-nokta { color: #666; }
+      .gdn-ben { color: #1557b0; font-weight: 700; }
       /* ── NÖBET GÖREVLENDİRME YAZISI ── */
       .yazi-modal-kutu { max-width: 1100px; width: 96vw; max-height: 94vh; overflow-y: auto; }
       .yazi-duzen { display: grid; grid-template-columns: 300px 1fr; gap: 16px; align-items: start; }
@@ -1033,7 +1036,9 @@
               <th>Nöbet Günü</th>
               <th>Tarih</th>
               <th>Nöbet Noktası</th>
+              <th>O Gün Nöbetçiler</th>
             </tr></thead><tbody>`;
+          const kacis = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
           let haftaStr = nb.hafta_baslangic;
           let sayac = baseSayac;
@@ -1063,15 +1068,26 @@
             if (tamTatil || gunTatilAdi) {
               html += `<tr class="${sinif}">
                 <td>${fmt2(hafta)} – ${fmt2(haftaBitis)}</td>
-                <td colspan="3" style="color:#888;">Tatil</td>
+                <td colspan="4" style="color:#888;">Tatil</td>
               </tr>`;
             } else {
               const gunTarihi = new Date(gunTarihiStr + "T12:00:00");
+              // Ayni hafta, ayni gun nobetci olanlar (ayni sayac ile, nokta sirasina gore).
+              const ayniGun = slotlar
+                .map((s) => ({ s, p: pozHesapla(s, sayac, slotlar) }))
+                .filter((x) => x.p.gi === pos.gi)
+                .sort((a, b) => a.p.ni - b.p.ni)
+                .map((x) => {
+                  const ben = x.s.ogretmen_id === teacherId;
+                  return `<div${ben ? ' class="gdn-ben"' : ""}><span class="gdn-nokta">${kacis(NOKTALAR[x.p.ni] || "-")}:</span> ${kacis(x.s.ogretmen_ad)}${ben ? " (Siz)" : ""}</div>`;
+                })
+                .join("");
               html += `<tr class="${sinif}">
                 <td>${fmt2(hafta)} – ${fmt2(haftaBitis)}</td>
                 <td><strong>${GUNLER2[pos.gi] || ""}</strong></td>
                 <td>${fmt(gunTarihi)}</td>
                 <td style="color:#1557b0; font-weight:700;">${NOKTALAR[pos.ni] || ""}</td>
+                <td class="gdn-ayni-gun">${ayniGun}</td>
               </tr>`;
             }
 
