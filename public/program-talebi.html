@@ -299,6 +299,60 @@
         font-size: 16px;
       }
 
+      /* TALEP MATRİSİ: DERS YOK + YERLEŞEBİLİRLİK RENKLERİ */
+      .hucre-dersyok {
+        background: repeating-linear-gradient(45deg, #e0e0e0, #e0e0e0 6px, #eeeeee 6px, #eeeeee 12px);
+      }
+      .hucre-dersyok:hover { background: #d5d5d5; }
+      .dersyok-ic {
+        font-size: 11px;
+        font-weight: 800;
+        color: #444;
+        letter-spacing: 0.3px;
+        line-height: 1.1;
+      }
+      .hucre-katki { box-shadow: inset 0 0 0 3px #d93025; }
+      .hucre-katki .dersyok-ic { color: #c5221f; }
+      .risk-yesil { background: #e6f4ea; }
+      .risk-yesil:hover { background: #ceead6; }
+      .risk-sari { background: #fef3c0; }
+      .risk-sari:hover { background: #fde68a; }
+      .risk-kirmizi { background: #f6b8b3; }
+      .risk-kirmizi:hover { background: #f28b82; }
+      .hucre-dissi { background: #fafafa; color: #ccc; cursor: default; }
+      .risk-not { font-size: 10px; color: #666; font-weight: 700; }
+      .mini-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+        gap: 12px;
+      }
+      .mini-kart {
+        border: 1px solid #e8e8e8;
+        border-radius: 8px;
+        padding: 10px;
+        background: white;
+      }
+      .mini-kart-baslik {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 6px;
+        font-size: 13px;
+        font-weight: 700;
+        margin-bottom: 6px;
+      }
+      table.mini-matris { width: 100%; border-collapse: collapse; margin: 0; table-layout: fixed; }
+      table.mini-matris th, table.mini-matris td {
+        border: 1px solid #eee;
+        padding: 0;
+        height: 22px;
+        font-size: 9px;
+        text-align: center;
+      }
+      table.mini-matris th { background: #f8f9fa; font-weight: 600; }
+      table.mini-matris td:first-child, table.mini-matris th:first-child { width: 30px; }
+      table.mini-matris .dersyok-ic { font-size: 7px; }
+
       /* ISI HARİTASI RENKLERİ */
       .isi-0 {
         background: #e8f5e9;
@@ -371,6 +425,9 @@
         .icerik {
           padding: 12px;
         }
+        .talep-izgara {
+          grid-template-columns: minmax(0, 1fr) !important;
+        }
       }
     </style>
     <script>if(new URLSearchParams(location.search).get("embedded"))document.addEventListener("DOMContentLoaded",()=>{document.querySelector("h1")?.remove();const tb=document.querySelector(".topbar");if(tb){const b=document.createElement("button");b.className="btn btn-beyaz";b.style.cssText="padding:6px 14px;font-size:13px;margin-left:auto;";b.textContent="← Menüye Dön";b.onclick=()=>{try{window.parent.ogretmenGeri();}catch(e){}};tb.appendChild(b);}});</script>
@@ -408,6 +465,8 @@
         query,
         where,
         serverTimestamp,
+        onSnapshot,
+        writeBatch,
       } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
       const firebaseConfig = {
@@ -440,6 +499,28 @@
       let benimMatris = {};
       let programSeciliOgretmenId = null;
       let programOgretmenSchedule = {};
+
+      // Yüklü programdan (schedule) türetilen yük verisi
+      let sinifSlotlari = {}; // { "6A": Set("Pazartesi-1", ...) }
+      let sinifBirimleri = {}; // { "6A": [{ ogretmenler: [id,...], saat }] }
+      let ogretmenYuk = {}; // { ogretmenId: { "6A": { saat, dersler:Set } } }
+      let tumGerekceler = {}; // { ogretmenId: "saglik" | "cocuk_bakimi" | "ulasim" | "" }
+      let benimGerekce = "";
+      let kaydedilmemis = false;
+      let kayitZamanlayici = null;
+
+      // Isı haritası eşikleri (sarı = yerleşir ama sıkışık)
+      const SARI_ADAY_ESIGI = 2; // o saatte sınıfa girebilecek öğretmen sayısı bu kadar veya azsa
+      const SARI_KAPASITE_ESIGI = 2; // öğretmenin açık bıraktığı saat − yükü bu kadar veya azsa
+
+      const GEREKCELER = [
+        { kod: "saglik", ad: "Sağlık" },
+        { kod: "cocuk_bakimi", ad: "Çocuk bakımı" },
+        { kod: "ulasim", ad: "Ulaşım" },
+      ];
+      function gerekceAdi(kod) {
+        return GEREKCELER.find((g) => g.kod === kod)?.ad || "";
+      }
 
       // schedule.day yazımı import kaynağına göre aksanlı/aksansız olabilir;
       // functions/index.js ve portal-utils.js'teki normalizeGun ile aynı mantık.
@@ -496,6 +577,7 @@
         await ayarlariYukle();
         await tanimlariYukle();
         await dersListesiniYukle();
+        await programYukVerisiYukle();
         await tumMatrisleriYukle();
 
         document.getElementById("yukleniyor").style.display = "none";
@@ -534,82 +616,282 @@
         tumDersListesi.sort((a, b) => (a.ders_adi || "").localeCompare(b.ders_adi || "", "tr"));
       }
 
-      async function tumMatrisleriYukle() {
-        const snap = await getDocs(collection(db, "program_talep_matris"));
-        tumMatrisler = {};
-        snap.forEach((d) => {
-          tumMatrisler[d.id] = d.data().matris || {};
+      // Talepleri canlı dinler: başka öğretmen kaydettiğinde renkler anında güncellenir.
+      function tumMatrisleriYukle() {
+        return new Promise((resolve) => {
+          let ilk = true;
+          onSnapshot(
+            collection(db, "program_talep_matris"),
+            (snap) => {
+              snap.docChanges().forEach((ch) => {
+                const id = ch.doc.id;
+                if (ch.type === "removed") {
+                  delete tumMatrisler[id];
+                  delete tumGerekceler[id];
+                  return;
+                }
+                const d = ch.doc.data();
+                tumMatrisler[id] = d.matris || {};
+                tumGerekceler[id] = d.gerekce || "";
+                if (id === aktifOgretmenId && !kaydedilmemis && !ch.doc.metadata.hasPendingWrites) {
+                  benimMatris = { ...tumMatrisler[id] };
+                  benimGerekce = tumGerekceler[id];
+                }
+              });
+              if (ilk) {
+                ilk = false;
+                resolve();
+              } else {
+                canliYenile();
+              }
+            },
+            (err) => {
+              console.error("Talep dinleme hatası:", err);
+              if (ilk) {
+                ilk = false;
+                resolve();
+              }
+            },
+          );
         });
+      }
+
+      function canliYenile() {
+        if (document.getElementById("benimMatris")) matrisGuncelle();
+        if (document.getElementById("asekme-isi")?.classList.contains("aktif")) adminIsiIcerikCiz();
+        if (document.getElementById("asekme-acmaz")?.classList.contains("aktif")) adminAcmazGoster();
+      }
+
+      // ── YÜKLÜ PROGRAMDAN YÜK VERİSİ ──
+      // schedule: { day, lesson_number, class_id, teacher_id, lesson_name }
+      async function programYukVerisiYukle() {
+        const snap = await getDocs(collection(db, "schedule"));
+        const gunIndeks = {};
+        GUNLER.forEach((g, gi) => (gunIndeks[normalizeGunLocal(g)] = gi));
+
+        // sinif -> slot -> Set(ogretmen)
+        const sinifSlotOgretmen = {};
+        sinifSlotlari = {};
+        ogretmenYuk = {};
+        snap.forEach((d) => {
+          const k = d.data();
+          const gi = gunIndeks[normalizeGunLocal(k.day)];
+          const di = DERSLER.indexOf(Number(k.lesson_number));
+          const sinif = (k.class_id || "").trim();
+          if (gi === undefined || di < 0 || !sinif || !k.teacher_id) return;
+          const key = matrisKey(gi, di);
+          (sinifSlotlari[sinif] ||= new Set()).add(key);
+          const slotlar = (sinifSlotOgretmen[sinif] ||= {});
+          (slotlar[key] ||= new Set()).add(k.teacher_id);
+          const oy = ((ogretmenYuk[k.teacher_id] ||= {})[sinif] ||= { saat: 0, dersler: new Set(), slotlar: new Set() });
+          if (!oy.slotlar.has(key)) {
+            oy.slotlar.add(key);
+            oy.saat++;
+          }
+          if (k.lesson_name) oy.dersler.add(k.lesson_name);
+        });
+
+        // Aynı slotta aynı sınıfa giren öğretmenler (grup dersi) tek birim sayılır.
+        sinifBirimleri = {};
+        Object.entries(sinifSlotOgretmen).forEach(([sinif, slotlar]) => {
+          const birimler = {};
+          Object.values(slotlar).forEach((ogrSet) => {
+            const ids = [...ogrSet].sort();
+            const bk = ids.join("|");
+            (birimler[bk] ||= { ogretmenler: ids, saat: 0 }).saat++;
+          });
+          sinifBirimleri[sinif] = Object.values(birimler);
+        });
+      }
+
+      function ogretmenSiniflari(id) {
+        return Object.keys(ogretmenYuk[id] || {}).sort((a, b) => a.localeCompare(b, "tr", { numeric: true }));
+      }
+
+      function ogretmenToplamYuk(id) {
+        return Object.values(ogretmenYuk[id] || {}).reduce((s, x) => s + x.saat, 0);
+      }
+
+      // ── YERLEŞEBİLİRLİK MOTORU ──
+      // matrisAl(id) -> o öğretmenin kapalı saatleri { key: true }
+      function guncelMatrisAl(id) {
+        return id === aktifOgretmenId ? benimMatris : tumMatrisler[id] || {};
+      }
+
+      // Sınıf için maksimum eşleştirme: birim-saatleri ↔ sınıfın ders saatleri.
+      // Eşleşen < toplam ise bu taleplerle sınıfın programı kesin yerleşemez.
+      function sinifEslesme(sinif, matrisAl = guncelMatrisAl) {
+        const slotlar = [...(sinifSlotlari[sinif] || [])];
+        const birimler = sinifBirimleri[sinif] || [];
+        const uygun = birimler.map((b) => {
+          const ms = b.ogretmenler.map(matrisAl);
+          const liste = [];
+          slotlar.forEach((s, si) => {
+            if (ms.every((m) => !m[s])) liste.push(si);
+          });
+          return liste;
+        });
+        // Sol düğümler: her birim saat kadar kopyalanır
+        const sol = [];
+        birimler.forEach((b, bi) => {
+          for (let i = 0; i < b.saat; i++) sol.push(bi);
+        });
+        const sagEs = new Array(slotlar.length).fill(-1);
+        function dene(u, gorulen) {
+          for (const si of uygun[sol[u]]) {
+            if (gorulen[si]) continue;
+            gorulen[si] = true;
+            if (sagEs[si] === -1 || dene(sagEs[si], gorulen)) {
+              sagEs[si] = u;
+              return true;
+            }
+          }
+          return false;
+        }
+        let eslesen = 0;
+        for (let u = 0; u < sol.length; u++) {
+          if (dene(u, new Array(slotlar.length).fill(false))) eslesen++;
+        }
+        // Aday: her ders saatinde o sınıfa girebilecek (o saati kapatmamış) birim sayısı
+        const aday = {};
+        slotlar.forEach((s) => (aday[s] = 0));
+        uygun.forEach((l) => l.forEach((si) => aday[slotlar[si]]++));
+        const toplam = sol.length;
+        return { toplam, eslesen, eksik: toplam - eslesen, aday };
+      }
+
+      // Öğretmenin kendi kapasitesi: sınıflarının ders saatleri içinde açık bıraktığı saat − yükü
+      function ogretmenKapasite(id, matris = guncelMatrisAl(id)) {
+        const birlesim = new Set();
+        ogretmenSiniflari(id).forEach((s) => (sinifSlotlari[s] || []).forEach((k) => birlesim.add(k)));
+        let acik = 0;
+        birlesim.forEach((k) => {
+          if (!matris[k]) acik++;
+        });
+        return acik - ogretmenToplamYuk(id);
+      }
+
+      function bolunmeAcmazVar(id, matris) {
+        return tumTanimlar
+          .filter((t) => t.ogretmen_id === id && t.bolunme)
+          .some((t) => {
+            const parca = bolunmedenParcaSayisi(t.bolunme);
+            let musaitGun = 0;
+            for (let gi = 0; gi < 5; gi++) {
+              for (let di = 0; di < 8; di++) {
+                const k = matrisKey(gi, di);
+                if ((sinifSlotlari[t.sube]?.has(k) ?? true) && !matris[k]) {
+                  musaitGun++;
+                  break;
+                }
+              }
+            }
+            return musaitGun < parca;
+          });
+      }
+
+      // Öğretmenin tüm durumunu değerlendirir (verilen matrisle).
+      function ogretmenDurum(id, matris) {
+        const matrisAl = (oid) => (oid === id ? matris : guncelMatrisAl(oid));
+        const siniflar = {};
+        ogretmenSiniflari(id).forEach((s) => (siniflar[s] = sinifEslesme(s, matrisAl)));
+        return {
+          siniflar,
+          kapasite: ogretmenKapasite(id, matris),
+          bolunme: bolunmeAcmazVar(id, matris),
+        };
+      }
+
+      function durumAcmaz(d) {
+        return d.kapasite < 0 || d.bolunme || Object.values(d.siniflar).some((x) => x.eksik > 0);
+      }
+
+      // Açık bir hücre kapatılırsa ne olur? -> { seviye: "yesil"|"sari"|"kirmizi", neden }
+      function hucreRiski(id, gi, di, mevcutDurum) {
+        const key = matrisKey(gi, di);
+        const matris = guncelMatrisAl(id);
+        const yeni = ogretmenDurum(id, { ...matris, [key]: true });
+        const nedenler = [];
+        Object.entries(yeni.siniflar).forEach(([s, x]) => {
+          const once = mevcutDurum.siniflar[s];
+          if (x.eksik > 0 && x.eksik > (once?.eksik || 0))
+            nedenler.push(`${s} sınıfının programı yerleşemez (eksik ${x.eksik} saat)`);
+        });
+        if (yeni.kapasite < 0 && yeni.kapasite < mevcutDurum.kapasite)
+          nedenler.push(`kendi ${ogretmenToplamYuk(id)} saatlik dersiniz sığmaz`);
+        if (yeni.bolunme && !mevcutDurum.bolunme) nedenler.push("dersin bölünmesi için yeterli gün kalmaz");
+        if (nedenler.length) return { seviye: "kirmizi", neden: "Bu saati kapatırsanız " + nedenler.join("; ") + "." };
+
+        const sari = [];
+        Object.entries(yeni.siniflar).forEach(([s, x]) => {
+          if (key in x.aday && x.aday[key] <= SARI_ADAY_ESIGI)
+            sari.push(`${s} sınıfına bu saatte girebilecek ${x.aday[key]} öğretmen kalır`);
+        });
+        if (yeni.kapasite <= SARI_KAPASITE_ESIGI)
+          sari.push(`kendi programınızda yalnızca ${Math.max(0, yeni.kapasite)} saat esneklik kalır`);
+        if (sari.length) return { seviye: "sari", neden: "Yerleşir ama sıkışık: " + sari.join("; ") + "." };
+        return { seviye: "yesil", neden: "Rahat: bu saati kapatmak programı zorlamaz." };
+      }
+
+      // Açmazdaki bir öğretmenin hangi kapalı hücreleri açmaza katkı veriyor?
+      function katkiHucreleri(id) {
+        const matris = guncelMatrisAl(id);
+        const durum = ogretmenDurum(id, matris);
+        const sonuc = new Set();
+        if (!durumAcmaz(durum)) return sonuc;
+        const acmazSinif = Object.keys(durum.siniflar).filter((s) => durum.siniflar[s].eksik > 0);
+        Object.keys(matris).forEach((k) => {
+          if (!matris[k]) return;
+          const acilmis = { ...matris };
+          delete acilmis[k];
+          const matrisAl = (oid) => (oid === id ? acilmis : guncelMatrisAl(oid));
+          const iyilesir =
+            acmazSinif.some((s) => sinifEslesme(s, matrisAl).eksik < durum.siniflar[s].eksik) ||
+            (durum.kapasite < 0 && ogretmenKapasite(id, acilmis) > durum.kapasite) ||
+            (durum.bolunme && !bolunmeAcmazVar(id, acilmis));
+          if (iyilesir) sonuc.add(k);
+        });
+        return sonuc;
+      }
+
+      // Bir öğretmenin herhangi bir sınıfına girilen saat mi? (değilse risk hesaplanmaz)
+      function ogretmenSlotIlgili(id, key) {
+        return ogretmenSiniflari(id).some((s) => sinifSlotlari[s]?.has(key));
+      }
+
+      // Salt okunur mini/normal matris (admin görünümleri)
+      function talepMatrisHtml(id, mini) {
+        const matris = tumMatrisler[id] || {};
+        const katki = katkiHucreleri(id);
+        let html = `<table class="${mini ? "mini-matris" : "matris salt-okunur"}"><thead><tr><th>${mini ? "" : "Gün \\ Ders"}</th>`;
+        DERSLER.forEach((d) => (html += `<th>${mini ? d : d + ". Ders"}</th>`));
+        html += "</tr></thead><tbody>";
+        GUNLER.forEach((g, gi) => {
+          html += `<tr><td>${mini ? g.slice(0, 3) : g}</td>`;
+          DERSLER.forEach((d, di) => {
+            const k = matrisKey(gi, di);
+            if (matris[k]) {
+              const kt = katki.has(k);
+              html += `<td class="hucre-dersyok${kt ? " hucre-katki" : ""}" title="${kt ? "Bu talep sınıf programını açmaza sokuyor" : "Ders yok talebi"}"><div class="dersyok-ic">${kt ? "⚠ " : ""}DERS YOK</div></td>`;
+            } else if (!ogretmenSlotIlgili(id, k)) {
+              html += `<td class="hucre-dissi"></td>`;
+            } else {
+              html += `<td class="hucre-bos"></td>`;
+            }
+          });
+          html += "</tr>";
+        });
+        return html + "</tbody></table>";
+      }
+
+      function ogretmenAdi(id) {
+        return tumOgretmenler.find((o) => o.id === id)?.ad || tumTanimlar.find((t) => t.ogretmen_id === id)?.ogretmen_adi || "(bilinmiyor)";
       }
 
       // ── BÖLÜNME ANALİZİ ──
       function bolunmedenParcaSayisi(bolunme) {
         if (!bolunme) return 1;
         return bolunme.toString().split("+").length;
-      }
-
-      // Bir öğretmenin bir şubedeki dersi için açmaz var mı?
-      function acmazKontrol(ogretmenId, sube, bolunme) {
-        const parcaSayisi = bolunmedenParcaSayisi(bolunme);
-        const matris = ogretmenId === aktifOgretmenId ? benimMatris : (tumMatrisler[ogretmenId] || {});
-        // Müsait gün sayısı (X koymadığı günler)
-        let musaitGunler = 0;
-        for (let gi = 0; gi < 5; gi++) {
-          // Bu günde en az 1 müsait saat var mı?
-          let gunMusait = false;
-          for (let di = 0; di < 8; di++) {
-            if (!matris[matrisKey(gi, di)]) {
-              gunMusait = true;
-              break;
-            }
-          }
-          if (gunMusait) musaitGunler++;
-        }
-        return musaitGunler < parcaSayisi;
-      }
-
-      // Şube bazlı açmaz analizi
-      function subeAcmazAnaliz(sube) {
-        const subeTanimlar = tumTanimlar.filter((t) => t.sube === sube);
-        const acmazlar = [];
-        for (let gi = 0; gi < 5; gi++) {
-          for (let di = 0; di < 8; di++) {
-            const key = matrisKey(gi, di);
-            // Bu saatte kaç öğretmen X koymuş
-            const bosOgretmenler = subeTanimlar.filter((t) => {
-              const m = tumMatrisler[t.ogretmen_id] || {};
-              return !m[key];
-            });
-            // Toplam öğretmen sayısı
-            const toplamOgr = subeTanimlar.length;
-            if (toplamOgr > 0 && bosOgretmenler.length === 0) {
-              acmazlar.push({ gun: GUNLER[gi], saat: DERSLER[di] });
-            }
-          }
-        }
-        return acmazlar;
-      }
-
-      // Uyum yüzdesi hesapla
-      function uyumYuzdesi(ogretmenId) {
-        const matris =
-          ogretmenId === aktifOgretmenId
-            ? benimMatris
-            : tumMatrisler[ogretmenId] || {};
-        let kirmizi = 0,
-          toplam = 0;
-        for (let gi = 0; gi < 5; gi++) {
-          for (let di = 0; di < 8; di++) {
-            if (matris[matrisKey(gi, di)]) {
-              toplam++;
-              // Bu hücrede yoğunluk var mı?
-              const yogunluk = isiYogunluk(gi, di);
-              if (yogunluk >= 3) kirmizi++;
-            }
-          }
-        }
-        if (toplam === 0) return 100;
-        return Math.round((1 - kirmizi / toplam) * 100);
       }
 
       // Isı yoğunluğu: o gün/saatte kaç öğretmen X koymuş
@@ -629,10 +911,11 @@
         benimMatris = tumMatrisler[aktifOgretmenId]
           ? { ...tumMatrisler[aktifOgretmenId] }
           : {};
+        benimGerekce = tumGerekceler[aktifOgretmenId] || "";
         document.getElementById("anaIcerik").innerHTML = `
           <div class="sekme-bar">
             <button class="sekme-btn aktif" onclick="ogretmenSekme('dersler', this)">📚 Derslerim</button>
-            <button class="sekme-btn" onclick="ogretmenSekme('talep', this)">📐 Boş Talepler</button>
+            <button class="sekme-btn" onclick="ogretmenSekme('talep', this)">📐 Program Talebim</button>
             <button class="sekme-btn" onclick="ogretmenSekme('program', this)">📅 Ders Programım</button>
           </div>
           <div class="sekme-icerik aktif" id="osekme-dersler"></div>
@@ -676,21 +959,27 @@
 
       function ogretmenDerslerGoster() {
         const c = document.getElementById("osekme-dersler");
-        const benimDerslerim = tumTanimlar.filter((t) => t.ogretmen_id === aktifOgretmenId);
-        const toplamSaat = benimDerslerim.reduce((s, t) => s + (t.haftalik_saat || 0), 0);
+        const siniflar = ogretmenSiniflari(aktifOgretmenId);
+        const toplamSaat = ogretmenToplamYuk(aktifOgretmenId);
 
         let html = `<div class="kart">
-          <div class="kart-baslik">📚 Ders Tanımlarım
-            <span class="rozet rozet-mavi">${toplamSaat} saat / ${benimDerslerim.length} şube</span>
+          <div class="kart-baslik">📚 Ders Yüküm
+            <span class="rozet rozet-mavi">${toplamSaat} saat / ${siniflar.length} şube</span>
           </div>
-          <p style="font-size:13px;color:#888;margin-bottom:14px;">Şube, ders, saat ve bölünme bilgileriniz admin tarafından girilir. Aşağıda size atanan dersleri görebilirsiniz.</p>`;
+          <p style="font-size:13px;color:#888;margin-bottom:14px;">Sınıf ve saat bilgileri okulun yüklü ders programından otomatik alınır. Bölünme bilgisi (ör. 2+1) idare tarafından girilir.</p>`;
 
-        if (benimDerslerim.length) {
+        if (siniflar.length) {
           html += `<table><thead><tr><th>Şube</th><th>Ders</th><th>Saat</th><th>Bölünme</th></tr></thead><tbody>
-            ${benimDerslerim.map((t) => `<tr><td>${t.sube}</td><td>${t.ders_adi}</td><td>${t.haftalik_saat}</td><td><span class="rozet rozet-mavi">${t.bolunme || "-"}</span></td></tr>`).join("")}
+            ${siniflar
+              .map((s) => {
+                const y = ogretmenYuk[aktifOgretmenId][s];
+                const bol = tumTanimlar.find((t) => t.ogretmen_id === aktifOgretmenId && t.sube === s)?.bolunme;
+                return `<tr><td>${s}</td><td>${[...y.dersler].join(", ")}</td><td>${y.saat}</td><td><span class="rozet rozet-mavi">${bol || "-"}</span></td></tr>`;
+              })
+              .join("")}
             </tbody></table>`;
         } else {
-          html += `<div class="bos-mesaj">Henüz size ders tanımı atanmamış.</div>`;
+          html += `<div class="bos-mesaj">Yüklü ders programında size ait ders bulunamadı.</div>`;
         }
         html += `</div>`;
         c.innerHTML = html;
@@ -706,187 +995,208 @@
           </div>`;
           return;
         }
-        const benimDerslerim = tumTanimlar.filter((t) => t.ogretmen_id === aktifOgretmenId);
-        if (!benimDerslerim.length) {
+        const siniflar = ogretmenSiniflari(aktifOgretmenId);
+        if (!siniflar.length) {
           c.innerHTML = `<div class="kart" style="text-align:center;padding:40px;">
             <div style="font-size:40px;margin-bottom:16px;">⚠️</div>
-            <div style="font-size:18px;font-weight:700;color:#ea4335;margin-bottom:8px;">Önce ders tanımlarınızı girin</div>
-            <div style="font-size:14px;color:#888;margin-bottom:16px;">Boş talep girebilmek için "Derslerim" sekmesinden ders tanımlarınızı eklemeniz gerekir.</div>
-            <button class="btn btn-mavi" onclick="document.querySelector('.sekme-btn').click()">← Derslerime Git</button>
+            <div style="font-size:18px;font-weight:700;color:#ea4335;margin-bottom:8px;">Ders yükünüz bulunamadı</div>
+            <div style="font-size:14px;color:#888;">Yüklü ders programında size ait ders yok. Lütfen idareyle görüşün.</div>
           </div>`;
           return;
         }
-        const toplamSaat = benimDerslerim.reduce((s, t) => s + (t.haftalik_saat || 0), 0);
+        const gerekceOptions = GEREKCELER.map(
+          (g) => `<option value="${g.kod}"${benimGerekce === g.kod ? " selected" : ""}>${g.ad}</option>`,
+        ).join("");
         c.innerHTML = `
-          <div style="display:grid;grid-template-columns:1fr 300px;gap:16px;align-items:start;">
+          <div style="display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;align-items:start;" class="talep-izgara">
             <div>
               <div class="kart">
                 <div class="kart-baslik">
-                  Boş İstediğiniz Gün/Saatleri İşaretleyin
+                  Girmek İstemediğiniz Dersleri Kapatın
                   <div style="display:flex;gap:8px;align-items:center;">
-                    <span id="uyumRozet" class="rozet rozet-mavi">—</span>
+                    <span id="kayitRozet" class="rozet rozet-yesil">Kaydedildi</span>
                     <button class="btn btn-yesil btn-sm" onclick="matrisKaydet()">💾 Kaydet</button>
                     <button class="btn btn-gri btn-sm" onclick="matrisiSifirla()">Sıfırla</button>
                   </div>
                 </div>
-                <p style="font-size:12px;color:#888;margin-bottom:12px;">X işaretlediğiniz gün ve saatler boş talep ettiğiniz zamanlardır. Hücrelerdeki sayılar o saati boş isteyen diğer öğretmen sayısını gösterir — yüksek sayılı hücrelerden kaçının.</p>
+                <p style="font-size:12px;color:#666;margin-bottom:12px;">Girmek istemediğiniz saate tıklayın; kapattığınız her saatte <strong>DERS YOK</strong> yazar. Tekrar tıklayınca geri açılır. Renkler, o saati kapatırsanız okulun ders programının yerleşip yerleşemeyeceğini gösterir. Değişiklikler otomatik kaydedilir.</p>
                 <div id="acmazUyari"></div>
                 <div class="matris-wrap"><table class="matris" id="benimMatris"></table></div>
-                <div style="margin-top:12px;">
-                  <div style="font-size:12px;color:#888;margin-bottom:6px;">Uyum Skoru</div>
-                  <div class="uyum-bar"><div class="uyum-dolgu" id="uyumDolgu" style="width:0%;background:#34a853;"></div></div>
-                  <div style="font-size:13px;font-weight:700;color:#333;margin-top:4px;" id="uyumYazisi">Hesaplanıyor...</div>
+                <div style="margin-top:14px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+                  <label for="gerekceSecim" style="font-size:13px;font-weight:600;color:#333;">Talebinizin gerekçesi (isteğe bağlı):</label>
+                  <select id="gerekceSecim" onchange="gerekceDegisti(this.value)" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
+                    <option value="">— Belirtmek istemiyorum —</option>${gerekceOptions}
+                  </select>
                 </div>
+                <div style="font-size:13px;color:#555;margin-top:10px;" id="talepOzet"></div>
                 <div class="mesaj" id="ogretmenMesaj" style="margin-top:10px;"></div>
               </div>
             </div>
             <div>
               <div class="kart">
                 <div class="kart-baslik" style="font-size:13px;">Ders Yükünüz</div>
-                <div style="font-size:13px;color:#888;margin-bottom:12px;">Toplam: <strong style="color:#1a73e8;">${toplamSaat} saat</strong></div>
-                <table><thead><tr><th>Şube</th><th>Ders</th><th>Saat</th></tr></thead><tbody>
-                  ${benimDerslerim.map((t) => `<tr><td>${t.sube}</td><td>${t.ders_adi}</td><td>${t.haftalik_saat}</td></tr>`).join("")}
+                <div style="font-size:13px;color:#888;margin-bottom:12px;">Toplam: <strong style="color:#1a73e8;">${ogretmenToplamYuk(aktifOgretmenId)} saat</strong></div>
+                <table><thead><tr><th>Şube</th><th>Saat</th></tr></thead><tbody>
+                  ${siniflar.map((s) => `<tr><td>${s}</td><td>${ogretmenYuk[aktifOgretmenId][s].saat}</td></tr>`).join("")}
                 </tbody></table>
               </div>
               <div class="kart">
                 <div class="kart-baslik" style="font-size:13px;">Renk Açıklaması</div>
-                <div class="isi-legend">
-                  <div class="isi-legend-item"><div class="isi-legend-renk isi-0"></div><span>Boş talep yok</span></div>
-                  <div class="isi-legend-item"><div class="isi-legend-renk isi-2"></div><span>Az yoğun</span></div>
-                  <div class="isi-legend-item"><div class="isi-legend-renk isi-4"></div><span>Yoğun</span></div>
-                  <div class="isi-legend-item"><div class="isi-legend-renk isi-6"></div><span>Çok yoğun</span></div>
+                <div class="isi-legend" style="flex-direction:column;align-items:flex-start;gap:8px;font-size:12px;">
+                  <div class="isi-legend-item"><div class="isi-legend-renk risk-yesil"></div><span><strong>Yeşil:</strong> Rahat, kapatabilirsiniz</span></div>
+                  <div class="isi-legend-item"><div class="isi-legend-renk risk-sari"></div><span><strong>Sarı:</strong> Yerleşir ama sıkışık</span></div>
+                  <div class="isi-legend-item"><div class="isi-legend-renk risk-kirmizi"></div><span><strong>Kırmızı:</strong> Kapatırsanız program yerleşemez</span></div>
+                  <div class="isi-legend-item"><div class="isi-legend-renk hucre-dersyok"></div><span><strong>DERS YOK:</strong> Sizin kapattığınız saat</span></div>
+                  <div class="isi-legend-item"><div class="isi-legend-renk hucre-dissi" style="border:1px solid #eee;"></div><span>Sınıflarınızın dersi olmayan saat</span></div>
                 </div>
-                <div style="font-size:12px;color:#888;">Yüksek sayılı / kırmızı hücrelerden kaçının.</div>
+                <div style="font-size:12px;color:#888;">Hücrenin üzerine gelince nedenini görebilirsiniz. Küçük sayı, o saati boş isteyen öğretmen sayısıdır.</div>
               </div>
             </div>
           </div>`;
         matrisGuncelle();
+        kayitRozetGuncelle();
       }
+
+      let sonRiskler = {};
 
       function matrisGuncelle() {
         const tablo = document.getElementById("benimMatris");
         if (!tablo) return;
-
-        // Maksimum yoğunluk
-        let maxY = 1;
-        for (let gi = 0; gi < 5; gi++) {
-          for (let di = 0; di < 8; di++) {
-            const y = isiYogunluk(gi, di);
-            if (y > maxY) maxY = y;
-          }
-        }
+        const id = aktifOgretmenId;
+        const durum = ogretmenDurum(id, benimMatris);
+        const katki = katkiHucreleri(id);
+        sonRiskler = {};
 
         let html = "<thead><tr><th>Gün \\ Ders</th>";
-        DERSLER.forEach((d) => {
-          html += "<th>" + d + ". Ders</th>";
-        });
+        DERSLER.forEach((d) => (html += "<th>" + d + ". Ders</th>"));
         html += "</tr></thead><tbody>";
 
         GUNLER.forEach((g, gi) => {
           html += "<tr><td>" + g + "</td>";
           DERSLER.forEach((d, di) => {
             const key = matrisKey(gi, di);
-            const x = benimMatris[key];
-            const yogunluk = isiYogunluk(gi, di);
-            const isiSeviye = x
-              ? ""
-              : Math.min(6, Math.floor((yogunluk / maxY) * 6));
-            const isiClass = x ? "hucre-x" : "hucre-bos isi-" + isiSeviye;
-            html +=
-              '<td class="' +
-              isiClass +
-              '" onclick="hucreTikla(' +
-              gi +
-              "," +
-              di +
-              ')" title="' +
-              (x ? "Boş talep edildi" : yogunluk > 0 ? yogunluk + " öğretmen bu saati boş istiyor" : "Boş talep yok") +
-              '">';
-            if (x) {
-              html += '<div class="hucre-x-ic">✕</div>';
-            } else if (yogunluk > 0) {
-              html += '<div style="font-size:10px;color:#888;font-weight:700;">' + yogunluk + '</div>';
+            const tik = ` onclick="hucreTikla(${gi},${di})"`;
+            if (benimMatris[key]) {
+              const kt = katki.has(key);
+              const baslik = kt
+                ? "Bu talebiniz şu anda programı açmaza sokuyor. Tıklayarak geri açabilirsiniz."
+                : "Ders yok talebi. Geri açmak için tıklayın.";
+              html += `<td class="hucre-dersyok${kt ? " hucre-katki" : ""}" title="${baslik}"${tik}><div class="dersyok-ic">${kt ? "⚠ " : ""}DERS YOK</div></td>`;
+              return;
             }
-            html += "</td>";
+            if (!ogretmenSlotIlgili(id, key)) {
+              html += `<td class="hucre-dissi" title="Sınıflarınızın bu saatte dersi yok">—</td>`;
+              return;
+            }
+            const r = hucreRiski(id, gi, di, durum);
+            sonRiskler[key] = r;
+            const yog = isiYogunluk(gi, di);
+            html += `<td class="risk-${r.seviye}" title="${r.neden}${yog ? " (" + yog + " öğretmen bu saati boş istiyor)" : ""}"${tik}>${yog ? `<span class="risk-not">${yog}</span>` : ""}</td>`;
           });
           html += "</tr>";
         });
+        tablo.innerHTML = html + "</tbody>";
 
-        html += "</tbody>";
-        tablo.innerHTML = html;
-
-        // Uyum skoru
-        const yuzde = uyumYuzdesi(aktifOgretmenId);
-        const renk =
-          yuzde >= 80 ? "#34a853" : yuzde >= 60 ? "#f9ab00" : "#ea4335";
-        const dolgu = document.getElementById("uyumDolgu");
-        if (dolgu) {
-          dolgu.style.width = yuzde + "%";
-          dolgu.style.background = renk;
-        }
+        // Özet
         const xSayisi = Object.values(benimMatris).filter(Boolean).length;
-        const yazisi = document.getElementById("uyumYazisi");
-        if (yazisi) yazisi.textContent = "Uyum Skoru: %" + yuzde + "  —  " + xSayisi + " boş talep";
-        const rozet = document.getElementById("uyumRozet");
-        if (rozet) {
-          rozet.textContent = "%" + yuzde + " Uyumlu";
-          rozet.className =
-            "rozet " +
-            (yuzde >= 80
-              ? "rozet-yesil"
-              : yuzde >= 60
-                ? "rozet-sari"
-                : "rozet-kirmizi");
+        const ozet = document.getElementById("talepOzet");
+        if (ozet) {
+          const esnek = Math.max(0, durum.kapasite);
+          ozet.innerHTML = `<strong>${xSayisi}</strong> saat kapattınız. Programınızda kalan esneklik: <strong>${esnek}</strong> saat.`;
         }
 
         // Açmaz uyarısı
-        const benimSubeler = [
-          ...new Set(
-            tumTanimlar
-              .filter((t) => t.ogretmen_id === aktifOgretmenId)
-              .map((t) => t.sube),
-          ),
-        ];
         let acmazHtml = "";
-        benimSubeler.forEach((sube) => {
-          const t = tumTanimlar.find(
-            (x) => x.ogretmen_id === aktifOgretmenId && x.sube === sube,
-          );
-          if (t && acmazKontrol(aktifOgretmenId, sube, t.bolunme)) {
-            acmazHtml +=
-              '<div class="acmaz-uyari"><strong>⚠️ ' +
-              sube +
-              " — " +
-              t.ders_adi +
-              "</strong>Bu ders için yeterli müsait gün kalmadı. Bazı X işaretlerini kaldırın.</div>";
-          }
+        Object.entries(durum.siniflar).forEach(([s, x]) => {
+          if (x.eksik > 0)
+            acmazHtml += `<div class="acmaz-uyari"><strong>⚠️ ${s} sınıfı açmazda</strong>Mevcut taleplerle bu sınıfın ${x.eksik} saatlik dersi yerleşemiyor. Kırmızı çerçeveli DERS YOK hücrelerinden birini açmanız önerilir.</div>`;
         });
+        if (durum.kapasite < 0)
+          acmazHtml += `<div class="acmaz-uyari"><strong>⚠️ Dersleriniz sığmıyor</strong>Açık bıraktığınız saatler toplam ${ogretmenToplamYuk(id)} saatlik ders yükünüzden az. Bazı DERS YOK işaretlerini kaldırın.</div>`;
+        if (durum.bolunme)
+          acmazHtml += `<div class="acmaz-uyari"><strong>⚠️ Bölünme sorunu</strong>Bölünmüş dersleriniz için yeterli sayıda müsait gün kalmadı.</div>`;
         const uyariEl = document.getElementById("acmazUyari");
         if (uyariEl) uyariEl.innerHTML = acmazHtml;
       }
 
+      function kayitRozetGuncelle(durum) {
+        const r = document.getElementById("kayitRozet");
+        if (!r) return;
+        if (durum === "kaydediliyor") {
+          r.textContent = "Kaydediliyor...";
+          r.className = "rozet rozet-sari";
+        } else if (durum === "hata") {
+          r.textContent = "Kaydedilemedi";
+          r.className = "rozet rozet-kirmizi";
+        } else if (kaydedilmemis) {
+          r.textContent = "Kaydedilmedi";
+          r.className = "rozet rozet-sari";
+        } else {
+          r.textContent = "Kaydedildi";
+          r.className = "rozet rozet-yesil";
+        }
+      }
+
+      function otomatikKaydetPlanla() {
+        kaydedilmemis = true;
+        kayitRozetGuncelle();
+        clearTimeout(kayitZamanlayici);
+        kayitZamanlayici = setTimeout(() => window.matrisKaydet(true), 1000);
+      }
+
+      window.addEventListener("beforeunload", (e) => {
+        if (!kaydedilmemis) return;
+        e.preventDefault();
+        e.returnValue = "";
+      });
+
       window.hucreTikla = (gi, di) => {
         const key = matrisKey(gi, di);
-        benimMatris[key] = !benimMatris[key];
-        if (!benimMatris[key]) delete benimMatris[key];
+        if (!benimMatris[key]) {
+          const r = sonRiskler[key];
+          if (r?.seviye === "kirmizi" && !confirm(r.neden + "\n\nYine de bu saati kapatmak istiyor musunuz?")) return;
+          benimMatris[key] = true;
+        } else {
+          delete benimMatris[key];
+        }
         matrisGuncelle();
+        otomatikKaydetPlanla();
       };
 
-      window.matrisKaydet = async () => {
+      window.gerekceDegisti = (deger) => {
+        benimGerekce = deger || "";
+        otomatikKaydetPlanla();
+      };
+
+      window.matrisKaydet = async (otomatik) => {
         if (!aktifOgretmenId) return;
-        await setDoc(doc(db, "program_talep_matris", aktifOgretmenId), {
-          matris: benimMatris,
-          ogretmen_id: aktifOgretmenId,
-          son_guncelleme: serverTimestamp(),
-        });
-        tumMatrisler[aktifOgretmenId] = { ...benimMatris };
-        mesajGoster("ogretmenMesaj", "Talebiniz kaydedildi.", "basari");
+        clearTimeout(kayitZamanlayici);
+        kayitRozetGuncelle("kaydediliyor");
+        const kaydedilen = { ...benimMatris };
+        try {
+          await setDoc(doc(db, "program_talep_matris", aktifOgretmenId), {
+            matris: kaydedilen,
+            gerekce: benimGerekce,
+            ogretmen_id: aktifOgretmenId,
+            son_guncelleme: serverTimestamp(),
+          });
+          tumMatrisler[aktifOgretmenId] = kaydedilen;
+          tumGerekceler[aktifOgretmenId] = benimGerekce;
+          // Kayıt sırasında yeni tıklama olmadıysa kaydedildi say
+          if (JSON.stringify(kaydedilen) === JSON.stringify(benimMatris)) kaydedilmemis = false;
+          kayitRozetGuncelle();
+          if (otomatik !== true) mesajGoster("ogretmenMesaj", "Talebiniz kaydedildi.", "basari");
+        } catch (err) {
+          kayitRozetGuncelle("hata");
+          mesajGoster("ogretmenMesaj", "Kaydedilemedi: " + err.message, "hata");
+        }
       };
 
       window.matrisiSifirla = () => {
-        if (!confirm("Tüm X işaretlerini kaldırmak istiyor musunuz?")) return;
+        if (!confirm("Tüm DERS YOK işaretlerini kaldırmak istiyor musunuz?")) return;
         benimMatris = {};
         matrisGuncelle();
+        otomatikKaydetPlanla();
       };
 
       // ── ADMİN SAYFASI ──
@@ -920,8 +1230,14 @@
         el.classList.add("aktif");
         document.getElementById("asekme-" + id).classList.add("aktif");
         if (id === "tanim") adminTanimGoster();
-        else if (id === "isi") adminIsiGoster();
-        else if (id === "acmaz") adminAcmazGoster();
+        else if (id === "isi" || id === "acmaz") {
+          // Ders Programını Düzenle'de yapılan değişiklikler yansısın
+          const hedef = document.getElementById("asekme-" + id);
+          hedef.innerHTML = '<div class="yukleniyor">Yükleniyor...</div>';
+          programYukVerisiYukle()
+            .then(() => (id === "isi" ? adminIsiGoster() : adminAcmazGoster()))
+            .catch((err) => (hedef.innerHTML = `<div class="kart"><div class="bos-mesaj">Hata: ${err.message}</div></div>`));
+        }
         else if (id === "programDuzenle") adminProgramDuzenleGoster();
         else if (id === "sinifProgram") adminSinifProgramGoster();
         else if (id === "ayarlar") adminAyarlarGoster();
@@ -948,7 +1264,11 @@
             Öğretmen Ders Tanımları
             <span class="rozet rozet-mavi">${tumTanimlar.length} kayıt — ${subeler.length} şube — ${ogretmenGruplari.size} öğretmen</span>
           </div>
-          <p style="font-size:13px;color:#888;margin-bottom:14px;">Ders tanımları aşağıdaki formdan admin tarafından girilir. Öğretmenler "Derslerim" sekmesinden sadece kendilerine atananları görür.</p>`;
+          <p style="font-size:13px;color:#888;margin-bottom:14px;">Talep ısı haritası, sınıf ve saat bilgisini doğrudan yüklü ders programından alır. Tanımlar yalnızca bölünme (ör. 2+1) bilgisi için gereklidir. Eksik tanımları yüklü programdan otomatik oluşturup bölünmeyi sonra girebilirsiniz.</p>
+          <div style="margin-bottom:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <button class="btn btn-mavi btn-sm" onclick="adminTanimProgramdanOlustur()">⚙️ Programdan oluştur</button>
+            <span class="mesaj" id="adminOlusturMesaj"></span>
+          </div>`;
 
         if (!ogretmenGruplari.size) {
           html += `<div style="color:#888;padding:20px;text-align:center;">Henüz hiçbir öğretmen ders tanımı girmemiş.</div>`;
@@ -962,7 +1282,7 @@
               <table style="margin:0;"><thead><tr><th>Şube</th><th>Ders</th><th>Saat</th><th>Bölünme</th><th></th></tr></thead><tbody>
               ${ogr.dersler.map((t) => `<tr>
                 <td>${t.sube}</td><td>${t.ders_adi}</td><td>${t.haftalik_saat}</td>
-                <td><span class="rozet rozet-mavi">${t.bolunme || "-"}</span></td>
+                <td><span class="rozet rozet-mavi" style="cursor:pointer;" title="Bölünmeyi düzenle" onclick="adminBolunmeDuzenle('${t.id}')">${t.bolunme || "-"} ✎</span></td>
                 <td><button class="btn btn-kirmizi btn-sm" onclick="adminTanimSil('${t.id}')">Sil</button></td>
               </tr>`).join("")}
               </tbody></table>
@@ -1003,6 +1323,72 @@
         c.innerHTML = html;
       }
 
+      // schedule'dan öğretmen/şube/ders bazında saat sayıp eksik tanımları ekler
+      window.adminTanimProgramdanOlustur = async () => {
+        mesajGoster("adminOlusturMesaj", "Program okunuyor...", "bilgi");
+        try {
+          const snap = await getDocs(collection(db, "schedule"));
+          const gruplar = new Map();
+          snap.forEach((d) => {
+            const k = d.data();
+            const sube = (k.class_id || "").trim();
+            const ders = (k.lesson_name || "").trim();
+            if (!k.teacher_id || !sube || !ders) return;
+            const gk = k.teacher_id + "|" + sube + "|" + ders;
+            if (!gruplar.has(gk)) gruplar.set(gk, { ogretmen_id: k.teacher_id, sube, ders_adi: ders, slotlar: new Set() });
+            gruplar.get(gk).slotlar.add(normalizeGunLocal(k.day) + "-" + k.lesson_number);
+          });
+          const mevcut = new Set(tumTanimlar.map((t) => t.ogretmen_id + "|" + t.sube + "|" + t.ders_adi));
+          const yeniler = [...gruplar.entries()]
+            .filter(([gk]) => !mevcut.has(gk))
+            .map(([, g]) => ({
+              ogretmen_id: g.ogretmen_id,
+              ogretmen_adi: ogretmenAdi(g.ogretmen_id),
+              sube: g.sube,
+              ders_adi: g.ders_adi,
+              haftalik_saat: g.slotlar.size,
+              bolunme: "",
+            }));
+          if (!yeniler.length) {
+            mesajGoster("adminOlusturMesaj", "Eksik tanım yok; tüm dersler zaten tanımlı.", "basari");
+            return;
+          }
+          if (!confirm(yeniler.length + " yeni tanım eklenecek. Devam edilsin mi?")) {
+            mesajGoster("adminOlusturMesaj", "", "bilgi");
+            return;
+          }
+          for (let i = 0; i < yeniler.length; i += 400) {
+            const batch = writeBatch(db);
+            yeniler.slice(i, i + 400).forEach((t) => {
+              const ref = doc(collection(db, "program_talep_tanimlar"));
+              batch.set(ref, t);
+              t.id = ref.id;
+            });
+            await batch.commit();
+          }
+          tumTanimlar.push(...yeniler);
+          adminTanimGoster();
+          mesajGoster("adminOlusturMesaj", yeniler.length + " tanım eklendi. Bölünme bilgilerini girebilirsiniz.", "basari");
+        } catch (err) {
+          mesajGoster("adminOlusturMesaj", "Hata: " + err.message, "hata");
+        }
+      };
+
+      window.adminBolunmeDuzenle = async (id) => {
+        const t = tumTanimlar.find((x) => x.id === id);
+        if (!t) return;
+        const yeni = prompt(`${t.ogretmen_adi} — ${t.sube} ${t.ders_adi} (${t.haftalik_saat} saat)\nBölünme (ör. 2+1, boş bırakılabilir):`, t.bolunme || "");
+        if (yeni === null) return;
+        const deger = yeni.replace(/\s/g, "");
+        if (deger && !/^\d+(\+\d+)*$/.test(deger)) {
+          alert("Bölünme 2+1 biçiminde olmalı.");
+          return;
+        }
+        await updateDoc(doc(db, "program_talep_tanimlar", id), { bolunme: deger });
+        t.bolunme = deger;
+        adminTanimGoster();
+      };
+
       window.adminTanimSil = async (id) => {
         if (!confirm("Bu tanımı silmek istiyor musunuz?")) return;
         await deleteDoc(doc(db, "program_talep_tanimlar", id));
@@ -1031,192 +1417,216 @@
         adminTanimGoster();
       };
 
+      let adminFiltre = { ad: "", sinif: "", gerekce: "", sadeceAcmaz: false };
+
       function adminIsiGoster() {
         const c = document.getElementById("asekme-isi");
-
-        // Tüm öğretmen sayısı
-        const toplamOgr = Object.keys(tumMatrisler).length;
-        let maxY = 1;
-        for (let gi = 0; gi < 5; gi++) {
-          for (let di = 0; di < 8; di++) {
-            const y = isiYogunluk(gi, di);
-            if (y > maxY) maxY = y;
-          }
-        }
-
-        let html = `
-    <div class="kart">
-      <div class="kart-baslik">
-        Genel Isı Haritası
-        <div style="display:flex;gap:8px;">
-          <span class="rozet rozet-mavi">${toplamOgr} öğretmen talep girdi</span>
-          <button class="btn btn-gri btn-sm" onclick="window.print()">Yazdır</button>
-        </div>
-      </div>
-      <div class="isi-legend">
-        <div class="isi-legend-item"><div class="isi-legend-renk isi-0"></div><span>0 kişi boş</span></div>
-        <div class="isi-legend-item"><div class="isi-legend-renk isi-2"></div><span>Az</span></div>
-        <div class="isi-legend-item"><div class="isi-legend-renk isi-4"></div><span>Yoğun</span></div>
-        <div class="isi-legend-item"><div class="isi-legend-renk isi-6"></div><span>Çok yoğun</span></div>
-      </div>
-      <div class="matris-wrap">
-        <table class="matris"><thead><tr><th>Gün \\ Ders</th>`;
-
-        DERSLER.forEach((d) => {
-          html += "<th>" + d + ". Ders</th>";
-        });
-        html += "</tr></thead><tbody>";
-
-        GUNLER.forEach((g, gi) => {
-          html += "<tr><td>" + g + "</td>";
-          DERSLER.forEach((d, di) => {
-            const y = isiYogunluk(gi, di);
-            const seviye =
-              maxY > 0 ? Math.min(6, Math.floor((y / maxY) * 6)) : 0;
-            html +=
-              '<td class="isi-' +
-              seviye +
-              '" title="' +
-              y +
-              ' öğretmen boş istiyor" style="font-size:11px;font-weight:700;">' +
-              (y || "") +
-              "</td>";
-          });
-          html += "</tr>";
-        });
-
-        html += "</tbody></table></div></div>";
-
-        // Öğretmen bazında uyum skorları
-        html +=
-          '<div class="kart"><div class="kart-baslik">Öğretmen Uyum Skorları</div><table><thead><tr><th>Öğretmen</th><th>Uyum Skoru</th><th>Durum</th><th></th></tr></thead><tbody>';
-        const ogretmenler = [
-          ...new Set(
-            tumTanimlar
-              .map((t) => ({ id: t.ogretmen_id, ad: t.ogretmen_adi }))
-              .map(JSON.stringify),
-          ),
-        ].map(JSON.parse);
-        ogretmenler.forEach((o) => {
-          if (!tumMatrisler[o.id]) return;
-          const yuzde = uyumYuzdesi(o.id);
-          const renk =
-            yuzde >= 80
-              ? "rozet-yesil"
-              : yuzde >= 60
-                ? "rozet-sari"
-                : "rozet-kirmizi";
-          html +=
-            "<tr><td>" +
-            o.ad +
-            '</td><td><div class="uyum-bar" style="width:150px;"><div class="uyum-dolgu" style="width:' +
-            yuzde +
-            "%;background:" +
-            (yuzde >= 80 ? "#34a853" : yuzde >= 60 ? "#f9ab00" : "#ea4335") +
-            ';"></div></div></td><td><span class="rozet ' +
-            renk +
-            '">%' +
-            yuzde +
-            '</span></td><td><button class="btn btn-gri btn-sm" onclick="adminMatrisGor(\'' +
-            o.id +
-            "', '" +
-            (o.ad || "").replace(/'/g, "\\'") +
-            "')\">Görüntüle</button></td></tr>";
-        });
-        html += "</tbody></table></div>";
-        c.innerHTML = html;
+        const sinifSec = Object.keys(sinifSlotlari)
+          .sort((a, b) => a.localeCompare(b, "tr", { numeric: true }))
+          .map((s) => `<option value="${s}"${adminFiltre.sinif === s ? " selected" : ""}>${s}</option>`)
+          .join("");
+        const gerekceSec = GEREKCELER.map(
+          (g) => `<option value="${g.kod}"${adminFiltre.gerekce === g.kod ? " selected" : ""}>${g.ad}</option>`,
+        ).join("");
+        c.innerHTML = `
+          <div id="adminIsiGenel"></div>
+          <div class="kart">
+            <div class="kart-baslik">
+              Öğretmen Talep Matrisleri
+              <span class="rozet rozet-mavi" id="adminMatrisSayac">—</span>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;align-items:center;">
+              <input type="text" placeholder="Öğretmen ara..." value="${adminFiltre.ad}" oninput="adminFiltreDegis('ad', this.value)" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
+              <select onchange="adminFiltreDegis('sinif', this.value)" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;"><option value="">Tüm sınıflar</option>${sinifSec}</select>
+              <select onchange="adminFiltreDegis('gerekce', this.value)" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
+                <option value="">Tüm gerekçeler</option>${gerekceSec}<option value="-"${adminFiltre.gerekce === "-" ? " selected" : ""}>Belirtilmemiş</option>
+              </select>
+              <label style="font-size:13px;display:flex;gap:4px;align-items:center;"><input type="checkbox" ${adminFiltre.sadeceAcmaz ? "checked" : ""} onchange="adminFiltreDegis('sadeceAcmaz', this.checked)"> Sadece açmaza katkı verenler</label>
+            </div>
+            <div style="font-size:12px;color:#888;margin-bottom:10px;">Kırmızı çerçeveli DERS YOK hücreleri, bir sınıfın programını yerleşemez hale getiren taleplerdir. Gri hücreler öğretmenin sınıflarında dersi olmayan saatlerdir.</div>
+            <div class="mini-grid" id="adminMatrisIzgara"></div>
+          </div>
+          <div id="adminUyumTablo"></div>`;
+        adminIsiIcerikCiz();
       }
 
-      function adminMatrisSatirUret(matris) {
+      window.adminFiltreDegis = (alan, deger) => {
+        adminFiltre[alan] = deger;
+        adminMatrisIzgaraCiz();
+      };
+
+      function adminIsiIcerikCiz() {
+        adminGenelIsiCiz();
+        adminMatrisIzgaraCiz();
+        adminUyumTabloCiz();
+      }
+
+      function adminGenelIsiCiz() {
+        const el = document.getElementById("adminIsiGenel");
+        if (!el) return;
+        const toplamOgr = Object.values(tumMatrisler).filter((m) => Object.values(m).some(Boolean)).length;
         let maxY = 1;
-        for (let gi = 0; gi < 5; gi++) {
-          for (let di = 0; di < 8; di++) {
-            const y = isiYogunluk(gi, di);
-            if (y > maxY) maxY = y;
-          }
-        }
-        let html = "<thead><tr><th>Gün \\ Ders</th>";
-        DERSLER.forEach((d) => { html += "<th>" + d + ". Ders</th>"; });
+        for (let gi = 0; gi < 5; gi++) for (let di = 0; di < 8; di++) maxY = Math.max(maxY, isiYogunluk(gi, di));
+
+        let html = `<div class="kart">
+          <div class="kart-baslik">
+            Genel Isı Haritası (kaç öğretmen boş istiyor)
+            <div style="display:flex;gap:8px;">
+              <span class="rozet rozet-mavi">${toplamOgr} öğretmen talep girdi</span>
+              <button class="btn btn-gri btn-sm" onclick="window.print()">Yazdır</button>
+            </div>
+          </div>
+          <div class="isi-legend">
+            <div class="isi-legend-item"><div class="isi-legend-renk isi-0"></div><span>0 kişi</span></div>
+            <div class="isi-legend-item"><div class="isi-legend-renk isi-2"></div><span>Az</span></div>
+            <div class="isi-legend-item"><div class="isi-legend-renk isi-4"></div><span>Yoğun</span></div>
+            <div class="isi-legend-item"><div class="isi-legend-renk isi-6"></div><span>Çok yoğun</span></div>
+          </div>
+          <div class="matris-wrap"><table class="matris"><thead><tr><th>Gün \\ Ders</th>`;
+        DERSLER.forEach((d) => (html += "<th>" + d + ". Ders</th>"));
         html += "</tr></thead><tbody>";
         GUNLER.forEach((g, gi) => {
           html += "<tr><td>" + g + "</td>";
           DERSLER.forEach((d, di) => {
-            const key = matrisKey(gi, di);
-            const x = matris[key];
-            const isiClass = x ? "hucre-x" : "hucre-bos";
-            html += '<td class="' + isiClass + '">' + (x ? '<div class="hucre-x-ic">✕</div>' : "") + "</td>";
+            const y = isiYogunluk(gi, di);
+            const seviye = Math.min(6, Math.floor((y / maxY) * 6));
+            html += `<td class="isi-${seviye}" title="${y} öğretmen boş istiyor" style="font-size:11px;font-weight:700;">${y || ""}</td>`;
           });
           html += "</tr>";
         });
-        html += "</tbody>";
-        return html;
+        el.innerHTML = html + "</tbody></table></div></div>";
       }
 
-      window.adminMatrisGor = (id, ad) => {
-        const matris = tumMatrisler[id] || {};
+      function talepGirenOgretmenler() {
+        return Object.keys(tumMatrisler)
+          .filter((id) => Object.values(tumMatrisler[id]).some(Boolean) || tumGerekceler[id])
+          .sort((a, b) => ogretmenAdi(a).localeCompare(ogretmenAdi(b), "tr"));
+      }
+
+      function gerekceRozet(id) {
+        const g = tumGerekceler[id];
+        return g
+          ? `<span class="rozet rozet-mavi">${gerekceAdi(g)}</span>`
+          : `<span class="rozet" style="background:#f1f3f4;color:#888;">Belirtilmemiş</span>`;
+      }
+
+      function adminMatrisIzgaraCiz() {
+        const el = document.getElementById("adminMatrisIzgara");
+        if (!el) return;
+        const f = adminFiltre;
+        const aranan = (f.ad || "").toLocaleLowerCase("tr");
+        const ids = talepGirenOgretmenler().filter((id) => {
+          if (aranan && !ogretmenAdi(id).toLocaleLowerCase("tr").includes(aranan)) return false;
+          if (f.sinif && !ogretmenYuk[id]?.[f.sinif]) return false;
+          if (f.gerekce === "-" && tumGerekceler[id]) return false;
+          if (f.gerekce && f.gerekce !== "-" && tumGerekceler[id] !== f.gerekce) return false;
+          if (f.sadeceAcmaz && !katkiHucreleri(id).size) return false;
+          return true;
+        });
+        document.getElementById("adminMatrisSayac").textContent = ids.length + " öğretmen";
+        if (!ids.length) {
+          el.innerHTML = `<div class="bos-mesaj" style="grid-column:1/-1;">Filtreye uyan talep yok.</div>`;
+          return;
+        }
+        el.innerHTML = ids
+          .map((id) => {
+            const kapali = Object.values(tumMatrisler[id]).filter(Boolean).length;
+            const acmaz = katkiHucreleri(id).size > 0;
+            return `<div class="mini-kart"${acmaz ? ' style="border-color:#f28b82;"' : ""}>
+              <div class="mini-kart-baslik">
+                <span style="cursor:pointer;color:#1a73e8;" onclick="adminMatrisGor('${id}')">${ogretmenAdi(id)}</span>
+                ${gerekceRozet(id)}
+              </div>
+              <div style="font-size:11px;color:#888;margin-bottom:4px;">${kapali} saat kapalı · ${ogretmenToplamYuk(id)} saat ders${acmaz ? ' · <strong style="color:#c5221f;">⚠ açmaz</strong>' : ""}</div>
+              ${talepMatrisHtml(id, true)}
+            </div>`;
+          })
+          .join("");
+      }
+
+      function adminUyumTabloCiz() {
+        const el = document.getElementById("adminUyumTablo");
+        if (!el) return;
+        let html = `<div class="kart"><div class="kart-baslik">Öğretmen Talep Özeti</div>
+          <table><thead><tr><th>Öğretmen</th><th>Kapalı saat</th><th>Ders yükü</th><th>Esneklik</th><th>Gerekçe</th><th>Durum</th><th></th></tr></thead><tbody>`;
+        talepGirenOgretmenler().forEach((id) => {
+          const matris = tumMatrisler[id];
+          const d = ogretmenDurum(id, matris);
+          const acmaz = durumAcmaz(d);
+          const sikisik = !acmaz && d.kapasite <= SARI_KAPASITE_ESIGI;
+          const durum = acmaz
+            ? '<span class="rozet rozet-kirmizi">Açmaz</span>'
+            : sikisik
+              ? '<span class="rozet rozet-sari">Sıkışık</span>'
+              : '<span class="rozet rozet-yesil">Uygun</span>';
+          html += `<tr><td>${ogretmenAdi(id)}</td><td>${Object.values(matris).filter(Boolean).length}</td><td>${ogretmenToplamYuk(id)}</td>
+            <td>${d.kapasite}</td><td>${gerekceRozet(id)}</td><td>${durum}</td>
+            <td><button class="btn btn-gri btn-sm" onclick="adminMatrisGor('${id}')">Görüntüle</button></td></tr>`;
+        });
+        el.innerHTML = html + "</tbody></table></div>";
+      }
+
+      window.adminMatrisGor = (id) => {
+        const ad = ogretmenAdi(id);
         document.getElementById("adminMatrisOverlay")?.remove();
         const overlay = document.createElement("div");
         overlay.id = "adminMatrisOverlay";
         overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;";
         overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
-        overlay.innerHTML = `<div class="kart" style="max-width:700px;width:100%;max-height:90vh;overflow:auto;">
-          <div class="kart-baslik">${ad} — Boş Talep Matrisi
+        const yukSatir = ogretmenSiniflari(id).map((s) => `${s}: ${ogretmenYuk[id][s].saat}`).join(" · ");
+        overlay.innerHTML = `<div class="kart" style="max-width:760px;width:100%;max-height:90vh;overflow:auto;">
+          <div class="kart-baslik">${ad} — Talep Matrisi
             <button class="btn btn-gri btn-sm" onclick="document.getElementById('adminMatrisOverlay').remove()">Kapat</button>
           </div>
-          <div class="matris-wrap"><table class="matris">${adminMatrisSatirUret(matris)}</table></div>
+          <div style="font-size:13px;color:#555;margin-bottom:10px;">Gerekçe: ${gerekceRozet(id)} &nbsp; Ders yükü: ${yukSatir || "-"}</div>
+          <div class="matris-wrap">${talepMatrisHtml(id, false)}</div>
         </div>`;
         document.body.appendChild(overlay);
       };
 
       function adminAcmazGoster() {
         const c = document.getElementById("asekme-acmaz");
-        const subeler = [...new Set(tumTanimlar.map((t) => t.sube))].sort();
-        let html =
-          '<div class="kart"><div class="kart-baslik">Şube Bazlı Açmaz Analizi</div>';
-
-        if (!subeler.length) {
-          html +=
-            '<div style="color:#888;padding:20px;text-align:center;">Tanım yüklenmemiş.</div></div>';
-          c.innerHTML = html;
+        const siniflar = Object.keys(sinifSlotlari).sort((a, b) => a.localeCompare(b, "tr", { numeric: true }));
+        if (!siniflar.length) {
+          c.innerHTML = '<div class="kart"><div class="bos-mesaj">Yüklü ders programı bulunamadı.</div></div>';
           return;
         }
-
-        let toplamAcmaz = 0;
-        subeler.forEach((sube) => {
-          const acmazlar = subeAcmazAnaliz(sube);
-          toplamAcmaz += acmazlar.length;
-          const durum =
-            acmazlar.length === 0
-              ? '<span class="rozet rozet-yesil">✓ Sorun Yok</span>'
-              : '<span class="rozet rozet-kirmizi">⚠️ ' +
-                acmazlar.length +
-                " Açmaz</span>";
-          html +=
-            '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f0f0f0;">';
-          html += "<strong>" + sube + "</strong>" + durum;
-          html += "</div>";
-          if (acmazlar.length) {
-            html +=
-              '<div style="font-size:12px;color:#c5221f;padding:4px 0 8px 16px;">';
-            acmazlar.forEach((a) => {
-              html +=
-                "• " +
-                a.gun +
-                " " +
-                a.saat +
-                ". ders — tüm öğretmenler boş istiyor<br>";
-            });
-            html += "</div>";
-          }
+        let acmazSayisi = 0;
+        let sikisikSayisi = 0;
+        const satirlar = siniflar.map((s) => {
+          const x = sinifEslesme(s);
+          const enAzAday = Math.min(...Object.values(x.aday));
+          const kritikSaatler = Object.entries(x.aday)
+            .filter(([, n]) => n <= SARI_ADAY_ESIGI)
+            .map(([k, n]) => `${k.replace("-", " ")}. (${n})`);
+          // Sınıfa giren ve bu sınıfın açmazına katkı veren öğretmenler
+          const ilgili = [...new Set((sinifBirimleri[s] || []).flatMap((b) => b.ogretmenler))];
+          const katkiVeren = x.eksik > 0 ? ilgili.filter((id) => katkiHucreleri(id).size) : [];
+          let durum;
+          if (x.eksik > 0) {
+            acmazSayisi++;
+            durum = `<span class="rozet rozet-kirmizi">⚠ ${x.eksik} saat yerleşemiyor</span>`;
+          } else if (kritikSaatler.length) {
+            sikisikSayisi++;
+            durum = '<span class="rozet rozet-sari">Sıkışık</span>';
+          } else durum = '<span class="rozet rozet-yesil">✓ Uygun</span>';
+          return `<tr><td><strong>${s}</strong></td><td>${x.toplam}</td><td>${x.eslesen}</td><td>${durum}</td>
+            <td>${enAzAday}</td>
+            <td style="font-size:12px;">${kritikSaatler.join(", ") || "-"}</td>
+            <td style="font-size:12px;">${katkiVeren.map((id) => `<a href="#" onclick="adminMatrisGor('${id}');return false;">${ogretmenAdi(id)}</a>`).join(", ") || "-"}</td></tr>`;
         });
-
-        html += "</div>";
-        if (toplamAcmaz === 0) {
-          html =
-            '<div class="kart" style="text-align:center;padding:30px;"><div style="font-size:32px;margin-bottom:12px;">✅</div><div style="font-size:16px;font-weight:700;color:#34a853;">Hiç açmaz tespit edilmedi!</div></div>' +
-            html;
-        }
-        c.innerHTML = html;
+        c.innerHTML = `
+          <div class="kart">
+            <div class="kart-baslik">Sınıf Bazlı Yerleşebilirlik Analizi
+              <div style="display:flex;gap:6px;">
+                <span class="rozet rozet-kirmizi">${acmazSayisi} açmaz</span>
+                <span class="rozet rozet-sari">${sikisikSayisi} sıkışık</span>
+              </div>
+            </div>
+            <p style="font-size:12px;color:#888;margin-bottom:10px;">Her sınıfın yüklü programdaki ders saatleri, öğretmenlerin DERS YOK talepleriyle eşleştirilir. "Yerleşebilen" toplamdan azsa bu taleplerle sınıfın programı kesinlikle yapılamaz. "En az aday", sınıfın herhangi bir ders saatinde girebilecek en az öğretmen sayısıdır; ${SARI_ADAY_ESIGI} veya altı sıkışık sayılır.</p>
+            <div class="matris-wrap"><table><thead><tr><th>Sınıf</th><th>Toplam saat</th><th>Yerleşebilen</th><th>Durum</th><th>En az aday</th><th>Kritik saatler (aday)</th><th>Açmaza katkı veren</th></tr></thead>
+            <tbody>${satirlar.join("")}</tbody></table></div>
+          </div>`;
       }
 
       // ── DERS PROGRAMINI DÜZENLE (admin) ──
@@ -1372,10 +1782,6 @@
 
       function escHtml(s) {
         return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-      }
-
-      function ogretmenAdi(id) {
-        return tumOgretmenler.find((o) => o.id === id)?.ad || "(bilinmiyor)";
       }
 
       function adminSinifProgramGoster() {

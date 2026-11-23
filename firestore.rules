@@ -314,9 +314,12 @@ service cloud.firestore {
       allow read: if isLoggedIn();
       allow write: if isYonetim();
     }
+    // Doc id = teachers/{id}; öğretmen yalnızca kendi talebini yazabilir.
     match /program_talep_matris/{docId} {
       allow read: if isLoggedIn();
-      allow write: if isYazabilir();
+      allow write: if isYonetim()
+        || (isYazabilir()
+            && get(/databases/$(database)/documents/teachers/$(docId)).data.uid == request.auth.uid);
     }
     match /program_talep_ayarlar/{docId} {
       allow read: if isLoggedIn();
