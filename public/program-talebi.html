@@ -1035,10 +1035,7 @@
             <div>
               <div class="kart">
                 <div class="kart-baslik" style="font-size:13px;">Ders Yükünüz</div>
-                <div style="font-size:13px;color:#888;margin-bottom:12px;">Toplam: <strong style="color:#1a73e8;">${ogretmenToplamYuk(aktifOgretmenId)} saat</strong></div>
-                <table><thead><tr><th>Şube</th><th>Saat</th></tr></thead><tbody>
-                  ${siniflar.map((s) => `<tr><td>${s}</td><td>${ogretmenYuk[aktifOgretmenId][s].saat}</td></tr>`).join("")}
-                </tbody></table>
+                <div style="font-size:13px;color:#888;">Toplam: <strong style="color:#1a73e8;">${ogretmenToplamYuk(aktifOgretmenId)} saat</strong></div>
               </div>
               <div class="kart">
                 <div class="kart-baslik" style="font-size:13px;">Renk Açıklaması</div>
