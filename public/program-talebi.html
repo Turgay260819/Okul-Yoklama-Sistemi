@@ -1020,6 +1020,10 @@
                   </div>
                 </div>
                 <p style="font-size:12px;color:#666;margin-bottom:12px;">Girmek istemediğiniz saate tıklayın; kapattığınız her saatte <strong>DERS YOK</strong> yazar. Tekrar tıklayınca geri açılır. Renkler, o saati kapatırsanız okulun ders programının yerleşip yerleşemeyeceğini gösterir. Değişiklikler otomatik kaydedilir.</p>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+                  <button class="btn btn-gri btn-sm" onclick="yarimGunKapat(4, 7)">🌇 Öğleden sonraları kapat (5–8)</button>
+                  <button class="btn btn-gri btn-sm" onclick="yarimGunKapat(0, 3)">🌅 Öğleden önceleri kapat (1–4)</button>
+                </div>
                 <div id="acmazUyari"></div>
                 <div class="matris-wrap"><table class="matris" id="benimMatris"></table></div>
                 <div style="margin-top:14px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
@@ -1158,6 +1162,45 @@
         }
         matrisGuncelle();
         otomatikKaydetPlanla();
+      };
+
+      // Tüm günlerde ilk..son ders indekslerini (0 tabanlı) tek seferde kapatır.
+      // Hücreler sırayla değerlendirilir; her biri öncekiler kapatılmış varsayılarak
+      // hesaplanır, böylece birikerek açmaza düşen saat doğru yakalanır.
+      window.yarimGunKapat = (ilk, son) => {
+        const id = aktifOgretmenId;
+        const orijinal = benimMatris;
+        const deneme = { ...orijinal };
+        const kapatilacak = [];
+        const kirmizilar = [];
+        try {
+          benimMatris = deneme; // guncelMatrisAl/hucreRiski deneme kopyasını görsün
+          for (let gi = 0; gi < 5; gi++) {
+            for (let di = ilk; di <= son; di++) {
+              const key = matrisKey(gi, di);
+              if (deneme[key] || !ogretmenSlotIlgili(id, key)) continue;
+              const r = hucreRiski(id, gi, di, ogretmenDurum(id, deneme));
+              if (r.seviye === "kirmizi") kirmizilar.push(GUNLER[gi] + " " + DERSLER[di] + ". ders: " + r.neden.replace(/^Bu saati kapatırsanız /, ""));
+              deneme[key] = true;
+              kapatilacak.push(key);
+            }
+          }
+        } finally {
+          benimMatris = orijinal;
+        }
+        if (!kapatilacak.length) {
+          mesajGoster("ogretmenMesaj", "Bu aralıkta kapatılacak açık ders saati yok.", "bilgi");
+          return;
+        }
+        if (kirmizilar.length) {
+          const ornek = kirmizilar.slice(0, 5).map((s) => "• " + s).join("\n");
+          const fazla = kirmizilar.length > 5 ? "\n• ... ve " + (kirmizilar.length - 5) + " saat daha" : "";
+          if (!confirm(`${kapatilacak.length} saat kapatılacak. Bunlardan ${kirmizilar.length} saat programı yerleşemez hale getiriyor:\n\n${ornek}${fazla}\n\nTamam: hepsini kapat\nİptal: vazgeç`)) return;
+        }
+        kapatilacak.forEach((k) => (benimMatris[k] = true));
+        matrisGuncelle();
+        otomatikKaydetPlanla();
+        mesajGoster("ogretmenMesaj", kapatilacak.length + " saat kapatıldı." + (kirmizilar.length ? " Kırmızı çerçeveli hücreleri açmanız önerilir." : ""), kirmizilar.length ? "hata" : "basari");
       };
 
       window.gerekceDegisti = (deger) => {
