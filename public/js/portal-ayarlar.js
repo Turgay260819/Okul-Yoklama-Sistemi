@@ -39,6 +39,7 @@ window.ayarSekme = function (id, el) {
   if (id === "dyk" && window.dykAyarlarYukle) window.dykAyarlarYukle();
   else if (id === "dersler") _dersListesiYukle();
   else if (id === "tatiller") _tatilleriYukle();
+  else if (id === "sistem") ogretmenYoklamaAyarYukle();
   else if (id === "nobet-bildirim") _nobetBildirimAlicilariYukle();
   else if (id === "sifre-listesi") window.sifreListesiGoster();
   else if (id === "ogrenciler") window.ogrencileriGetir();
@@ -47,14 +48,23 @@ window.ayarSekme = function (id, el) {
 };
 
 window.ayarlarYukle = async function () {
-  await ogretmenleriListele();
-  await siniflariListele();
-  await sinifDropdownlariniDoldur();
-  await window.ogrencileriGetir();
-  await donemBilgisiniGetir();
-  dersSaatleriYukle();
-  genelAyarlariYukle();
+  // Bağımsız ve hızlı olanlar önce, beklenmeden: aşağıdaki adımlardan biri
+  // hata verirse ya da uzun sürerse bunlar takılı kalmasın.
   ogretmenYoklamaAyarYukle();
+  Promise.resolve().then(genelAyarlariYukle).catch((e) => console.warn("genelAyarlariYukle:", e));
+  Promise.resolve().then(dersSaatleriYukle).catch((e) => console.warn("dersSaatleriYukle:", e));
+
+  // Her adım ayrı korunur; biri patlarsa sonrakiler yine çalışır.
+  const adimlar = [
+    ["ogretmenleriListele", ogretmenleriListele],
+    ["siniflariListele", siniflariListele],
+    ["sinifDropdownlariniDoldur", sinifDropdownlariniDoldur],
+    ["ogrencileriGetir", () => window.ogrencileriGetir()],
+    ["donemBilgisiniGetir", donemBilgisiniGetir],
+  ];
+  for (const [ad, fn] of adimlar) {
+    try { await fn(); } catch (e) { console.warn("Ayarlar yuklenirken hata (" + ad + "):", e); }
+  }
   if (window.dykAyarlarYukle) window.dykAyarlarYukle();
 };
 
@@ -859,18 +869,29 @@ function _ogrYoklamaGoster() {
   }
 }
 
+let _ogrYoklamaOkundu = false;
+
 async function ogretmenYoklamaAyarYukle() {
-  const { db, getDoc, doc } = window.__portal;
+  const rozet = document.getElementById("ogrYoklamaRozet");
+  const btn = document.getElementById("ogrYoklamaBtn");
   try {
+    const { db, getDoc, doc } = window.__portal;
     const d = await getDoc(doc(db, "settings", "yoklama"));
     _ogrYoklamaKapali = d.exists() && d.data().ogretmen_yoklama_kapali === true;
+    _ogrYoklamaOkundu = true;
+    _ogrYoklamaGoster();
   } catch (e) {
     console.warn("Yoklama ayari okunamadi:", e);
+    _ogrYoklamaOkundu = false;
+    if (rozet) { rozet.textContent = "Okunamadı"; rozet.className = "rozet rozet-kirmizi"; }
+    if (btn) { btn.disabled = false; btn.textContent = "Tekrar dene"; btn.className = "btn btn-gri"; }
+    mesajGoster("ogrYoklamaMesaj", "Ayar okunamadı: " + e.message, "hata");
   }
-  _ogrYoklamaGoster();
 }
 
 window.ogretmenYoklamaDegistir = async function () {
+  // Ayar okunamadıysa düğme "Tekrar dene" işlevi görür
+  if (!_ogrYoklamaOkundu) { ogretmenYoklamaAyarYukle(); return; }
   const { db, setDoc, doc, serverTimestamp } = window.__portal;
   const yeni = !_ogrYoklamaKapali;
   const soru = yeni
