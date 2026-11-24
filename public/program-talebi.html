@@ -353,6 +353,30 @@
       table.mini-matris td:first-child, table.mini-matris th:first-child { width: 30px; }
       table.mini-matris .dersyok-ic { font-size: 7px; }
 
+      /* Gün adı = tüm günü kapat/aç kısayolu */
+      .matris td.gun-hucre { cursor: pointer; white-space: nowrap; }
+      .matris td.gun-hucre:hover { background: #e8eaed; }
+      .gun-ikon { font-size: 10px; opacity: 0.6; }
+      .matris .kisa { display: none; }
+      .hizli-dugmeler { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+      .yatay-btn { display: none; }
+
+      /* Telefon (dik): 9 sütun yatay kaydırmasız sığsın */
+      @media (max-width: 600px) {
+        .matris .uzun { display: none; }
+        .matris .kisa { display: inline; }
+        .matris th { padding: 6px 1px; font-size: 11px; }
+        .matris th:first-child { min-width: 0; width: 46px; padding-left: 4px; }
+        .matris td { height: 40px; }
+        .matris td:first-child { padding: 0 3px; font-size: 11px; }
+        .gun-ikon { display: block; font-size: 9px; }
+        .dersyok-ic { font-size: 8px; letter-spacing: 0; word-spacing: 100px; }
+        .risk-not { font-size: 9px; }
+        .hizli-dugmeler .btn { flex: 1 1 100%; }
+        .yatay-btn { display: inline-block; }
+        .kart { padding: 12px 8px; }
+      }
+
       /* ISI HARİTASI RENKLERİ */
       .isi-0 {
         background: #e8f5e9;
@@ -467,6 +491,7 @@
         serverTimestamp,
         onSnapshot,
         writeBatch,
+        Timestamp,
       } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
       const firebaseConfig = {
@@ -512,6 +537,9 @@
       // Isı haritası eşikleri (sarı = yerleşir ama sıkışık)
       const SARI_ADAY_ESIGI = 2; // o saatte sınıfa girebilecek öğretmen sayısı bu kadar veya azsa
       const SARI_KAPASITE_ESIGI = 2; // öğretmenin açık bıraktığı saat − yükü bu kadar veya azsa
+
+      const GUN_GORUNEN = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma"];
+      const GUN_KISA = ["Pzt", "Sal", "Çar", "Per", "Cum"];
 
       const GEREKCELER = [
         { kod: "saglik", ad: "Sağlık" },
@@ -594,13 +622,52 @@
         const snap = await getDoc(doc(db, "program_talep_ayarlar", "genel"));
         if (snap.exists()) ayarlar = snap.data();
         const r = document.getElementById("donemRozet");
-        if (ayarlar.donem_acik) {
+        if (talepAktif()) {
           r.textContent = "Talep Dönemi Açık";
           r.className = "rozet rozet-yesil";
         } else {
-          r.textContent = "Talep Kapalı";
+          r.textContent = ayarlar.donem_acik ? "Talep Süresi Doldu" : "Talep Kapalı";
           r.className = "rozet rozet-kirmizi";
         }
+      }
+
+      // ── TALEP SÜRESİ ──
+      // ayarlar.son_tarih "YYYY-MM-DD", ayarlar.son_zaman o günün 23:59:59 (TR) Timestamp'i
+      function talepSonZaman() {
+        const z = ayarlar.son_zaman;
+        if (z?.toDate) return z.toDate();
+        if (ayarlar.son_tarih) return new Date(ayarlar.son_tarih + "T23:59:59+03:00");
+        return null;
+      }
+
+      function talepAktif() {
+        if (!ayarlar.donem_acik) return false;
+        const son = talepSonZaman();
+        return !son || Date.now() <= son.getTime();
+      }
+
+      function tarihTR(ymd) {
+        const [y, a, g] = String(ymd || "").split("-");
+        return g && a && y ? `${g}.${a}.${y}` : "";
+      }
+
+      function kalanGunMetni() {
+        const son = talepSonZaman();
+        if (!son) return "";
+        const bugunBas = new Date(new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Istanbul" }) + "T00:00:00+03:00");
+        const sonBas = new Date(ayarlar.son_tarih + "T00:00:00+03:00");
+        const gun = Math.round((sonBas - bugunBas) / 86400000);
+        return gun <= 0 ? "bugün son gün" : gun + " gün kaldı";
+      }
+
+      // Öğretmen bir değişiklik yapmadan önce: süre dolduysa salt okunur görünüme geç
+      function talepYazilabilir() {
+        if (talepAktif()) return true;
+        clearTimeout(kayitZamanlayici);
+        kaydedilmemis = false;
+        alert("Program talebi süresi sona erdi. Talebinizde artık değişiklik yapılamaz.");
+        ogretmenSayfasi();
+        return false;
       }
 
       async function tanimlariYukle() {
@@ -912,16 +979,22 @@
           ? { ...tumMatrisler[aktifOgretmenId] }
           : {};
         benimGerekce = tumGerekceler[aktifOgretmenId] || "";
-        document.getElementById("anaIcerik").innerHTML = `
-          <div class="sekme-bar">
-            <button class="sekme-btn aktif" onclick="ogretmenSekme('dersler', this)">📚 Derslerim</button>
-            <button class="sekme-btn" onclick="ogretmenSekme('talep', this)">📐 Program Talebim</button>
-            <button class="sekme-btn" onclick="ogretmenSekme('program', this)">📅 Ders Programım</button>
-          </div>
-          <div class="sekme-icerik aktif" id="osekme-dersler"></div>
-          <div class="sekme-icerik" id="osekme-talep"></div>
-          <div class="sekme-icerik" id="osekme-program"></div>`;
-        ogretmenDerslerGoster();
+        if (talepAktif()) {
+          // Talep süresince yalnızca istek matrisi
+          document.getElementById("anaIcerik").innerHTML = `<div class="sekme-icerik aktif" id="osekme-talep"></div>`;
+        } else {
+          // Süre dolunca (veya dönem kapalıyken) diğer menüler de görünür
+          document.getElementById("anaIcerik").innerHTML = `
+            <div class="sekme-bar">
+              <button class="sekme-btn aktif" onclick="ogretmenSekme('talep', this)">📐 Program Talebim</button>
+              <button class="sekme-btn" onclick="ogretmenSekme('dersler', this)">📚 Derslerim</button>
+              <button class="sekme-btn" onclick="ogretmenSekme('program', this)">📅 Ders Programım</button>
+            </div>
+            <div class="sekme-icerik aktif" id="osekme-talep"></div>
+            <div class="sekme-icerik" id="osekme-dersler"></div>
+            <div class="sekme-icerik" id="osekme-program"></div>`;
+        }
+        ogretmenTalepGoster();
       }
 
       window.ogretmenSekme = (id, el) => {
@@ -987,11 +1060,14 @@
 
       function ogretmenTalepGoster() {
         const c = document.getElementById("osekme-talep");
-        if (!ayarlar.donem_acik) {
+        const aktif = talepAktif();
+        const sureDoldu = ayarlar.donem_acik && !aktif;
+        const talepVar = Object.values(benimMatris).some(Boolean);
+        if (!aktif && !talepVar) {
           c.innerHTML = `<div class="kart" style="text-align:center;padding:40px;">
             <div style="font-size:40px;margin-bottom:16px;">🔒</div>
-            <div style="font-size:18px;font-weight:700;color:#333;margin-bottom:8px;">Talep Dönemi Kapalı</div>
-            <div style="font-size:14px;color:#888;">Ders programı talep dönemi henüz açılmadı.</div>
+            <div style="font-size:18px;font-weight:700;color:#333;margin-bottom:8px;">${sureDoldu ? "Talep Süresi Sona Erdi" : "Talep Dönemi Kapalı"}</div>
+            <div style="font-size:14px;color:#888;">${sureDoldu ? "Bu dönemde program talebi girmediniz." : "Ders programı talep dönemi henüz açılmadı."}</div>
           </div>`;
           return;
         }
@@ -1007,28 +1083,37 @@
         const gerekceOptions = GEREKCELER.map(
           (g) => `<option value="${g.kod}"${benimGerekce === g.kod ? " selected" : ""}>${g.ad}</option>`,
         ).join("");
+        const sonTarihRozet = ayarlar.son_tarih
+          ? `<span class="rozet ${aktif ? "rozet-mavi" : "rozet-kirmizi"}">Son talep günü: ${tarihTR(ayarlar.son_tarih)}${aktif ? " · " + kalanGunMetni() : ""}</span>`
+          : "";
+        const ustAlan = aktif
+          ? `<p style="font-size:12px;color:#666;margin-bottom:10px;">Girmek istemediğiniz saate dokunun; kapattığınız her saatte <strong>DERS YOK</strong> yazar. Tekrar dokununca geri açılır. Bir günün tamamı için <strong>gün adına</strong> dokunun. Renkler, o saati kapatırsanız okulun ders programının yerleşip yerleşemeyeceğini gösterir. Değişiklikler otomatik kaydedilir.</p>
+                <div class="hizli-dugmeler">
+                  <button class="btn btn-gri btn-sm" onclick="yarimGunKapat(4, 7)">🌇 Öğleden sonraları kapat (5–8)</button>
+                  <button class="btn btn-gri btn-sm" onclick="yarimGunKapat(0, 3)">🌅 Öğleden önceleri kapat (1–4)</button>
+                  <button class="btn btn-gri btn-sm yatay-btn" onclick="yatayGorunum()">📱 Yatay görünüm</button>
+                </div>`
+          : `<div class="acmaz-uyari" style="background:#f1f3f4;border-color:#ddd;color:#444;"><strong>🔒 ${sureDoldu ? "Talep süresi sona erdi" : "Talep dönemi açık değil"}</strong>Aşağıda verdiğiniz talep salt okunur olarak gösteriliyor; değişiklik yapılamaz.</div>`;
         c.innerHTML = `
           <div style="display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;align-items:start;" class="talep-izgara">
             <div>
               <div class="kart">
                 <div class="kart-baslik">
-                  Girmek İstemediğiniz Dersleri Kapatın
-                  <div style="display:flex;gap:8px;align-items:center;">
-                    <span id="kayitRozet" class="rozet rozet-yesil">Kaydedildi</span>
+                  ${aktif ? "Girmek İstemediğiniz Dersleri Kapatın" : "Program Talebim"}
+                  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                    ${sonTarihRozet}
+                    ${aktif ? `<span id="kayitRozet" class="rozet rozet-yesil">Kaydedildi</span>
                     <button class="btn btn-yesil btn-sm" onclick="matrisKaydet()">💾 Kaydet</button>
-                    <button class="btn btn-gri btn-sm" onclick="matrisiSifirla()">Sıfırla</button>
+                    <button class="btn btn-gri btn-sm" onclick="matrisiSifirla()">Sıfırla</button>` : ""}
                   </div>
                 </div>
-                <p style="font-size:12px;color:#666;margin-bottom:12px;">Girmek istemediğiniz saate tıklayın; kapattığınız her saatte <strong>DERS YOK</strong> yazar. Tekrar tıklayınca geri açılır. Renkler, o saati kapatırsanız okulun ders programının yerleşip yerleşemeyeceğini gösterir. Değişiklikler otomatik kaydedilir.</p>
-                <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
-                  <button class="btn btn-gri btn-sm" onclick="yarimGunKapat(4, 7)">🌇 Öğleden sonraları kapat (5–8)</button>
-                  <button class="btn btn-gri btn-sm" onclick="yarimGunKapat(0, 3)">🌅 Öğleden önceleri kapat (1–4)</button>
-                </div>
+                ${ustAlan}
+                <div class="mesaj" id="yatayMesaj"></div>
                 <div id="acmazUyari"></div>
-                <div class="matris-wrap"><table class="matris" id="benimMatris"></table></div>
+                <div class="matris-wrap"><table class="matris${aktif ? "" : " salt-okunur"}" id="benimMatris"></table></div>
                 <div style="margin-top:14px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
                   <label for="gerekceSecim" style="font-size:13px;font-weight:600;color:#333;">Talebinizin gerekçesi (isteğe bağlı):</label>
-                  <select id="gerekceSecim" onchange="gerekceDegisti(this.value)" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
+                  <select id="gerekceSecim" ${aktif ? "" : "disabled"} onchange="gerekceDegisti(this.value)" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
                     <option value="">— Belirtmek istemiyorum —</option>${gerekceOptions}
                   </select>
                 </div>
@@ -1066,27 +1151,37 @@
         const id = aktifOgretmenId;
         const durum = ogretmenDurum(id, benimMatris);
         const katki = katkiHucreleri(id);
+        const aktif = talepAktif();
         sonRiskler = {};
 
-        let html = "<thead><tr><th>Gün \\ Ders</th>";
-        DERSLER.forEach((d) => (html += "<th>" + d + ". Ders</th>"));
+        let html = `<thead><tr><th><span class="uzun">Gün \\ Ders</span><span class="kisa">Gün</span></th>`;
+        DERSLER.forEach((d) => (html += `<th><span class="uzun">${d}. Ders</span><span class="kisa">${d}</span></th>`));
         html += "</tr></thead><tbody>";
 
         GUNLER.forEach((g, gi) => {
-          html += "<tr><td>" + g + "</td>";
+          const gunAd = `<span class="uzun">${GUN_GORUNEN[gi]}</span><span class="kisa">${GUN_KISA[gi]}</span>`;
+          html += aktif
+            ? `<tr><td class="gun-hucre" onclick="gunKapatAc(${gi})" title="Tüm günü kapat / aç">${gunAd} <span class="gun-ikon">⛔</span></td>`
+            : `<tr><td>${gunAd}</td>`;
           DERSLER.forEach((d, di) => {
             const key = matrisKey(gi, di);
-            const tik = ` onclick="hucreTikla(${gi},${di})"`;
+            const tik = aktif ? ` onclick="hucreTikla(${gi},${di})"` : "";
             if (benimMatris[key]) {
               const kt = katki.has(key);
-              const baslik = kt
-                ? "Bu talebiniz şu anda programı açmaza sokuyor. Tıklayarak geri açabilirsiniz."
-                : "Ders yok talebi. Geri açmak için tıklayın.";
+              const baslik = !aktif
+                ? "Ders yok talebi"
+                : kt
+                  ? "Bu talebiniz şu anda programı açmaza sokuyor. Tıklayarak geri açabilirsiniz."
+                  : "Ders yok talebi. Geri açmak için tıklayın.";
               html += `<td class="hucre-dersyok${kt ? " hucre-katki" : ""}" title="${baslik}"${tik}><div class="dersyok-ic">${kt ? "⚠ " : ""}DERS YOK</div></td>`;
               return;
             }
             if (!ogretmenSlotIlgili(id, key)) {
               html += `<td class="hucre-dissi" title="Sınıflarınızın bu saatte dersi yok">—</td>`;
+              return;
+            }
+            if (!aktif) {
+              html += `<td class="hucre-bos"></td>`;
               return;
             }
             const r = hucreRiski(id, gi, di, durum);
@@ -1152,6 +1247,7 @@
       });
 
       window.hucreTikla = (gi, di) => {
+        if (!talepYazilabilir()) return;
         const key = matrisKey(gi, di);
         if (!benimMatris[key]) {
           const r = sonRiskler[key];
@@ -1164,10 +1260,11 @@
         otomatikKaydetPlanla();
       };
 
-      // Tüm günlerde ilk..son ders indekslerini (0 tabanlı) tek seferde kapatır.
-      // Hücreler sırayla değerlendirilir; her biri öncekiler kapatılmış varsayılarak
-      // hesaplanır, böylece birikerek açmaza düşen saat doğru yakalanır.
-      window.yarimGunKapat = (ilk, son) => {
+      // Verilen hücreleri ([[gi,di],...]) tek seferde kapatır. Hücreler sırayla
+      // değerlendirilir; her biri öncekiler kapatılmış varsayılarak hesaplanır,
+      // böylece birikerek açmaza düşen saat doğru yakalanır. Açmaz varsa tek onay.
+      function hucreleriKapat(hucreler, bosMesaj) {
+        if (!talepYazilabilir()) return;
         const id = aktifOgretmenId;
         const orijinal = benimMatris;
         const deneme = { ...orijinal };
@@ -1175,21 +1272,19 @@
         const kirmizilar = [];
         try {
           benimMatris = deneme; // guncelMatrisAl/hucreRiski deneme kopyasını görsün
-          for (let gi = 0; gi < 5; gi++) {
-            for (let di = ilk; di <= son; di++) {
-              const key = matrisKey(gi, di);
-              if (deneme[key] || !ogretmenSlotIlgili(id, key)) continue;
-              const r = hucreRiski(id, gi, di, ogretmenDurum(id, deneme));
-              if (r.seviye === "kirmizi") kirmizilar.push(GUNLER[gi] + " " + DERSLER[di] + ". ders: " + r.neden.replace(/^Bu saati kapatırsanız /, ""));
-              deneme[key] = true;
-              kapatilacak.push(key);
-            }
+          for (const [gi, di] of hucreler) {
+            const key = matrisKey(gi, di);
+            if (deneme[key] || !ogretmenSlotIlgili(id, key)) continue;
+            const r = hucreRiski(id, gi, di, ogretmenDurum(id, deneme));
+            if (r.seviye === "kirmizi") kirmizilar.push(GUN_GORUNEN[gi] + " " + DERSLER[di] + ". ders: " + r.neden.replace(/^Bu saati kapatırsanız /, ""));
+            deneme[key] = true;
+            kapatilacak.push(key);
           }
         } finally {
           benimMatris = orijinal;
         }
         if (!kapatilacak.length) {
-          mesajGoster("ogretmenMesaj", "Bu aralıkta kapatılacak açık ders saati yok.", "bilgi");
+          mesajGoster("ogretmenMesaj", bosMesaj, "bilgi");
           return;
         }
         if (kirmizilar.length) {
@@ -1201,15 +1296,64 @@
         matrisGuncelle();
         otomatikKaydetPlanla();
         mesajGoster("ogretmenMesaj", kapatilacak.length + " saat kapatıldı." + (kirmizilar.length ? " Kırmızı çerçeveli hücreleri açmanız önerilir." : ""), kirmizilar.length ? "hata" : "basari");
+      }
+
+      // Tüm günlerde ilk..son ders indekslerini (0 tabanlı) kapatır.
+      window.yarimGunKapat = (ilk, son) => {
+        const hucreler = [];
+        for (let gi = 0; gi < 5; gi++) for (let di = ilk; di <= son; di++) hucreler.push([gi, di]);
+        hucreleriKapat(hucreler, "Bu aralıkta kapatılacak açık ders saati yok.");
       };
 
+      // Gün adına dokununca: gün tamamen kapalıysa açar, değilse kalan saatleri kapatır.
+      window.gunKapatAc = (gi) => {
+        if (!talepYazilabilir()) return;
+        const id = aktifOgretmenId;
+        const ilgili = DERSLER.map((d, di) => di).filter((di) => ogretmenSlotIlgili(id, matrisKey(gi, di)));
+        if (!ilgili.length) {
+          mesajGoster("ogretmenMesaj", GUN_GORUNEN[gi] + " günü sınıflarınızın dersi yok.", "bilgi");
+          return;
+        }
+        if (ilgili.every((di) => benimMatris[matrisKey(gi, di)])) {
+          ilgili.forEach((di) => delete benimMatris[matrisKey(gi, di)]);
+          matrisGuncelle();
+          otomatikKaydetPlanla();
+          mesajGoster("ogretmenMesaj", GUN_GORUNEN[gi] + " günü yeniden açıldı.", "basari");
+          return;
+        }
+        hucreleriKapat(ilgili.map((di) => [gi, di]), "");
+      };
+
+      // Telefonda yatay görünüm: Android'de tam ekran + yatay kilit; desteklenmezse ipucu
+      window.yatayGorunum = async () => {
+        try {
+          const el = document.documentElement;
+          if (!document.fullscreenElement && el.requestFullscreen) await el.requestFullscreen();
+          if (screen.orientation?.lock) {
+            await screen.orientation.lock("landscape");
+            return;
+          }
+          throw new Error("desteklenmiyor");
+        } catch (e) {
+          if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+          mesajGoster("yatayMesaj", "Telefonunuz otomatik döndürmeyi bu sayfada desteklemiyor. Ekran döndürme kilidini kapatıp telefonu yan çevirin.", "bilgi");
+        }
+      };
+      document.addEventListener("fullscreenchange", () => {
+        if (!document.fullscreenElement) {
+          try { screen.orientation?.unlock?.(); } catch {}
+        }
+      });
+
       window.gerekceDegisti = (deger) => {
+        if (!talepYazilabilir()) return;
         benimGerekce = deger || "";
         otomatikKaydetPlanla();
       };
 
       window.matrisKaydet = async (otomatik) => {
         if (!aktifOgretmenId) return;
+        if (!talepYazilabilir()) return;
         clearTimeout(kayitZamanlayici);
         kayitRozetGuncelle("kaydediliyor");
         const kaydedilen = { ...benimMatris };
@@ -1233,6 +1377,7 @@
       };
 
       window.matrisiSifirla = () => {
+        if (!talepYazilabilir()) return;
         if (!confirm("Tüm DERS YOK işaretlerini kaldırmak istiyor musunuz?")) return;
         benimMatris = {};
         matrisGuncelle();
@@ -1995,11 +2140,19 @@
         c.innerHTML = `
     <div class="kart">
       <div class="kart-baslik">Talep Dönemi</div>
-      <p style="font-size:13px;color:#888;margin-bottom:16px;">Talep dönemi açıkken öğretmenler matrislerini doldurabilir.</p>
-      <div style="display:flex;gap:10px;align-items:center;">
+      <p style="font-size:13px;color:#888;margin-bottom:16px;">Talep dönemi açıkken ve son talep günü geçmemişken öğretmenler yalnızca istek matrisini görür ve doldurabilir. Süre dolunca talepler kilitlenir; öğretmenler kendi taleplerini salt okunur görür ve Derslerim / Ders Programım menüleri açılır.</p>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
         <button class="btn btn-yesil" onclick="donemAc()" ${ayarlar.donem_acik ? "disabled" : ""}>Dönemi Aç</button>
         <button class="btn btn-kirmizi" onclick="donemKapat()" ${!ayarlar.donem_acik ? "disabled" : ""}>Dönemi Kapat</button>
-        <span class="rozet ${ayarlar.donem_acik ? "rozet-yesil" : "rozet-kirmizi"}">${ayarlar.donem_acik ? "Açık" : "Kapalı"}</span>
+        <span class="rozet ${talepAktif() ? "rozet-yesil" : "rozet-kirmizi"}">${talepDurumMetni()}</span>
+      </div>
+      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-top:16px;">
+        <div class="form-group" style="margin-bottom:0;">
+          <label>Son talep günü (gün sonuna kadar)</label>
+          <input type="date" id="talepSonTarih" value="${ayarlar.son_tarih || ""}">
+        </div>
+        <button class="btn btn-mavi" onclick="sonTarihKaydet()">Tarihi Kaydet</button>
+        ${ayarlar.son_tarih ? `<button class="btn btn-gri" onclick="sonTarihKaldir()">Tarihi Kaldır</button>` : ""}
       </div>
       <div class="mesaj" id="donemMesaj"></div>
     </div>
@@ -2010,6 +2163,48 @@
       <div class="mesaj" id="sifirMesaj"></div>
     </div>`;
       }
+
+      function talepDurumMetni() {
+        if (!ayarlar.donem_acik) return "Kapalı";
+        if (!ayarlar.son_tarih) return "Açık — son tarih yok";
+        return talepAktif()
+          ? `Açık — son gün ${tarihTR(ayarlar.son_tarih)} (${kalanGunMetni()})`
+          : `Süre doldu (${tarihTR(ayarlar.son_tarih)})`;
+      }
+
+      async function talepAyarKaydet(degisiklik) {
+        Object.assign(ayarlar, degisiklik);
+        await setDoc(doc(db, "program_talep_ayarlar", "genel"), {
+          ...ayarlar,
+          guncelleme: serverTimestamp(),
+        });
+        await ayarlariYukle();
+        adminAyarlarGoster();
+      }
+
+      window.sonTarihKaydet = async () => {
+        const t = document.getElementById("talepSonTarih").value;
+        if (!t) {
+          mesajGoster("donemMesaj", "Bir tarih seçin.", "hata");
+          return;
+        }
+        try {
+          await talepAyarKaydet({ son_tarih: t, son_zaman: Timestamp.fromDate(new Date(t + "T23:59:59+03:00")) });
+          mesajGoster("donemMesaj", "Son talep günü kaydedildi: " + tarihTR(t), "basari");
+        } catch (e) {
+          mesajGoster("donemMesaj", "Kaydedilemedi: " + e.message, "hata");
+        }
+      };
+
+      window.sonTarihKaldir = async () => {
+        if (!confirm("Son talep tarihi kaldırılsın mı? Dönem, siz kapatana kadar açık kalır.")) return;
+        try {
+          await talepAyarKaydet({ son_tarih: null, son_zaman: null });
+          mesajGoster("donemMesaj", "Son talep tarihi kaldırıldı.", "basari");
+        } catch (e) {
+          mesajGoster("donemMesaj", "Kaydedilemedi: " + e.message, "hata");
+        }
+      };
 
       window.donemAc = async () => {
         ayarlar.donem_acik = true;

@@ -195,7 +195,8 @@ authBaslat(async (user, rol) => {
 function _iframeYukle(sayfaId, src) {
   const div = document.getElementById("sayfa-" + sayfaId);
   if (!div || div.querySelector("iframe")) return;
-  div.innerHTML = `<iframe src="${src}?embedded=1" style="width:100%;height:85vh;border:none;border-radius:12px;"></iframe>`;
+  // allow="fullscreen": program talebindeki "Yatay görünüm" tam ekran + yön kilidi için
+  div.innerHTML = `<iframe src="${src}?embedded=1" allow="fullscreen" allowfullscreen style="width:100%;height:85vh;border:none;border-radius:12px;"></iframe>`;
 }
 
 window.disiplinYukle = () => _iframeYukle("disiplin", "/davranis.html");

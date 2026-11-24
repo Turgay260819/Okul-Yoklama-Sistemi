@@ -49,6 +49,15 @@ service cloud.firestore {
         || get(/databases/$(database)/documents/settings/yoklama).data.get("ogretmen_yoklama_kapali", false) != true;
     }
 
+    // Program talebi: donem acik ve son talep gunu (son_zaman) gecmemis olmali
+    function talepDonemiAcik() {
+      let yol = /databases/$(database)/documents/program_talep_ayarlar/genel;
+      return exists(yol)
+        && get(yol).data.get("donem_acik", false) == true
+        && (get(yol).data.get("son_zaman", null) == null
+            || request.time <= get(yol).data.son_zaman);
+    }
+
     // Yonetim her zaman; digerleri yalnizca ogretmen yoklamasi aciksa
     function yoklamaYazabilir() {
       return isYonetim() || (isYazabilir() && ogretmenYoklamaAcik());
@@ -330,7 +339,8 @@ service cloud.firestore {
       allow read: if isLoggedIn();
       allow write: if isYonetim()
         || (isYazabilir()
-            && get(/databases/$(database)/documents/teachers/$(docId)).data.uid == request.auth.uid);
+            && get(/databases/$(database)/documents/teachers/$(docId)).data.uid == request.auth.uid
+            && talepDonemiAcik());
     }
     match /program_talep_ayarlar/{docId} {
       allow read: if isLoggedIn();
