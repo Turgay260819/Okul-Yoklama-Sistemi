@@ -564,7 +564,11 @@ exports.gunSonuKontrol = onSchedule({ schedule: "0 16 * * 1-5", timeZone: "Europ
   const eksikSinifler = [];
   eksikSnap.forEach(doc => eksikSinifler.push(doc.data().class_id));
 
-  if (eksikSinifler.length > 0) {
+  // Admin öğretmen yoklama girişini kapattıysa "eksik yoklama" uyarısı anlamsız
+  const yoklamaAyar = await db.collection("settings").doc("yoklama").get();
+  const ogretmenYoklamaKapali = yoklamaAyar.exists && yoklamaAyar.data().ogretmen_yoklama_kapali === true;
+
+  if (eksikSinifler.length > 0 && !ogretmenYoklamaKapali) {
     await db.collection("notification_queue").add({
       message: `⚠️ ${bugun} tarihinde eksik yoklama var!\nSınıflar: ${[...new Set(eksikSinifler)].join(", ")}`,
       recipient: "yonetim",

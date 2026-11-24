@@ -4,7 +4,7 @@ import {
   collection, query, where, orderBy, doc, serverTimestamp, Timestamp, httpsCallable,
 } from "./portal-config.js";
 import { state } from "./portal-state.js";
-import { tarihBilgisiniGoster, baslangicDegerleriniAyarla } from "./portal-ui.js";
+import { tarihBilgisiniGoster, baslangicDegerleriniAyarla, ogretmenKareleriCiz } from "./portal-ui.js";
 import { authBaslat } from "./portal-auth.js";
 import { anasayfaYukle } from "./portal-admin.js";
 import { dersleriniYukle, ogretmenGorevleriniYukle, nobetBugunKontrolEt, vekaletBugunKontrolEt, idareGoreviKontrolEt, idareMesajiKontrolEt, rehberIzinKontrolEt } from "./portal-teacher.js";
@@ -147,6 +147,15 @@ authBaslat(async (user, rol) => {
   }
 
   // Öğretmen
+  // Admin öğretmen yoklamasını kapattıysa yoklama kutucuklarını gizle
+  try {
+    const yAyar = await getDoc(doc(db, "settings", "yoklama"));
+    state.ogretmenYoklamaKapali = yAyar.exists() && yAyar.data().ogretmen_yoklama_kapali === true;
+  } catch (e) {
+    console.warn("Yoklama ayari okunamadi:", e);
+  }
+  if (state.ogretmenYoklamaKapali) ogretmenKareleriCiz();
+
   const ogSnap = await getDocs(
     query(collection(db, "teachers"), where("uid", "==", user.uid)),
   );

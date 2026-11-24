@@ -54,6 +54,7 @@ window.ayarlarYukle = async function () {
   await donemBilgisiniGetir();
   dersSaatleriYukle();
   genelAyarlariYukle();
+  ogretmenYoklamaAyarYukle();
   if (window.dykAyarlarYukle) window.dykAyarlarYukle();
 };
 
@@ -838,6 +839,55 @@ window.sistemAyarlariniKaydet = async function () {
     updated_at: serverTimestamp(),
   });
   mesajGoster("sistemAyarMesaj", "Ayarlar kaydedildi.", "basari");
+};
+
+// ── ÖĞRETMEN YOKLAMA GİRİŞİ AÇ/KAPAT (settings/yoklama) ──
+// settings/genel'e konmadı: sistemAyarlariniKaydet o dokümanı merge'siz yazıyor.
+let _ogrYoklamaKapali = false;
+
+function _ogrYoklamaGoster() {
+  const rozet = document.getElementById("ogrYoklamaRozet");
+  const btn = document.getElementById("ogrYoklamaBtn");
+  if (rozet) {
+    rozet.textContent = _ogrYoklamaKapali ? "Kapalı" : "Açık";
+    rozet.className = "rozet " + (_ogrYoklamaKapali ? "rozet-kirmizi" : "rozet-yesil");
+  }
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = _ogrYoklamaKapali ? "Öğretmen yoklamasını AÇ" : "Öğretmen yoklamasını KAPAT";
+    btn.className = "btn " + (_ogrYoklamaKapali ? "btn-yesil" : "btn-kirmizi");
+  }
+}
+
+async function ogretmenYoklamaAyarYukle() {
+  const { db, getDoc, doc } = window.__portal;
+  try {
+    const d = await getDoc(doc(db, "settings", "yoklama"));
+    _ogrYoklamaKapali = d.exists() && d.data().ogretmen_yoklama_kapali === true;
+  } catch (e) {
+    console.warn("Yoklama ayari okunamadi:", e);
+  }
+  _ogrYoklamaGoster();
+}
+
+window.ogretmenYoklamaDegistir = async function () {
+  const { db, setDoc, doc, serverTimestamp } = window.__portal;
+  const yeni = !_ogrYoklamaKapali;
+  const soru = yeni
+    ? "Öğretmenlerin yoklama girişi KAPATILACAK. Öğretmenler yoklama ekranlarını göremeyecek. Devam edilsin mi?"
+    : "Öğretmenlerin yoklama girişi AÇILACAK. Devam edilsin mi?";
+  if (!confirm(soru)) return;
+  try {
+    await setDoc(doc(db, "settings", "yoklama"), {
+      ogretmen_yoklama_kapali: yeni,
+      guncelleme: serverTimestamp(),
+    }, { merge: true });
+    _ogrYoklamaKapali = yeni;
+    _ogrYoklamaGoster();
+    mesajGoster("ogrYoklamaMesaj", yeni ? "Öğretmen yoklama girişi kapatıldı." : "Öğretmen yoklama girişi açıldı.", "basari");
+  } catch (e) {
+    mesajGoster("ogrYoklamaMesaj", "Kaydedilemedi (yalnızca admin değiştirebilir): " + e.message, "hata");
+  }
 };
 
 async function genelAyarlariYukle() {

@@ -3,6 +3,8 @@ export const state = {
   kullanici: null,
   rol: null,
   ogretmenDoc: null,
+  // settings/yoklama.ogretmen_yoklama_kapali (admin açar/kapatır)
+  ogretmenYoklamaKapali: false,
 
   // Cached lists
   ogretmenler: [],

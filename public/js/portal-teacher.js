@@ -9,6 +9,17 @@ import { kayitId, kayitOlustur, kaydimiSil, ogretmenTarihiMi } from "./portal-ve
 
 const GUNLER = ["Pazar", "Pazartesi", "Sali", "Carsamba", "Persembe", "Cuma", "Cumartesi"];
 
+// Admin öğretmen yoklamasını kapattıysa (settings/yoklama) öğretmen ekranları kilitlenir.
+// Yönetim rolleri bu ekranları kullanmaz; yine de onları etkilememesi için hariç tutulur.
+const YOKLAMA_KAPALI_MESAJ = "Yoklama girişi idare tarafından kapatılmıştır.";
+function yoklamaKapali() {
+  const yonetim = ["admin", "mudur_yardimcisi", "idareci_izleyici"].includes(state.rol);
+  return state.ogretmenYoklamaKapali && !yonetim;
+}
+function yoklamaKapaliKutu() {
+  return `<div class="bos-durum" style="text-align:center;padding:30px;color:#666;">🔒<br>${YOKLAMA_KAPALI_MESAJ}</div>`;
+}
+
 // ── DERSLERİM ──
 export async function dersleriniYukle() {
   const container = document.getElementById("dersListesi");
@@ -159,7 +170,11 @@ export async function dersleriniYukle() {
     const biriBileGirildi = grup.some((d) => yoklamaSet.has(d.class_id + "|" + d.lesson_number));
 
     let rozetHtml, kartSinif;
-    if (hepsiGirildi) {
+    if (!hepsiGirildi && yoklamaKapali()) {
+      // Öğretmen yoklama giremiyorken "Bekleniyor" uyarısı anlamsız
+      rozetHtml = "";
+      kartSinif = "ders-kart";
+    } else if (hepsiGirildi) {
       rozetHtml = '<span class="rozet-durum rozet-durum-tamam">✓ Yoklama Girildi</span>';
       kartSinif = "ders-kart";
     } else if (biriBileGirildi) {
@@ -238,8 +253,9 @@ window.derslerimVekilGirdim = async (btn) => {
 // ── YOKLAMALARİM — zaman kilitli ──
 window.yoklamalarimYukle = async function () {
   const container = document.getElementById("yoklamalarimListesi");
-  container.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
   if (state.ymTimer) { clearInterval(state.ymTimer); state.ymTimer = null; }
+  if (yoklamaKapali()) { container.innerHTML = yoklamaKapaliKutu(); return; }
+  container.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
 
   const saatDoc = await getDoc(doc(db, "ders_saatleri", "varsayilan"));
   state.ymSaatler = saatDoc.exists() ? saatDoc.data().saatler || {} : {};
@@ -405,6 +421,7 @@ function _ymZamanGuncelle() {
 }
 
 window.yoklamalarimKaydet = async function (dersId, sinif, dersNo, teacherId, dersAdi) {
+  if (yoklamaKapali()) { alert(YOKLAMA_KAPALI_MESAJ); return; }
   const checkboxlar = document.querySelectorAll(`[id^="ymchk_${sinif}_${dersNo}_"]`);
   const yoklar = [];
   checkboxlar.forEach((c) => { if (c.checked) yoklar.push(c.value); });
@@ -458,8 +475,9 @@ window.sinifTam = function (dersId, sinif, dersNo, teacherId, dersAdi) {
 // ── DYK ÖĞRETMEN ──
 window.dykSayfasiYukle = async function () {
   const container = document.getElementById("dykListesi");
-  container.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
   if (state.dykTimer) { clearInterval(state.dykTimer); state.dykTimer = null; }
+  if (yoklamaKapali()) { container.innerHTML = yoklamaKapaliKutu(); return; }
+  container.innerHTML = '<div class="yukleniyor">Yukleniyor...</div>';
 
   const bugunAdi = gunAdiGetir(bugun);
 
@@ -578,6 +596,7 @@ function _dykZamanGuncelle() {
 }
 
 window.dykKaydet = async function (kursId, sinif, kursAdi) {
+  if (yoklamaKapali()) { alert(YOKLAMA_KAPALI_MESAJ); return; }
   const checkboxlar = document.querySelectorAll(`[id^="dykchk_${kursId}_"]`);
   const yoklar = [];
   checkboxlar.forEach((c) => { if (c.checked) yoklar.push(c.value); });
@@ -813,6 +832,7 @@ window.manuelSinifTam = () => {
   window.manuelKaydet();
 };
 window.manuelKaydet = async () => {
+  if (yoklamaKapali()) { mesajGoster("manuelMesaj", YOKLAMA_KAPALI_MESAJ, "hata"); return; }
   const sinif = document.getElementById("manuelSinif").value;
   const dersAdi = document.getElementById("manuelDersAdi").value.trim();
   if (!sinif || !dersAdi) { mesajGoster("manuelMesaj", "Tum alanlari doldurun.", "hata"); return; }

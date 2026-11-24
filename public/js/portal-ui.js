@@ -99,13 +99,31 @@ export function menuOlustur(rol) {
   });
 }
 
+// Admin öğretmen yoklamasını kapattığında gizlenen kutucuklar
+const YOKLAMA_KARELERI = ["yoklamalarim", "manuel", "dyk"];
+
 function ogretmenAnasayfaOlustur() {
+  ogretmenKareleriCiz();
+  // Touch swipe support
+  const slider = document.getElementById("ogrSayfalar");
+  if (!slider) return;
+  let tx = 0;
+  slider.addEventListener("touchstart", (e) => { tx = e.touches[0].clientX; }, { passive: true });
+  slider.addEventListener("touchend", (e) => {
+    const diff = tx - e.changedTouches[0].clientX;
+    if (Math.abs(diff) > 50) window.ogretmenSayfaDegistir(diff > 0 ? 1 : 0);
+  }, { passive: true });
+}
+
+export function ogretmenKareleriCiz() {
   const s1 = document.getElementById("ogrSayfa1");
   const s2 = document.getElementById("ogrSayfa2");
   if (!s1 || !s2) return;
   s1.innerHTML = "";
   s2.innerHTML = "";
-  const gorunur = ogretmenKareler.filter((k) => !k.gizli);
+  const gorunur = ogretmenKareler.filter(
+    (k) => !k.gizli && !(state.ogretmenYoklamaKapali && YOKLAMA_KARELERI.includes(k.id)),
+  );
   // Iki sayfada da ayni satir sayisi: kutucuklar her yerde ayni boyda.
   const satir = Math.ceil(Math.max(...[1, 2].map((n) => gorunur.filter((k) => k.sayfa === n).length)) / 2);
   [s1, s2].forEach((s) => s.style.setProperty("--ogr-satir", satir));
@@ -120,14 +138,6 @@ function ogretmenAnasayfaOlustur() {
       `<div class="ogr-kare-ad" style="color:${k.metinRenk};">${k.ad}</div>` +
       `</div>`;
   });
-  // Touch swipe support
-  const slider = document.getElementById("ogrSayfalar");
-  let tx = 0;
-  slider.addEventListener("touchstart", (e) => { tx = e.touches[0].clientX; }, { passive: true });
-  slider.addEventListener("touchend", (e) => {
-    const diff = tx - e.changedTouches[0].clientX;
-    if (Math.abs(diff) > 50) window.ogretmenSayfaDegistir(diff > 0 ? 1 : 0);
-  }, { passive: true });
 }
 
 window.ogretmenSayfaDegistir = (idx) => {

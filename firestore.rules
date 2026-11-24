@@ -43,6 +43,17 @@ service cloud.firestore {
       return isLoggedIn() && !isIzleyici();
     }
 
+    // Admin settings/yoklama.ogretmen_yoklama_kapali ile ogretmen yoklama girisini kapatabilir.
+    function ogretmenYoklamaAcik() {
+      return !exists(/databases/$(database)/documents/settings/yoklama)
+        || get(/databases/$(database)/documents/settings/yoklama).data.get("ogretmen_yoklama_kapali", false) != true;
+    }
+
+    // Yonetim her zaman; digerleri yalnizca ogretmen yoklamasi aciksa
+    function yoklamaYazabilir() {
+      return isYonetim() || (isYazabilir() && ogretmenYoklamaAcik());
+    }
+
     // Istanbul'a gore bugunun tarihi (YYYY-AA-GG). Turkiye sabit UTC+3.
     function pad2(n) {
       return (n < 10 ? '0' : '') + string(n);
@@ -157,14 +168,14 @@ service cloud.firestore {
 
     match /today_lessons/{lessonId} {
       allow read: if isLoggedIn();
-      allow write: if isYazabilir();
+      allow write: if yoklamaYazabilir();
     }
 
     match /attendance/{attendanceId} {
       allow read: if isLoggedIn();
-      allow create: if isYazabilir();
+      allow create: if yoklamaYazabilir();
       allow update: if isYonetim();
-      allow delete: if isYonetim() || isOgretmen();
+      allow delete: if isYonetim() || (isOgretmen() && ogretmenYoklamaAcik());
     }
 
     match /daily_summary/{summaryId} {
@@ -189,7 +200,7 @@ service cloud.firestore {
 
     match /dyk_attendance/{attendanceId} {
       allow read: if isLoggedIn();
-      allow create: if isYazabilir();
+      allow create: if yoklamaYazabilir();
       allow update: if isYonetim();
       allow delete: if isAdmin();
     }
