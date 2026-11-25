@@ -499,6 +499,32 @@ function _odemeVerisi() {
   return { satirlar, disarida };
 }
 
+// Odeyenler, odeme isaretleme zamanina gore en yeni en ustte.
+// zaman:null = yerelde yeni isaretlendi, sunucu zamani henuz gelmedi -> en ustte.
+let _odemeZamanAcik = true;
+let _odemeZamanTumu = false;
+const _ODEME_ZAMAN_ILK = 20;
+const _zamanMs = (z) => (z?.toMillis ? z.toMillis() : Infinity);
+function _odemeZamanListesi() {
+  return [..._odeme.values()].filter((k) => k.odedi).sort((a, b) => _zamanMs(b.zaman) - _zamanMs(a.zaman));
+}
+window.kelebekOdemeZamanAc = (el) => { _odemeZamanAcik = el.open; };
+window.kelebekOdemeZamanTumu = () => { _odemeZamanTumu = !_odemeZamanTumu; _odemeCiz(); };
+
+function _odemeZamanHtml() {
+  const liste = _odemeZamanListesi();
+  const gorunen = _odemeZamanTumu ? liste : liste.slice(0, _ODEME_ZAMAN_ILK);
+  return `<details class="kb-bilgi-kutu" ${_odemeZamanAcik ? "open" : ""} ontoggle="kelebekOdemeZamanAc(this)" style="margin-top:10px;">
+    <summary><strong>🕒 Ödeme Zamanları</strong> <span style="font-size:12px;color:var(--text2);">(${liste.length} öğrenci · en yeni en üstte)</span></summary>
+    ${liste.length ? `<div style="overflow-x:auto;"><table><thead><tr><th>#</th><th>Tarih-Saat</th><th>Şube</th><th>No</th><th>Ad Soyad</th><th>İşaretleyen</th></tr></thead><tbody>
+      ${gorunen.map((k, i) => `<tr><td>${i + 1}</td><td style="white-space:nowrap;">${k.zaman ? esc(_kisaZaman(k.zaman)) : "<em>şimdi</em>"}</td>
+        <td>${esc(k.sinif)}</td><td>${esc(k.no)}</td><td>${esc(k.ad)}</td><td style="font-size:12px;color:var(--text2);">${esc(k.isaretleyen_ad || "")}</td></tr>`).join("")}
+      </tbody></table></div>
+      ${liste.length > _ODEME_ZAMAN_ILK ? `<button class="btn btn-gri btn-sm" style="margin-top:6px;" onclick="kelebekOdemeZamanTumu()">${_odemeZamanTumu ? "Sadece son " + _ODEME_ZAMAN_ILK + " kaydı göster" : `Tümünü göster (${liste.length})`}</button>` : ""}`
+      : '<div class="bos-mesaj">Henüz ödeme işaretlenmedi.</div>'}
+  </details>`;
+}
+
 const _filtrele = (liste) => liste.filter((x) => _odemeFiltre === "tumu" || (_odemeFiltre === "odedi") === x.odedi);
 const _oran = (a, b) => (b ? Math.round((a / b) * 100) + "%" : "—");
 const _filtreAd = () => ({ tumu: "Tüm öğrenciler", odedi: "Ödeyenler", odemedi: "Ödemeyenler" })[_odemeFiltre];
@@ -521,6 +547,7 @@ function _odemeCiz() {
         <td style="color:${s.liste.length - s.odedi ? "#c5221f" : "inherit"};">${s.liste.length - s.odedi}</td><td>${_oran(s.odedi, s.liste.length)}</td></tr>`).join("")}
       <tr style="font-weight:700;border-top:2px solid var(--border);"><td>Toplam</td><td>${top}</td><td style="color:#1e7e34;">${odedi}</td><td>${top - odedi}</td><td>${_oran(odedi, top)}</td></tr>
     </tbody></table></div>
+    ${_odemeZamanHtml()}
     <div style="margin-top:10px;">${satirlar.map((s) => {
       const liste = _filtrele(s.liste);
       return `<details class="kb-bilgi-kutu" data-k="${esc(s.sube)}" ${_odemeAcikSube.has(s.sube) ? "open" : ""} ontoggle="kelebekOdemeSube(this)">
@@ -580,11 +607,13 @@ window.kelebekOdemeExcel = async () => {
       ...satirlar.map((s) => [s.sube, s.liste.length, s.odedi, s.liste.length - s.odedi, _oran(s.odedi, s.liste.length)]),
       ["Toplam", top, odedi, top - odedi, _oran(odedi, top)]];
     XLSX.utils.book_append_sheet(wb, sayfaOlustur(XLSX, ozet, [14, 14, 10, 10, 8]), "Özet");
+    XLSX.utils.book_append_sheet(wb, sayfaOlustur(XLSX, [...baslik, ["Ödeme zamanları (en yeni en üstte)"], ["#", "Tarih-Saat", "Şube", "No", "Ad Soyad", "İşaretleyen"],
+      ..._odemeZamanListesi().map((k, i) => [i + 1, _kisaZaman(k.zaman), k.sinif, k.no, k.ad, k.isaretleyen_ad || ""])], [5, 18, 14, 8, 28, 20]), "Ödeme Zamanları");
     const satir = (s, x) => [s.sube, x.no, x.ad, x.odedi ? "Ödedi" : "Ödemedi", x.odedi ? _kisaZaman(x.kayit?.zaman) : "", x.odedi ? x.kayit?.isaretleyen_ad || "" : ""];
     const bas = ["Şube", "No", "Ad Soyad", "Durum", "İşaretleme Tarihi", "İşaretleyen"];
     const gen = [14, 8, 28, 10, 18, 20];
     XLSX.utils.book_append_sheet(wb, sayfaOlustur(XLSX, [...baslik, bas, ...satirlar.flatMap((s) => _filtrele(s.liste).map((x) => satir(s, x)))], gen), "Tüm Liste");
-    const kullanilan = new Set(["özet", "tüm liste"]);
+    const kullanilan = new Set(["özet", "ödeme zamanları", "tüm liste"]);
     satirlar.forEach((s) => {
       let ad = String(s.sube).replace(/[\\/?*[\]:]/g, "-").slice(0, 28) || "Şube", t = ad, i = 2;
       while (kullanilan.has(t.toLocaleLowerCase("tr"))) t = `${ad} ${i++}`;
