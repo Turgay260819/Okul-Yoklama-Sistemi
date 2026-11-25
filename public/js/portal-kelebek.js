@@ -72,7 +72,8 @@ export async function kelebekYukle() {
       } catch (e) { /* varsayilan */ }
     }
     _sinav = null;
-    if (admin()) { await _anaBekleyenYaz(); _anaKilitli = true; await _anaOku(); }
+    if (admin()) { await _anaBekleyenYaz(); _anaKilitli = true; }
+    await _anaOku();
     await _listeCiz();
   } catch (err) {
     kok().innerHTML = `<div class="bos-mesaj">Yüklenemedi: ${esc(err.message)}</div>`;
@@ -127,7 +128,7 @@ async function _listeCiz() {
     _anaSon = new Set(_anaSecili);
     _anaKaynak = son ? `«${son.ad}» (${trTarih(son.tarih)})` : "";
   }
-  kok().innerHTML = `${admin() ? '<div class="kart" id="kbAnaKart"></div>' : ""}<div class="kart">
+  kok().innerHTML = `<div class="kart" id="kbAnaKart"></div><div class="kart">
     <div class="kart-baslik-satir"><div class="kart-baslik">🦋 Kelebek Sınavlar</div>
       ${admin() ? '<button class="btn btn-yesil btn-sm" onclick="kelebekYeni()">➕ Yeni Sınav</button>' : ""}</div>
     <p style="font-size:13px;color:var(--text2);margin-bottom:10px;">Öğrenciler salonlara aynı şubeden olanlar mümkün olduğunca bir arada olmayacak şekilde dağıtılır. Gözetmenler, sınav saatlerinde o salonda (sınıfta) dersi olan öğretmenlerdir.</p>
@@ -185,6 +186,9 @@ function _anaKartCiz() {
       <div class="kart-baslik">👥 Sınava Girecek Öğrenciler <span id="kbAnaOzet" style="font-size:13px;font-weight:400;color:var(--text2);"></span></div>
       <span>${_anaKartAcik ? "▲" : "▼"}</span></div>
     <div ${_anaKartAcik ? "" : "hidden"}>
+      ${!admin() ? `<p style="font-size:13px;color:var(--text2);margin-bottom:10px;">Sınavlara girecek öğrencilerin güncel listesi ve ödeme durumu.</p>
+      <div class="kb-kilit"><span style="flex:1;">👁 Görüntüleme: bu listeyi ve ödemeleri yalnızca admin değiştirebilir.</span></div>
+      ${!_anaVar ? '<div class="bos-mesaj">Ana liste henüz oluşturulmadı.</div>' : ""}` : `
       <p style="font-size:13px;color:var(--text2);margin-bottom:10px;">Sınavlara girecek öğrencilerin güncel listesi. Yeni sınavın öğrenci seçimi bu listeden gelir: sınava girmekten vazgeçenleri buradan çıkarın, yeni katılanları ekleyin. Var olan sınavlar değişmez (istenirse sınavın içinde "Ana listeyi uygula").</p>
       ${!_anaVar && _anaKaynak ? `<div class="uyari-kutu-sm">Liste henüz kaydedilmedi; başlangıç olarak ${esc(_anaKaynak)} sınavının seçimi gösteriliyor. İlk değişiklikte kaydedilir.</div>` : ""}
       <div class="kb-kilit${_anaKilitli ? "" : " acik"}">
@@ -196,7 +200,7 @@ function _anaKartCiz() {
         <select id="kbAnaAktarSinav" style="min-width:220px;">
           ${_sinavListesi.filter((s) => !s.silindi).map((s) => `<option value="${esc(s.id)}">${esc(trTarih(s.tarih))} — ${esc(s.ad)} (${(s.dagilim || []).length || (s.ogrenciler || []).length} öğrenci)</option>`).join("")}
         </select>
-        <button class="btn btn-mavi btn-sm" onclick="kelebekAnaAktar()">📥 Bu sınavdan aktar</button></div>` : ""}
+        <button class="btn btn-mavi btn-sm" onclick="kelebekAnaAktar()">📥 Bu sınavdan aktar</button></div>` : ""}`}
       <div class="mesaj" id="kbAnaMesaj"></div>
       <div id="kbAnaListe"></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:8px;">
@@ -216,6 +220,7 @@ function _anaKartCiz() {
 // Kart kapaninca liste yeniden kilitlenir.
 window.kelebekAnaKart = () => { _anaKartAcik = !_anaKartAcik; if (!_anaKartAcik) _anaKilitli = true; _anaKartCiz(); };
 window.kelebekAnaKilit = async () => {
+  if (!admin()) return;
   if (!_anaKilitli) await _anaBekleyenYaz();
   _anaKilitli = !_anaKilitli;
   _anaKartCiz();
@@ -225,6 +230,7 @@ window.kelebekAnaKilit = async () => {
 // yoksa secim). Sinav kaydi degismez; hemen kaydedilir ve gecmise yazilir.
 let _anaNot = "";
 window.kelebekAnaAktar = async () => {
+  if (!admin()) return;
   const sinav = _sinavListesi.find((s) => s.id === document.getElementById("kbAnaAktarSinav")?.value);
   if (!sinav) return;
   const kaynak = (sinav.dagilim || []).length ? new Set(sinav.dagilim.map((x) => x.ogrenci_id)) : _secimCikar(sinav);
@@ -274,7 +280,7 @@ function _anaDurumCiz() {
     hata: ["#ea4335", `⚠ Kaydedilemedi: ${d.metin}`],
   }[d.tur];
   el.style.color = g ? g[0] : "var(--text2)";
-  el.textContent = g ? g[1] : (_anaVar ? "Değişiklikler otomatik kaydedilir" : "");
+  el.textContent = g ? g[1] : (_anaVar && admin() ? "Değişiklikler otomatik kaydedilir" : "");
 }
 
 function _anaDegisti() {
@@ -374,7 +380,7 @@ function _anaGecmisCiz() {
       return satir;
     }).join("")}
     </tbody></table></div>
-    ${_anaKilitli ? '<div style="font-size:12px;color:var(--text2);margin-top:4px;">Geri yüklemek için önce "🔓 Düzenlemeyi aç".</div>' : ""}`;
+    ${_anaKilitli && admin() ? '<div style="font-size:12px;color:var(--text2);margin-top:4px;">Geri yüklemek için önce "🔓 Düzenlemeyi aç".</div>' : ""}`;
 }
 
 // Surumdeki sube sayilari ve simdiki listeyle fark.
@@ -395,6 +401,7 @@ function _surumOzeti(x) {
 window.kelebekAnaSurumGoster = (id) => { _anaSurumAcik = _anaSurumAcik === id ? null : id; _anaGecmisCiz(); };
 
 window.kelebekAnaSurum = async () => {
+  if (!admin()) return;
   const ad = (await sor_giris("Sürüm Olarak Kaydet", `Şu anki liste (${_anaSecili.size} öğrenci) adıyla saklanacak; liste değişmez. Sonradan geçmişten görüntülenip geri yüklenebilir.`, "ör. Kesin liste – Ekim") || "").trim();
   if (!ad) return;
   try {
@@ -413,7 +420,7 @@ window.kelebekAnaSurum = async () => {
 
 window.kelebekAnaGeriYukle = async (id) => {
   const x = _anaGecmisListe.find((g) => g.id === id);
-  if (!x || !Array.isArray(x.ogrenciler) || _anaKilitli) return;
+  if (!admin() || !x || !Array.isArray(x.ogrenciler) || _anaKilitli) return;
   const aktif = new Set(_ogrenciler.map((o) => o.ogrenci_id));
   const yeni = new Set(x.ogrenciler.filter((i) => aktif.has(i)));
   const eklenen = [...yeni].filter((i) => !_anaSecili.has(i)).length;
@@ -450,11 +457,14 @@ const _kisaZaman = (z) => z?.toDate ? z.toDate().toLocaleString("tr-TR", { day: 
 
 function _odemeBtnHtml(id, gorunur) {
   const odedi = _odediMi(id);
+  // Admin olmayan sadece gorur: tiklanamaz rozet
+  if (!admin()) return `<span class="btn btn-sm kb-odeme-btn${odedi ? " odedi" : ""}" data-id="${esc(id)}"${gorunur ? "" : " hidden"} style="cursor:default;pointer-events:none;">${odedi ? "💰 Ödedi" : "Ödemedi"}</span>`;
   return `<button type="button" class="btn btn-sm kb-odeme-btn${odedi ? " odedi" : ""}" data-id="${esc(id)}"${gorunur ? "" : " hidden"}
     onclick="event.preventDefault();event.stopPropagation();kelebekOdeme(this.dataset.id)">${odedi ? "💰 Ödedi" : "Ödemedi"}</button>`;
 }
 
 window.kelebekOdeme = async (id) => {
+  if (!admin()) return;
   const o = _ogrenciler.find((x) => x.ogrenci_id === id);
   if (!o) return;
   const onceki = _odeme.get(id);

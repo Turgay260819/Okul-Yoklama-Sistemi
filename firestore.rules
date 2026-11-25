@@ -137,15 +137,15 @@ service cloud.firestore {
       allow update, delete: if false;
     }
     // Salon yoklamasi: gozetmen ogretmen kendi kaydini sadece sinav gunu
-    // girer/duzeltir; idare her zaman. Silinmez.
+    // girer/duzeltir; admin her zaman (mudur yardimcisi sadece gorur). Silinmez.
     function kelebekSinavGunu(sinavId) {
       return get(/databases/$(database)/documents/kelebek_sinavlar/$(sinavId)).data.tarih == bugunTR();
     }
     match /kelebek_sinavlar/{sinavId}/yoklama/{yoklamaId} {
       allow read: if isYonetimOkur() || isOgretmen();
-      allow create: if isYonetim()
+      allow create: if isAdmin()
         || (isOgretmen() && request.resource.data.ogretmen_uid == request.auth.uid && kelebekSinavGunu(sinavId));
-      allow update: if isYonetim()
+      allow update: if isAdmin()
         || (isOgretmen() && resource.data.ogretmen_uid == request.auth.uid
             && request.resource.data.ogretmen_uid == request.auth.uid && kelebekSinavGunu(sinavId));
       allow delete: if false;
