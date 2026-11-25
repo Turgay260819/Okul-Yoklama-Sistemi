@@ -614,7 +614,8 @@
           const tumOgSnap = await getDocs(collection(db, "teachers"));
           tumOgretmenler = [];
           tumOgSnap.forEach((d) => tumOgretmenler.push({ id: d.id, ...d.data() }));
-          tumOgretmenler.sort((a, b) => (a.ad || "").localeCompare(b.ad || "", "tr"));
+          const soyadSira = ogretmenSiralaKarsilastir("soyad");
+          tumOgretmenler.sort((a, b) => soyadSira(a.id, b.id));
         }
 
         const sinifSnap = await getDocs(collection(db, "classes"));
@@ -977,6 +978,46 @@
 
       function ogretmenAdi(id) {
         return tumOgretmenler.find((o) => o.id === id)?.ad || tumTanimlar.find((t) => t.ogretmen_id === id)?.ogretmen_adi || "(bilinmiyor)";
+      }
+
+      // teachers.ad "Ad Soyad" birleşik tutulur; soyad = son kelime
+      function ogretmenSoyad(id) {
+        const p = ogretmenAdi(id).trim().split(/\s+/);
+        return p[p.length - 1] || "";
+      }
+
+      const BRANS_YOK = "Diğer";
+      function ogretmenBrans(id) {
+        return (tumOgretmenler.find((o) => o.id === id)?.brans || "").trim() || BRANS_YOK;
+      }
+
+      // Sıralama: "soyad" (ders programı uygulamasıyla aynı), "ad", "brans"
+      function ogretmenSiralaKarsilastir(sira) {
+        const k = (x, y) => x.localeCompare(y, "tr", { sensitivity: "base" });
+        const adK = (a, b) => k(ogretmenAdi(a), ogretmenAdi(b));
+        const soyadK = (a, b) => k(ogretmenSoyad(a), ogretmenSoyad(b)) || adK(a, b);
+        if (sira === "ad") return adK;
+        if (sira === "brans") {
+          return (a, b) => {
+            const ba = ogretmenBrans(a), bb = ogretmenBrans(b);
+            if (ba !== bb) {
+              if (ba === BRANS_YOK) return 1;
+              if (bb === BRANS_YOK) return -1;
+              const f = k(ba, bb);
+              if (f) return f;
+            }
+            return soyadK(a, b);
+          };
+        }
+        return soyadK;
+      }
+
+      // Soyad sırasında soyadı kalın göster
+      function ogretmenAdiHtml(id) {
+        const ad = ogretmenAdi(id);
+        if (adminFiltre.sira !== "soyad") return ad;
+        const i = ad.trim().lastIndexOf(" ");
+        return i < 0 ? `<strong>${ad}</strong>` : `${ad.slice(0, i)} <strong>${ad.slice(i + 1)}</strong>`;
       }
 
       // ── BÖLÜNME ANALİZİ ──
@@ -1594,7 +1635,7 @@
         adminTanimGoster();
       };
 
-      let adminFiltre = { ad: "", sinif: "", gerekce: "", sadeceAcmaz: false };
+      let adminFiltre = { ad: "", sinif: "", gerekce: "", sadeceAcmaz: false, sira: "soyad" };
 
       function adminIsiGoster() {
         const c = document.getElementById("asekme-isi");
@@ -1613,7 +1654,12 @@
               <span class="rozet rozet-mavi" id="adminMatrisSayac">—</span>
             </div>
             <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;align-items:center;">
-              <input type="text" placeholder="Öğretmen ara..." value="${adminFiltre.ad}" oninput="adminFiltreDegis('ad', this.value)" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
+              <select onchange="adminFiltreDegis('sira', this.value)" title="Sıralama" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
+                <option value="soyad"${adminFiltre.sira === "soyad" ? " selected" : ""}>Sırala: Soyad</option>
+                <option value="ad"${adminFiltre.sira === "ad" ? " selected" : ""}>Sırala: Ad</option>
+                <option value="brans"${adminFiltre.sira === "brans" ? " selected" : ""}>Sırala: Branş</option>
+              </select>
+              <input type="text" placeholder="Öğretmen veya branş ara..." value="${adminFiltre.ad}" oninput="adminFiltreDegis('ad', this.value)" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
               <select onchange="adminFiltreDegis('sinif', this.value)" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;"><option value="">Tüm sınıflar</option>${sinifSec}</select>
               <select onchange="adminFiltreDegis('gerekce', this.value)" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
                 <option value="">Tüm gerekçeler</option>${gerekceSec}<option value="-"${adminFiltre.gerekce === "-" ? " selected" : ""}>Belirtilmemiş</option>
@@ -1630,6 +1676,7 @@
       window.adminFiltreDegis = (alan, deger) => {
         adminFiltre[alan] = deger;
         adminMatrisIzgaraCiz();
+        if (alan === "sira") adminUyumTabloCiz();
       };
 
       function adminIsiIcerikCiz() {
@@ -1677,7 +1724,7 @@
       function talepGirenOgretmenler() {
         return Object.keys(tumMatrisler)
           .filter((id) => Object.values(tumMatrisler[id]).some(Boolean) || tumGerekceler[id])
-          .sort((a, b) => ogretmenAdi(a).localeCompare(ogretmenAdi(b), "tr"));
+          .sort(ogretmenSiralaKarsilastir(adminFiltre.sira));
       }
 
       function gerekceRozet(id) {
@@ -1693,7 +1740,7 @@
         const f = adminFiltre;
         const aranan = (f.ad || "").toLocaleLowerCase("tr");
         const ids = talepGirenOgretmenler().filter((id) => {
-          if (aranan && !ogretmenAdi(id).toLocaleLowerCase("tr").includes(aranan)) return false;
+          if (aranan && !(ogretmenAdi(id) + " " + ogretmenBrans(id)).toLocaleLowerCase("tr").includes(aranan)) return false;
           if (f.sinif && !ogretmenYuk[id]?.[f.sinif]) return false;
           if (f.gerekce === "-" && tumGerekceler[id]) return false;
           if (f.gerekce && f.gerekce !== "-" && tumGerekceler[id] !== f.gerekce) return false;
@@ -1705,15 +1752,26 @@
           el.innerHTML = `<div class="bos-mesaj" style="grid-column:1/-1;">Filtreye uyan talep yok.</div>`;
           return;
         }
+        const bransGrup = adminFiltre.sira === "brans";
+        const bransSayi = {};
+        if (bransGrup) ids.forEach((id) => (bransSayi[ogretmenBrans(id)] = (bransSayi[ogretmenBrans(id)] || 0) + 1));
+        let oncekiBrans = null;
         el.innerHTML = ids
           .map((id) => {
             const kapali = Object.values(tumMatrisler[id]).filter(Boolean).length;
             const acmaz = katkiHucreleri(id).size > 0;
-            return `<div class="mini-kart"${acmaz ? ' style="border-color:#f28b82;"' : ""}>
+            const brans = ogretmenBrans(id);
+            let baslik = "";
+            if (bransGrup && brans !== oncekiBrans) {
+              oncekiBrans = brans;
+              baslik = `<div style="grid-column:1/-1;font-weight:700;font-size:14px;color:#1557b0;border-bottom:2px solid #d2e3fc;padding:6px 2px 4px;margin-top:4px;">${brans} <span style="font-weight:400;color:#888;font-size:12px;">(${bransSayi[brans]})</span></div>`;
+            }
+            return `${baslik}<div class="mini-kart"${acmaz ? ' style="border-color:#f28b82;"' : ""}>
               <div class="mini-kart-baslik">
-                <span style="cursor:pointer;color:#1a73e8;" onclick="adminMatrisGor('${id}')">${ogretmenAdi(id)}</span>
+                <span style="cursor:pointer;color:#1a73e8;" onclick="adminMatrisGor('${id}')">${ogretmenAdiHtml(id)}</span>
                 ${gerekceRozet(id)}
               </div>
+              ${bransGrup ? "" : `<div style="font-size:11px;color:#5f6368;margin-bottom:2px;">${brans}</div>`}
               <div style="font-size:11px;color:#888;margin-bottom:4px;">${kapali} saat kapalı · ${ogretmenToplamYuk(id)} saat ders${acmaz ? ' · <strong style="color:#c5221f;">⚠ açmaz</strong>' : ""}</div>
               ${talepMatrisHtml(id, true)}
             </div>`;
@@ -1725,7 +1783,7 @@
         const el = document.getElementById("adminUyumTablo");
         if (!el) return;
         let html = `<div class="kart"><div class="kart-baslik">Öğretmen Talep Özeti</div>
-          <table><thead><tr><th>Öğretmen</th><th>Kapalı saat</th><th>Ders yükü</th><th>Esneklik</th><th>Gerekçe</th><th>Durum</th><th></th></tr></thead><tbody>`;
+          <table><thead><tr><th>Öğretmen</th><th>Branş</th><th>Kapalı saat</th><th>Ders yükü</th><th>Esneklik</th><th>Gerekçe</th><th>Durum</th><th></th></tr></thead><tbody>`;
         talepGirenOgretmenler().forEach((id) => {
           const matris = tumMatrisler[id];
           const d = ogretmenDurum(id, matris);
@@ -1736,7 +1794,7 @@
             : sikisik
               ? '<span class="rozet rozet-sari">Sıkışık</span>'
               : '<span class="rozet rozet-yesil">Uygun</span>';
-          html += `<tr><td>${ogretmenAdi(id)}</td><td>${Object.values(matris).filter(Boolean).length}</td><td>${ogretmenToplamYuk(id)}</td>
+          html += `<tr><td>${ogretmenAdiHtml(id)}</td><td>${ogretmenBrans(id)}</td><td>${Object.values(matris).filter(Boolean).length}</td><td>${ogretmenToplamYuk(id)}</td>
             <td>${d.kapasite}</td><td>${gerekceRozet(id)}</td><td>${durum}</td>
             <td><button class="btn btn-gri btn-sm" onclick="adminMatrisGor('${id}')">Görüntüle</button></td></tr>`;
         });
