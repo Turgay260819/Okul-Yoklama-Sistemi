@@ -735,9 +735,11 @@ window.kelebekListeyeDon = async () => {
 };
 
 // ═══════════ DÜZENLEYİCİ ═══════════
-// Dagitima girecekler: secili ve (kutu isaretliyse) odeme yapmis. Secimin
-// kendisi (_secili) degismez; kutu kaldirilinca ilk liste aynen doner.
-const _dahil = (id) => _secili.has(id) && (!_sinav?.sadece_odeyenler || _odediMi(id));
+// Dagitima girecekler: kutu isaretliyse odeme yapan TUM (kayitli) ogrenciler,
+// secimden bagimsiz; degilse secilenler. Secimin kendisi (_secili) degismez;
+// kutu kaldirilinca ilk liste aynen doner.
+const _sadeceOdeyen = () => !!_sinav?.sadece_odeyenler;
+const _dahil = (id) => (_sadeceOdeyen() ? _odediMi(id) : _secili.has(id));
 function _secilenOgrenciler() {
   return _ogrenciler.filter((o) => _dahil(o.ogrenci_id));
 }
@@ -877,7 +879,9 @@ function _odemeIsaretGuncelle() {
   document.querySelectorAll("#kbOgrenciler .kb-odeme-isaret").forEach((el) => {
     const id = el.dataset.id;
     const disarida = _secili.has(id) && !_dahil(id);
-    el.innerHTML = _odediMi(id) ? '<span style="color:#1e7e34;font-weight:600;">💰 Ödedi</span>'
+    const ekstra = !_secili.has(id) && _dahil(id);
+    el.innerHTML = ekstra ? '<span style="color:#1e7e34;font-weight:600;">💰 Ödedi · seçili değil, dağıtıma girer</span>'
+      : _odediMi(id) ? '<span style="color:#1e7e34;font-weight:600;">💰 Ödedi</span>'
       : disarida ? '<span style="color:#c5221f;">ödemedi · dağıtıma girmez</span>' : "";
     el.closest(".ogrenci-satir").style.opacity = disarida ? ".55" : "";
   });
@@ -999,10 +1003,14 @@ function _salonlarCiz() {
   const ogrSayi = _secilenOgrenciler().length;
   const seciliSayi = _ogrenciler.filter((o) => _secili.has(o.ogrenci_id)).length;
   const odeyenSayi = _ogrenciler.filter((o) => _secili.has(o.ogrenci_id) && _odediMi(o.ogrenci_id)).length;
+  const tumOdeyen = _ogrenciler.filter((o) => _odediMi(o.ogrenci_id)).length;
+  const secimDisi = tumOdeyen - odeyenSayi;
   el.innerHTML = `<label class="kb-kilit${_sinav.sadece_odeyenler ? " acik" : ""}" style="cursor:${ro ? "default" : "pointer"};">
       <input type="checkbox" ${_sinav.sadece_odeyenler ? "checked" : ""} onchange="kelebekSadeceOdeyen(this.checked)"${ro ? " disabled" : ""}>
       <span style="flex:1;"><strong>💰 Sadece ödeme yapanlar sınava girsin</strong>
-        <span style="color:var(--text2);">(seçili ${seciliSayi} öğrenciden ${odeyenSayi} öğrenci ödedi${_sinav.sadece_odeyenler ? `; dağıtıma ${ogrSayi} öğrenci girer` : ""})</span></span></label>
+        <span style="color:var(--text2);">${_sinav.sadece_odeyenler
+          ? `(dağıtıma ödeme yapan ${ogrSayi} öğrenci girer${secimDisi ? `; ${secimDisi} tanesi seçili listede değil` : ""})`
+          : `(ödeme yapan: ${tumOdeyen} öğrenci; seçili ${seciliSayi} öğrenciden ${odeyenSayi} öğrenci)`}</span></span></label>
     <p style="font-size:13px;color:var(--text2);margin-bottom:8px;">Mevcut bir sınıfı seçin ya da "Diğer" ile farklı bir salon (ör. Konferans Salonu) ekleyin; her salona kaç öğrenci gireceğini yazın. Diğer salonlara otomatik gözetmen atanmaz.</p>
     ${_sinav.salonlar.map((s, i) => `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px;">
       <select data-i="${i}" onchange="kelebekSalonSinif(${i}, this.value)" style="min-width:140px;"${ro ? " disabled" : ""}>
@@ -1041,7 +1049,10 @@ window.kelebekSadeceOdeyen = (acik) => {
   _sinav.sadece_odeyenler = !!acik;
   _ogrencilerCiz(); _salonlarCiz(); _dagilimDegisti(); _otoKaydet();
   const odemeyen = _sinav.dagilim.filter((x) => !_odediMi(x.ogrenci_id)).length;
-  if (acik) mesajGoster("kbMesaj", `Dağıtım işlemleri artık sadece ödeme yapan öğrencilerle yapılır.${odemeyen ? ` Mevcut dağıtımda ödeme yapmamış ${odemeyen} öğrenci var; yeniden dağıtın ya da Dağıtım bölümünden çıkarın.` : ""}`, "bilgi");
+  const dagitimda = new Set(_sinav.dagilim.map((x) => x.ogrenci_id));
+  const odeyenler = _secilenOgrenciler();
+  const eksik = _sinav.dagilim.length ? odeyenler.filter((o) => !dagitimda.has(o.ogrenci_id)).length : 0;
+  if (acik) mesajGoster("kbMesaj", `Ödeme yapan ${odeyenler.length} öğrenci dağıtılacak (seçili listede olmasalar da).${eksik ? ` ${eksik} tanesi henüz dağıtımda değil: Dağıtım bölümünden ekleyin ya da yeniden dağıtın.` : ""}${odemeyen ? ` Mevcut dağıtımda ödeme yapmamış ${odemeyen} öğrenci var.` : ""}`, "bilgi");
   else mesajGoster("kbMesaj", "Seçilen öğrencilerin tamamı (ödeme durumuna bakılmadan) dağıtıma girer.", "bilgi");
 };
 window.kelebekSalonSil = (i) => { _sinav.salonlar.splice(i, 1); _salonlarCiz(); _dagilimDegisti(); _gozetmenYukle(); _otoKaydet(); };
@@ -1257,8 +1268,8 @@ function _dagitimCiz() {
   // Secim / salonlar ile dagitim arasindaki farklar
   const dagitimdakiler = new Set(d.map((x) => x.ogrenci_id));
   const yeniler = _secilenOgrenciler().filter((o) => !dagitimdakiler.has(o.ogrenci_id));
-  const cikanlar = d.filter((x) => !_secili.has(x.ogrenci_id));
-  const odemeyenler = d.filter((x) => _secili.has(x.ogrenci_id) && !_dahil(x.ogrenci_id));
+  const odemeyenler = _sadeceOdeyen() ? d.filter((x) => !_odediMi(x.ogrenci_id)) : [];
+  const cikanlar = _sadeceOdeyen() ? [] : d.filter((x) => !_secili.has(x.ogrenci_id));
   const salonAdlari = new Set(_gecerliSalonlar().map((s) => s.ad));
   const yetimSalonlar = [...new Set(d.map((x) => x.salon))].filter((s) => !salonAdlari.has(s));
   const siraUyumsuz = d.some((x) => (x.sira != null) !== !!_sinav.sira_no);
@@ -1429,8 +1440,8 @@ window.kelebekDagitimdanCikar = async (id) => {
   const x = _sinav.dagilim.find((d) => d.ogrenci_id === id);
   if (!x) return;
   // Odeme yapmadigi icin cikarilan secimde kalir (kutu kaldirilinca geri gelir).
-  const odemedi = _secili.has(id) && !_dahil(id);
-  if (!await sor("Dağıtımdan Çıkar", `${x.ad} (${x.sinif}) ${x.salon} salonundan çıkarılacak${odemedi ? " (ödeme yapmadığı için; seçimde kalır)" : " ve sınava girecekler listesinden kaldırılacak"}.`, "Çıkar", "btn-kirmizi")) return;
+  const odemedi = _sadeceOdeyen();
+  if (!await sor("Dağıtımdan Çıkar", `${x.ad} (${x.sinif}) ${x.salon} salonundan çıkarılacak${odemedi ? " (öğrenci seçimi değişmez)" : " ve sınava girecekler listesinden kaldırılacak"}.`, "Çıkar", "btn-kirmizi")) return;
   _sinav.dagilim = _sinav.dagilim.filter((d) => d.ogrenci_id !== id);
   if (!odemedi) _secili.delete(id);
   _secimGostergeleri(); _salonlarCiz();
