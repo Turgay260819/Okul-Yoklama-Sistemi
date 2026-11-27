@@ -50,6 +50,7 @@ const adminMenu = [
   { id: "anket",          ikon: "📋", ad: "Anket & Formlar" },
   { id: "ogrenci-profil", ikon: "👤", ad: "Ogrenci Profilleri" },
   { id: "geziler",        ikon: "🚌", ad: "Geziler" },
+  { id: "kulupler",       ikon: "🎭", ad: "Kulüpler" },
   { separator: "Sistem" },
   { id: "veri-import",    ikon: "📥", ad: "Veri Import" },
   { id: "ayarlar",        ikon: "⚙️", ad: "Ayarlar" },
@@ -73,6 +74,7 @@ const ogretmenKareler = [
   { sayfa: 2, id: "gorevlerim",      ikon: "👥", ad: "Görevlerim",         renk: "#f3e8fd", metinRenk: "#6a1b9a" },
   { sayfa: 2, id: "kura",            ikon: "🎲", ad: "Kura Sonuçları",     renk: "#fff3e0", metinRenk: "#e65100" },
   { sayfa: 2, id: "kelebek-ogr",     ikon: "🦋", ad: "Kelebek Sınav",      renk: "#e8f5e9", metinRenk: "#1b5e20" },
+  { sayfa: 2, id: "kulupler",        ikon: "🎭", ad: "Kulüpler",           renk: "#ede7f6", metinRenk: "#4527a0" },
   // Simdilik gizli
   { sayfa: 2, id: "dyk",             ikon: "📚", ad: "DYK Yoklama",        renk: "#fce8e6", metinRenk: "#c62828", gizli: true },
   { sayfa: 2, id: "kazanimlarim",    ikon: "📖", ad: "Kazanımlarım",       renk: "#e8f5e9", metinRenk: "#1b5e20", gizli: true },
@@ -163,7 +165,7 @@ window.ogretmenGeri = () => {
   document.getElementById("geriBtn").style.display = "none";
 };
 
-const _iframeSayfaIdsler = ["disiplin","nobet2","yoklama-fisi","dyk-fisi","program-talebi","anket","ogrenci-profil","veri-import","geziler","gezi-kayit","kura","aksaklik"];
+const _iframeSayfaIdsler = ["disiplin","nobet2","yoklama-fisi","dyk-fisi","program-talebi","anket","ogrenci-profil","veri-import","geziler","gezi-kayit","kura","aksaklik","kulupler"];
 
 window.sayfaGoster = (sayfaId, baslik, el) => {
   document.querySelectorAll(".sayfa").forEach((s) => s.classList.remove("aktif"));

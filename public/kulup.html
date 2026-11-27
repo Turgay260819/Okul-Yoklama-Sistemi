@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kulüpler</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { font-family: "Segoe UI", sans-serif; background: #f0f4f8; color: #1a1d2e; }
+      .topbar { background: #1557b0; color: white; padding: 13px 24px; display: flex; justify-content: space-between; align-items: center; }
+      .topbar h1 { font-size: 16px; font-weight: 700; }
+      .btn { padding: 8px 16px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+      .btn:disabled { opacity: .5; cursor: default; }
+      .btn-sm { padding: 5px 10px; font-size: 12px; }
+      .btn-yesil { background: #34a853; color: white; }
+      .btn-mavi { background: #1a73e8; color: white; }
+      .btn-gri { background: #666; color: white; }
+      .btn-kirmizi { background: #ea4335; color: white; }
+      .btn-beyaz { background: white; color: #1557b0; }
+      .icerik { max-width: 1000px; margin: 0 auto; padding: 18px 16px; }
+      .kart { background: white; border-radius: 12px; padding: 18px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 14px; }
+      .kart-baslik { font-size: 15px; font-weight: 700; color: #333; margin-bottom: 12px; }
+      .sekme-bar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+      .sekme-btn { padding: 8px 14px; border: 2px solid #d0d7e2; background: white; border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; color: #444; }
+      .sekme-btn.aktif { background: #1557b0; border-color: #1557b0; color: white; }
+      .satir { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+      select, input[type=text], input[type=search] { padding: 8px 10px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 13px; font-family: inherit; background: white; max-width: 100%; }
+      select:focus, input:focus { outline: none; border-color: #1a73e8; }
+      table { width: 100%; border-collapse: collapse; font-size: 13px; }
+      th, td { padding: 7px 8px; border-bottom: 1px solid #eef0f3; text-align: left; }
+      th { background: #f6f8fb; font-size: 12px; color: #555; }
+      .tablo-kap { overflow-x: auto; }
+      .cip { display: inline-flex; align-items: center; gap: 6px; background: #e8f0fe; color: #1557b0; padding: 5px 10px; border-radius: 16px; font-size: 13px; font-weight: 600; }
+      .cip button { border: none; background: none; color: #c5221f; cursor: pointer; font-size: 14px; line-height: 1; }
+      .ilerleme { height: 10px; background: #eef0f3; border-radius: 5px; overflow: hidden; margin: 6px 0 4px; }
+      .ilerleme div { height: 100%; background: #34a853; }
+      tr.atanmamis td { background: #fff4f2; }
+      tr.atanmamis select { border-color: #f0a39b; }
+      details.grup { border: 1px solid #e3e7ee; border-radius: 10px; margin-bottom: 8px; background: white; }
+      details.grup > summary { padding: 10px 12px; cursor: pointer; font-size: 14px; }
+      details.grup > div { padding: 0 10px 10px; }
+      .soluk { color: #6b7280; font-size: 12px; }
+      .bos { text-align: center; padding: 24px; color: #888; font-size: 14px; }
+      .uyari { background: #fff8e1; color: #8a5a00; padding: 10px 12px; border-radius: 8px; font-size: 13px; margin-bottom: 10px; }
+      .rozet { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+      .rozet-gri { background: #f1f3f4; color: #666; }
+      .rozet-yesil { background: #e6f4ea; color: #1e7e34; }
+      #bildirim { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: #1e7e34; color: white; padding: 9px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; display: none; z-index: 1000; }
+      #bildirim.hata { background: #c62828; }
+      .yukleniyor { text-align: center; padding: 40px; color: #666; }
+      #yazdirAlan { display: none; }
+      @media print {
+        body.yazdir > *:not(#yazdirAlan) { display: none !important; }
+        body.yazdir #yazdirAlan { display: block; }
+        #yazdirAlan h2 { font-size: 15px; margin: 0 0 6px; }
+        #yazdirAlan .sayfa { page-break-after: always; }
+        #yazdirAlan table { font-size: 11px; }
+        #yazdirAlan th, #yazdirAlan td { border: 1px solid #999; padding: 3px 5px; }
+      }
+      @media (max-width: 600px) { .icerik { padding: 12px 10px; } .kart { padding: 14px 12px; } }
+    </style>
+    <script>if(new URLSearchParams(location.search).get("embedded"))document.addEventListener("DOMContentLoaded",()=>{document.querySelector("h1")?.remove();const tb=document.querySelector(".topbar");if(tb){const b=document.createElement("button");b.className="btn btn-beyaz";b.style.cssText="padding:6px 14px;font-size:13px;margin-left:auto;";b.textContent="← Menüye Dön";b.onclick=()=>{try{window.parent.ogretmenGeri();}catch(e){}};tb.appendChild(b);}});</script>
+    <script src="/js/salt-okunur.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  </head>
+  <body>
+    <div class="topbar"><h1>🎭 Kulüpler</h1></div>
+    <div class="icerik">
+      <div id="yukleniyorEl" class="yukleniyor">⏳ Yükleniyor...</div>
+      <div id="anaIcerik" style="display:none;">
+        <div class="sekme-bar" id="sekmeler"></div>
+        <div id="sekmeIcerik"></div>
+      </div>
+    </div>
+    <div id="bildirim"></div>
+    <div id="yazdirAlan"></div>
+
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+      import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+      import {
+        getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, addDoc, deleteDoc, collection, query, where,
+        onSnapshot, writeBatch, serverTimestamp, arrayUnion, arrayRemove,
+      } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+      const firebaseConfig = {
+        apiKey: "AIzaSyAHTCiicd4b94rG1-jN0STRbwcrLmkYudo",
+        authDomain: "okul-yoklama-sistemi-8081f.firebaseapp.com",
+        projectId: "okul-yoklama-sistemi-8081f",
+        storageBucket: "okul-yoklama-sistemi-8081f.firebasestorage.app",
+        messagingSenderId: "38230047763",
+        appId: "1:38230047763:web:dfab058df8928b66be13e6",
+      };
+      const app = initializeApp(firebaseConfig);
+      const auth = getAuth(app);
+      const db = getFirestore(app);
+
+      // ── Durum ──
+      const S = {
+        rol: "", ad: "", ogretmen: null,         // ogretmen: { id, ad, rehberSube }
+        ogrenciler: [], subeListesi: [],
+        tanimlar: new Map(),                     // kulup_id -> { ad, aktif }
+        subeler: new Map(),                      // sinif -> { kulupler: [] }
+        atamalar: new Map(),                     // ogrenci_id -> { kulup_id, ... }
+        sekme: "", duzSube: "", gorunum: "kulup", ara: "", fKulup: "", fSube: "",
+        secim: new Set(),
+      };
+      const admin = () => S.rol === "admin";
+      const rehberSube = () => (S.rol === "ogretmen" ? S.ogretmen?.rehberSube || "" : "");
+      const duzenleyebilir = (sube) => !!sube && (admin() || rehberSube() === sube);
+
+      const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+      const trSira = (a, b) => String(a).localeCompare(String(b), "tr", { numeric: true });
+      const noSira = (a, b) => (parseInt(a.no) || 0) - (parseInt(b.no) || 0) || trSira(a.ad, b.ad);
+      const kulupAd = (id) => S.tanimlar.get(id)?.ad || "(silinmiş kulüp)";
+      const kulupSirali = () => [...S.tanimlar.entries()].map(([id, t]) => ({ id, ...t })).sort((a, b) => trSira(a.ad, b.ad));
+      const ogrKulup = (id) => S.atamalar.get(id)?.kulup_id || "";
+      const subeOgrencileri = (sube) => S.ogrenciler.filter((o) => o.sinif === sube).sort(noSira);
+
+      let _bildirimT = null;
+      function bildir(metin, hata = false) {
+        const el = document.getElementById("bildirim");
+        el.textContent = metin;
+        el.className = hata ? "hata" : "";
+        el.style.display = "block";
+        clearTimeout(_bildirimT);
+        _bildirimT = setTimeout(() => (el.style.display = "none"), hata ? 5000 : 1800);
+      }
+      const hataGoster = (e) => bildir("Kaydedilemedi: " + (e?.message || e), true);
+
+      // ── Giriş ──
+      onAuthStateChanged(auth, async (user) => {
+        if (!user) { window.location.href = "/portal.html"; return; }
+        const ud = await getDoc(doc(db, "users", user.uid));
+        if (!ud.exists()) { window.location.href = "/portal.html"; return; }
+        S.rol = ud.data().rol;
+        S.ad = ud.data().ad || "";
+        if (S.rol === "ogrenci") { window.location.href = "/portal.html"; return; }
+
+        const isler = [
+          getDocs(query(collection(db, "students"), where("status", "==", "active"))),
+          getDocs(collection(db, "classes")),
+        ];
+        if (S.rol === "ogretmen") isler.push(getDocs(query(collection(db, "teachers"), where("uid", "==", user.uid))));
+        const [ogrSnap, sinifSnap, ogtSnap] = await Promise.all(isler);
+        S.ogrenciler = ogrSnap.docs.map((d) => {
+          const o = d.data();
+          return { id: d.id, no: String(o.student_number || ""), ad: o.name || "", sinif: o.class_id || "" };
+        }).filter((o) => o.sinif);
+        const subeler = new Set(S.ogrenciler.map((o) => o.sinif));
+        sinifSnap.forEach((d) => d.data().class_name && subeler.add(d.data().class_name));
+        S.subeListesi = [...subeler].sort(trSira);
+        if (ogtSnap && !ogtSnap.empty) {
+          const t = ogtSnap.docs[0];
+          S.ogretmen = { id: t.id, ad: t.data().ad || "", rehberSube: t.data().rehberSube || "" };
+        }
+        S.sekme = admin() || rehberSube() ? "sube" : "liste";
+        if (admin()) S.duzSube = S.subeListesi[0] || "";
+
+        // Canli dinleme: baska ogretmenin degisiklikleri aninda gorunur.
+        let hazir = 0;
+        const ilk = () => { if (++hazir === 3) { document.getElementById("yukleniyorEl").style.display = "none"; document.getElementById("anaIcerik").style.display = "block"; } ciz(); };
+        const dinleHata = (e) => bildir("Veri okunamadı: " + e.message, true);
+        onSnapshot(collection(db, "kulup_tanimlar"), (s) => { S.tanimlar = new Map(s.docs.map((d) => [d.id, d.data()])); ilk(); }, dinleHata);
+        onSnapshot(collection(db, "kulup_subeler"), (s) => { S.subeler = new Map(s.docs.map((d) => [d.id, d.data()])); ilk(); }, dinleHata);
+        onSnapshot(collection(db, "kulup_atamalar"), (s) => { S.atamalar = new Map(s.docs.map((d) => [d.id, d.data()])); ilk(); }, dinleHata);
+      });
+
+      // ── Çizim ──
+      function ciz() {
+        const sekmeler = [];
+        if (admin()) sekmeler.push(["sube", "✏️ Şube Düzenle"]);
+        else if (rehberSube()) sekmeler.push(["sube", `✏️ Şubem (${rehberSube()})`]);
+        sekmeler.push(["liste", "📋 Tüm Liste"]);
+        if (admin()) sekmeler.push(["tanim", "⚙️ Kulüp Listesi"]);
+        document.getElementById("sekmeler").innerHTML = sekmeler.map(([id, ad]) =>
+          `<button class="sekme-btn${S.sekme === id ? " aktif" : ""}" onclick="kSekme('${id}')">${ad}</button>`).join("");
+        const el = document.getElementById("sekmeIcerik");
+        // Yazi yazilan alan yeniden cizimde odagini kaybetmesin
+        const odak = document.activeElement?.id;
+        const imlec = document.activeElement?.selectionStart;
+        el.innerHTML = S.sekme === "sube" ? subeHtml() : S.sekme === "tanim" ? tanimHtml() : listeHtml();
+        if (odak) { const o = document.getElementById(odak); if (o) { o.focus(); if (imlec != null && o.setSelectionRange) o.setSelectionRange(imlec, imlec); } }
+      }
+      window.kSekme = (s) => { S.sekme = s; S.secim.clear(); ciz(); };
+
+      // ═══════════ ŞUBE DÜZENLE ═══════════
+      function subeKulupleri(sube) {
+        const liste = [...(S.subeler.get(sube)?.kulupler || [])];
+        // Listeden cikmis ama hala ogrencisi olan kulupler de gorunsun
+        subeOgrencileri(sube).forEach((o) => { const k = ogrKulup(o.id); if (k && !liste.includes(k)) liste.push(k); });
+        return liste;
+      }
+
+      function subeHtml() {
+        const sube = admin() ? S.duzSube : rehberSube();
+        let html = '<div class="kart">';
+        if (admin()) {
+          html += `<div class="satir"><strong>Şube:</strong>
+            <select onchange="kSubeSec(this.value)">${S.subeListesi.map((s) => {
+              const ogr = subeOgrencileri(s); const atanan = ogr.filter((o) => ogrKulup(o.id)).length;
+              return `<option value="${esc(s)}"${s === sube ? " selected" : ""}>${esc(s)} (${atanan}/${ogr.length})</option>`;
+            }).join("")}</select></div>`;
+        }
+        if (!sube) return html + '<div class="bos">Rehber şubeniz tanımlı değil; yalnız listeleri görebilirsiniz.</div></div>';
+        const ogr = subeOgrencileri(sube);
+        const kulupler = subeKulupleri(sube);
+        const sayi = (k) => ogr.filter((o) => ogrKulup(o.id) === k).length;
+        const atanan = ogr.filter((o) => ogrKulup(o.id)).length;
+        const yuzde = ogr.length ? Math.round((atanan / ogr.length) * 100) : 0;
+        const eklenebilir = kulupSirali().filter((k) => k.aktif !== false && !kulupler.includes(k.id));
+
+        html += `<div class="kart-baslik">${esc(sube)} şubesi kulüpleri</div>
+          <div class="satir">${kulupler.length ? kulupler.map((k) => `<span class="cip">${esc(kulupAd(k))} <span class="rozet rozet-gri">${sayi(k)}</span>
+              ${sayi(k) ? "" : `<button title="Şubeden kaldır" data-k="${esc(k)}" onclick="kKulupKaldir(this.dataset.k)">✕</button>`}</span>`).join("")
+            : '<span class="soluk">Henüz kulüp seçilmedi. Aşağıdan kulüp ekleyin.</span>'}</div>
+          ${S.tanimlar.size ? `<div class="satir">
+            <select id="kEkleSec">${eklenebilir.length ? eklenebilir.map((k) => `<option value="${esc(k.id)}">${esc(k.ad)}</option>`).join("") : "<option value=''>Eklenecek kulüp kalmadı</option>"}</select>
+            <button class="btn btn-yesil btn-sm" onclick="kKulupEkle()"${eklenebilir.length ? "" : " disabled"}>➕ Şubeye ekle</button></div>`
+            : `<div class="uyari">Kulüp listesi boş.${admin() ? " Önce “Kulüp Listesi” sekmesinden kulüp ekleyin." : " Admin kulüp tanımladığında burada seçebilirsiniz."}</div>`}
+        </div>`;
+
+        html += `<div class="kart"><div class="kart-baslik">Öğrenciler</div>
+          <div><strong>${atanan} / ${ogr.length}</strong> öğrenci bir kulübe yazıldı${atanan < ogr.length ? ` · <span style="color:#c5221f;">${ogr.length - atanan} öğrenci kaldı</span>` : " ✓"}</div>
+          <div class="ilerleme"><div style="width:${yuzde}%;"></div></div>`;
+        if (!ogr.length) return html + '<div class="bos">Bu şubede kayıtlı öğrenci yok.</div></div>';
+        const secenek = (secili) => `<option value="">— Kulüp seçin —</option>` +
+          kulupler.map((k) => `<option value="${esc(k)}"${k === secili ? " selected" : ""}>${esc(kulupAd(k))}</option>`).join("");
+        html += `<div class="satir" style="margin-top:10px;padding:8px;background:#f6f8fb;border-radius:8px;">
+            <span class="soluk">Toplu:</span>
+            <button class="btn btn-gri btn-sm" onclick="kSecAtanmamis()">Atanmamışları seç</button>
+            <button class="btn btn-gri btn-sm" onclick="kSecTemizle()">Seçimi temizle</button>
+            <select id="kTopluSec">${secenek("")}</select>
+            <button class="btn btn-mavi btn-sm" onclick="kTopluAta()"${kulupler.length ? "" : " disabled"}>Seçilen ${S.secim.size} öğrenciye ata</button></div>
+          <div class="tablo-kap"><table><thead><tr><th style="width:30px;"><input type="checkbox" onchange="kSecTumu(this.checked)" ${S.secim.size && S.secim.size === ogr.length ? "checked" : ""}></th>
+            <th>No</th><th>Ad Soyad</th><th>Kulüp</th></tr></thead><tbody>
+          ${ogr.map((o) => { const k = ogrKulup(o.id); return `<tr class="${k ? "" : "atanmamis"}">
+            <td><input type="checkbox" data-id="${esc(o.id)}" onchange="kSec(this.dataset.id,this.checked)" ${S.secim.has(o.id) ? "checked" : ""}></td>
+            <td>${esc(o.no)}</td><td>${esc(o.ad)}</td>
+            <td><select data-id="${esc(o.id)}" onchange="kAta([this.dataset.id],this.value)"${kulupler.length ? "" : " disabled"}>${secenek(k)}</select></td></tr>`; }).join("")}
+          </tbody></table></div></div>`;
+        return html;
+      }
+
+      window.kSubeSec = (s) => { S.duzSube = s; S.secim.clear(); ciz(); };
+      window.kSec = (id, acik) => { acik ? S.secim.add(id) : S.secim.delete(id); ciz(); };
+      window.kSecTumu = (acik) => { S.secim.clear(); if (acik) subeOgrencileri(aktifSube()).forEach((o) => S.secim.add(o.id)); ciz(); };
+      window.kSecAtanmamis = () => { S.secim.clear(); subeOgrencileri(aktifSube()).filter((o) => !ogrKulup(o.id)).forEach((o) => S.secim.add(o.id)); ciz(); };
+      window.kSecTemizle = () => { S.secim.clear(); ciz(); };
+      const aktifSube = () => (admin() ? S.duzSube : rehberSube());
+
+      window.kKulupEkle = async () => {
+        const sube = aktifSube(); const k = document.getElementById("kEkleSec")?.value;
+        if (!k || !duzenleyebilir(sube)) return;
+        try {
+          await setDoc(doc(db, "kulup_subeler", sube), {
+            sinif: sube, kulupler: arrayUnion(k), ogretmen_id: S.ogretmen?.id || null,
+            guncelleme: serverTimestamp(), guncelleyen_ad: S.ad,
+          }, { merge: true });
+          bildir(`${kulupAd(k)} eklendi`);
+        } catch (e) { hataGoster(e); }
+      };
+      window.kKulupKaldir = async (k) => {
+        const sube = aktifSube();
+        if (!duzenleyebilir(sube)) return;
+        if (subeOgrencileri(sube).some((o) => ogrKulup(o.id) === k)) { bildir("Bu kulüpte öğrenci var; önce öğrencileri başka kulübe alın.", true); return; }
+        try {
+          await setDoc(doc(db, "kulup_subeler", sube), {
+            sinif: sube, kulupler: arrayRemove(k), ogretmen_id: S.ogretmen?.id || null,
+            guncelleme: serverTimestamp(), guncelleyen_ad: S.ad,
+          }, { merge: true });
+          bildir(`${kulupAd(k)} kaldırıldı`);
+        } catch (e) { hataGoster(e); }
+      };
+
+      // Atama: belge kimligi = ogrenci kimligi (ogrenci tek kulupte). Kulupten
+      // cikarma kulup_id:"" ile yazilir (ogretmen silemez, kurallar geregi).
+      // Kurallar her belge icin ogrenci kaydini okur; toplu yazim 10'arli gruplanir.
+      window.kAta = async (ids, k) => {
+        const sube = aktifSube();
+        if (!duzenleyebilir(sube) || !ids.length) return;
+        const ogrMap = new Map(S.ogrenciler.map((o) => [o.id, o]));
+        try {
+          for (let i = 0; i < ids.length; i += 10) {
+            const b = writeBatch(db);
+            ids.slice(i, i + 10).forEach((id) => {
+              const o = ogrMap.get(id);
+              if (!o) return;
+              b.set(doc(db, "kulup_atamalar", id), {
+                ogrenci_id: id, ad: o.ad, no: o.no, sinif: o.sinif,
+                kulup_id: k || "", kulup_ad: k ? kulupAd(k) : "",
+                ogretmen_id: S.ogretmen?.id || null, guncelleme: serverTimestamp(), guncelleyen_ad: S.ad,
+              });
+            });
+            await b.commit();
+          }
+          bildir(ids.length > 1 ? `${ids.length} öğrenci kaydedildi ✓` : "Kaydedildi ✓");
+        } catch (e) { hataGoster(e); ciz(); }
+      };
+      window.kTopluAta = async () => {
+        const k = document.getElementById("kTopluSec")?.value;
+        if (!S.secim.size) { bildir("Önce öğrenci seçin.", true); return; }
+        if (!k) { bildir("Atanacak kulübü seçin.", true); return; }
+        const ids = [...S.secim];
+        S.secim.clear();
+        await window.kAta(ids, k);
+      };
+
+      // ═══════════ TÜM LİSTE ═══════════
+      function listeVerisi() {
+        const ara = S.ara.trim().toLocaleLowerCase("tr");
+        const uygun = (o) => (!S.fSube || o.sinif === S.fSube) && (!ara || o.ad.toLocaleLowerCase("tr").includes(ara) || o.no.includes(ara));
+        const ogr = S.ogrenciler.filter(uygun).map((o) => ({ ...o, kulup: ogrKulup(o.id) }))
+          .filter((o) => !S.fKulup || o.kulup === S.fKulup);
+        return ogr;
+      }
+
+      function kulupGruplari(ogr) {
+        const g = new Map();
+        ogr.filter((o) => o.kulup).forEach((o) => { if (!g.has(o.kulup)) g.set(o.kulup, []); g.get(o.kulup).push(o); });
+        return [...g.entries()].map(([k, l]) => ({ k, ad: kulupAd(k), liste: l.sort((a, b) => trSira(a.sinif, b.sinif) || noSira(a, b)) }))
+          .sort((a, b) => trSira(a.ad, b.ad));
+      }
+      function subeGruplari(ogr) {
+        const g = new Map();
+        ogr.forEach((o) => { if (!g.has(o.sinif)) g.set(o.sinif, []); g.get(o.sinif).push(o); });
+        return [...g.entries()].map(([s, l]) => ({ s, liste: l.sort(noSira) })).sort((a, b) => trSira(a.s, b.s));
+      }
+
+      function listeHtml() {
+        const ogr = listeVerisi();
+        const filtreli = !!(S.ara.trim() || S.fKulup || S.fSube);
+        const tumOgr = S.ogrenciler;
+        const atananTop = tumOgr.filter((o) => ogrKulup(o.id)).length;
+        let html = `<div class="kart">
+          <div class="sekme-bar" style="margin-bottom:10px;">
+            <button class="sekme-btn${S.gorunum === "kulup" ? " aktif" : ""}" onclick="kGorunum('kulup')">Kulübe göre</button>
+            <button class="sekme-btn${S.gorunum === "sube" ? " aktif" : ""}" onclick="kGorunum('sube')">Şubeye göre</button>
+            <button class="sekme-btn${S.gorunum === "ozet" ? " aktif" : ""}" onclick="kGorunum('ozet')">Özet</button></div>
+          <div class="satir">
+            <input type="search" id="kAra" placeholder="Öğrenci adı / no ara" value="${esc(S.ara)}" oninput="kAra(this.value)" style="flex:1;min-width:160px;">
+            <select onchange="kFiltre('fKulup',this.value)"><option value="">Tüm kulüpler</option>${kulupSirali().map((k) => `<option value="${esc(k.id)}"${S.fKulup === k.id ? " selected" : ""}>${esc(k.ad)}</option>`).join("")}</select>
+            <select onchange="kFiltre('fSube',this.value)"><option value="">Tüm şubeler</option>${S.subeListesi.map((s) => `<option value="${esc(s)}"${S.fSube === s ? " selected" : ""}>${esc(s)}</option>`).join("")}</select>
+          </div>
+          <div class="satir"><span class="soluk" style="flex:1;">Toplam ${tumOgr.length} öğrenciden ${atananTop} öğrenci bir kulübe yazıldı.</span>
+            <button class="btn btn-mavi btn-sm" onclick="kYazdir()">🖨 Yazdır</button>
+            <button class="btn btn-yesil btn-sm" onclick="kExcel()">📊 Excel</button></div></div>`;
+
+        if (S.gorunum === "ozet") return html + ozetHtml();
+        if (S.gorunum === "kulup") {
+          const gruplar = kulupGruplari(ogr);
+          if (!gruplar.length) return html + '<div class="kart bos">Gösterilecek kayıt yok.</div>';
+          html += gruplar.map((g) => `<details class="grup"${filtreli ? " open" : ""}><summary><strong>${esc(g.ad)}</strong> <span class="soluk">(${g.liste.length} öğrenci)</span></summary>
+            <div class="tablo-kap"><table><thead><tr><th>#</th><th>Şube</th><th>No</th><th>Ad Soyad</th></tr></thead><tbody>
+            ${g.liste.map((o, i) => `<tr><td>${i + 1}</td><td>${esc(o.sinif)}</td><td>${esc(o.no)}</td><td>${esc(o.ad)}</td></tr>`).join("")}
+            </tbody></table></div></details>`).join("");
+          return html;
+        }
+        const gruplar = subeGruplari(ogr);
+        if (!gruplar.length) return html + '<div class="kart bos">Gösterilecek kayıt yok.</div>';
+        html += gruplar.map((g) => { const at = g.liste.filter((o) => o.kulup).length;
+          return `<details class="grup"${filtreli ? " open" : ""}><summary><strong>${esc(g.s)}</strong> <span class="soluk">(${at} / ${g.liste.length} atandı)</span></summary>
+            <div class="tablo-kap"><table><thead><tr><th>No</th><th>Ad Soyad</th><th>Kulüp</th></tr></thead><tbody>
+            ${g.liste.map((o) => `<tr class="${o.kulup ? "" : "atanmamis"}"><td>${esc(o.no)}</td><td>${esc(o.ad)}</td><td>${o.kulup ? esc(kulupAd(o.kulup)) : '<span style="color:#c5221f;">— atanmadı</span>'}</td></tr>`).join("")}
+            </tbody></table></div></details>`; }).join("");
+        return html;
+      }
+
+      function ozetVerisi() {
+        const kulup = kulupSirali().map((k) => ({ ...k, n: S.ogrenciler.filter((o) => ogrKulup(o.id) === k.id).length,
+          subeler: new Set(S.ogrenciler.filter((o) => ogrKulup(o.id) === k.id).map((o) => o.sinif)).size }));
+        const sube = S.subeListesi.map((s) => { const l = subeOgrencileri(s); return { s, top: l.length, at: l.filter((o) => ogrKulup(o.id)).length }; })
+          .filter((x) => x.top);
+        return { kulup, sube };
+      }
+      function ozetHtml() {
+        const { kulup, sube } = ozetVerisi();
+        return `<div class="kart"><div class="kart-baslik">Kulüp başına öğrenci</div><div class="tablo-kap"><table>
+            <thead><tr><th>Kulüp</th><th>Öğrenci</th><th>Şube sayısı</th></tr></thead><tbody>
+            ${kulup.map((k) => `<tr><td>${esc(k.ad)}${k.aktif === false ? ' <span class="rozet rozet-gri">pasif</span>' : ""}</td><td>${k.n}</td><td>${k.subeler}</td></tr>`).join("") || '<tr><td colspan="3" class="bos">Kulüp yok</td></tr>'}
+            </tbody></table></div></div>
+          <div class="kart"><div class="kart-baslik">Şube başına doluluk</div><div class="tablo-kap"><table>
+            <thead><tr><th>Şube</th><th>Atanan</th><th>Toplam</th><th>Durum</th></tr></thead><tbody>
+            ${sube.map((x) => `<tr class="${x.at < x.top ? "atanmamis" : ""}"><td>${esc(x.s)}</td><td>${x.at}</td><td>${x.top}</td><td>${x.at === x.top ? '<span class="rozet rozet-yesil">Tamam</span>' : `${x.top - x.at} eksik`}</td></tr>`).join("")}
+            </tbody></table></div></div>`;
+      }
+
+      window.kGorunum = (g) => { S.gorunum = g; ciz(); };
+      let _araT = null;
+      window.kAra = (v) => { S.ara = v; clearTimeout(_araT); _araT = setTimeout(ciz, 200); };
+      window.kFiltre = (alan, v) => { S[alan] = v; ciz(); };
+
+      window.kYazdir = () => {
+        const ogr = listeVerisi();
+        const tarih = new Date().toLocaleDateString("tr-TR");
+        let html = "";
+        if (S.gorunum === "sube") {
+          html = subeGruplari(ogr).map((g) => `<div class="sayfa"><h2>${esc(g.s)} Şubesi Kulüp Listesi · ${tarih}</h2><table><thead><tr><th>No</th><th>Ad Soyad</th><th>Kulüp</th></tr></thead><tbody>
+            ${g.liste.map((o) => `<tr><td>${esc(o.no)}</td><td>${esc(o.ad)}</td><td>${o.kulup ? esc(kulupAd(o.kulup)) : "—"}</td></tr>`).join("")}</tbody></table></div>`).join("");
+        } else if (S.gorunum === "ozet") {
+          const { kulup, sube } = ozetVerisi();
+          html = `<div class="sayfa"><h2>Kulüp Özeti · ${tarih}</h2><table><thead><tr><th>Kulüp</th><th>Öğrenci</th><th>Şube sayısı</th></tr></thead><tbody>
+            ${kulup.map((k) => `<tr><td>${esc(k.ad)}</td><td>${k.n}</td><td>${k.subeler}</td></tr>`).join("")}</tbody></table><br>
+            <table><thead><tr><th>Şube</th><th>Atanan</th><th>Toplam</th></tr></thead><tbody>${sube.map((x) => `<tr><td>${esc(x.s)}</td><td>${x.at}</td><td>${x.top}</td></tr>`).join("")}</tbody></table></div>`;
+        } else {
+          html = kulupGruplari(ogr).map((g) => `<div class="sayfa"><h2>${esc(g.ad)} · ${g.liste.length} öğrenci · ${tarih}</h2><table><thead><tr><th>#</th><th>Şube</th><th>No</th><th>Ad Soyad</th></tr></thead><tbody>
+            ${g.liste.map((o, i) => `<tr><td>${i + 1}</td><td>${esc(o.sinif)}</td><td>${esc(o.no)}</td><td>${esc(o.ad)}</td></tr>`).join("")}</tbody></table></div>`).join("");
+        }
+        if (!html) { bildir("Yazdırılacak kayıt yok.", true); return; }
+        document.getElementById("yazdirAlan").innerHTML = html;
+        document.body.classList.add("yazdir");
+        const bitir = () => { document.body.classList.remove("yazdir"); window.removeEventListener("afterprint", bitir); };
+        window.addEventListener("afterprint", bitir);
+        window.print();
+      };
+
+      window.kExcel = () => {
+        if (!window.XLSX) { bildir("Excel kütüphanesi yüklenemedi.", true); return; }
+        const ogr = listeVerisi();
+        const wb = XLSX.utils.book_new();
+        const kulupSatir = [["Kulüp", "Şube", "No", "Ad Soyad"]];
+        kulupGruplari(ogr).forEach((g) => g.liste.forEach((o) => kulupSatir.push([g.ad, o.sinif, o.no, o.ad])));
+        const subeSatir = [["Şube", "No", "Ad Soyad", "Kulüp"]];
+        subeGruplari(ogr).forEach((g) => g.liste.forEach((o) => subeSatir.push([o.sinif, o.no, o.ad, o.kulup ? kulupAd(o.kulup) : ""])));
+        const { kulup, sube } = ozetVerisi();
+        const ozet = [["Kulüp", "Öğrenci", "Şube sayısı"], ...kulup.map((k) => [k.ad, k.n, k.subeler]), [],
+          ["Şube", "Atanan", "Toplam"], ...sube.map((x) => [x.s, x.at, x.top])];
+        const ekle = (aoa, ad, gen) => { const ws = XLSX.utils.aoa_to_sheet(aoa); ws["!cols"] = gen.map((w) => ({ wch: w })); XLSX.utils.book_append_sheet(wb, ws, ad); };
+        ekle(kulupSatir, "Kulüplere Göre", [28, 8, 8, 30]);
+        ekle(subeSatir, "Şubelere Göre", [8, 8, 30, 28]);
+        ekle(ozet, "Özet", [28, 10, 12]);
+        XLSX.writeFile(wb, `kulup-listesi-${new Date().toISOString().slice(0, 10)}.xlsx`);
+      };
+
+      // ═══════════ KULÜP LİSTESİ (admin) ═══════════
+      function tanimHtml() {
+        const kulupler = kulupSirali();
+        const subeSayisi = (id) => [...S.subeler.values()].filter((s) => (s.kulupler || []).includes(id)).length;
+        const ogrSayisi = (id) => [...S.atamalar.values()].filter((a) => a.kulup_id === id).length;
+        return `<div class="kart"><div class="kart-baslik">Kulüp ekle</div>
+            <div class="satir"><input type="text" id="kYeniAd" placeholder="ör. Fotoğrafçılık Kulübü" style="flex:1;min-width:200px;" onkeydown="if(event.key==='Enter')kTanimEkle()">
+              <button class="btn btn-yesil" onclick="kTanimEkle()">➕ Ekle</button></div>
+            <div class="soluk">Eklenen kulüpler öğretmenlerin açılır menüsünde görünür. Pasif kulüp menüde çıkmaz, mevcut atamaları korunur.</div></div>
+          <div class="kart"><div class="kart-baslik">Kulüpler (${kulupler.length})</div>
+          ${kulupler.length ? `<div class="tablo-kap"><table><thead><tr><th>Kulüp</th><th>Durum</th><th>Şube</th><th>Öğrenci</th><th></th></tr></thead><tbody>
+            ${kulupler.map((k) => { const n = ogrSayisi(k.id), sb = subeSayisi(k.id); return `<tr><td><strong>${esc(k.ad)}</strong></td>
+              <td>${k.aktif === false ? '<span class="rozet rozet-gri">Pasif</span>' : '<span class="rozet rozet-yesil">Aktif</span>'}</td><td>${sb}</td><td>${n}</td>
+              <td style="white-space:nowrap;"><button class="btn btn-gri btn-sm" data-id="${esc(k.id)}" onclick="kTanimAd(this.dataset.id)">Adı değiştir</button>
+                <button class="btn btn-sm ${k.aktif === false ? "btn-yesil" : "btn-gri"}" data-id="${esc(k.id)}" onclick="kTanimAktif(this.dataset.id)">${k.aktif === false ? "Aktifleştir" : "Pasifleştir"}</button>
+                ${n || sb ? "" : `<button class="btn btn-kirmizi btn-sm" data-id="${esc(k.id)}" onclick="kTanimSil(this.dataset.id)">Sil</button>`}</td></tr>`; }).join("")}
+            </tbody></table></div>` : '<div class="bos">Henüz kulüp eklenmedi.</div>'}</div>`;
+      }
+
+      const ayniAdVar = (ad, haric) => kulupSirali().some((k) => k.id !== haric && k.ad.toLocaleLowerCase("tr") === ad.toLocaleLowerCase("tr"));
+      window.kTanimEkle = async () => {
+        if (!admin()) return;
+        const el = document.getElementById("kYeniAd");
+        const ad = (el?.value || "").trim();
+        if (!ad) { bildir("Kulüp adı yazın.", true); return; }
+        if (ayniAdVar(ad)) { bildir("Bu adda bir kulüp zaten var.", true); return; }
+        try {
+          await addDoc(collection(db, "kulup_tanimlar"), { ad, aktif: true, olusturma: serverTimestamp(), olusturan_ad: S.ad });
+          el.value = "";
+          bildir(`${ad} eklendi`);
+        } catch (e) { hataGoster(e); }
+      };
+      window.kTanimAd = async (id) => {
+        if (!admin()) return;
+        const ad = (prompt("Kulübün yeni adı:", kulupAd(id)) || "").trim();
+        if (!ad || ad === kulupAd(id)) return;
+        if (ayniAdVar(ad, id)) { bildir("Bu adda bir kulüp zaten var.", true); return; }
+        try { await updateDoc(doc(db, "kulup_tanimlar", id), { ad }); bildir("Ad değiştirildi"); } catch (e) { hataGoster(e); }
+      };
+      window.kTanimAktif = async (id) => {
+        if (!admin()) return;
+        const aktif = S.tanimlar.get(id)?.aktif === false;
+        try { await updateDoc(doc(db, "kulup_tanimlar", id), { aktif }); bildir(aktif ? "Aktifleştirildi" : "Pasifleştirildi"); } catch (e) { hataGoster(e); }
+      };
+      window.kTanimSil = async (id) => {
+        if (!admin()) return;
+        if (!confirm(`“${kulupAd(id)}” silinsin mi?`)) return;
+        try { await deleteDoc(doc(db, "kulup_tanimlar", id)); bildir("Silindi"); } catch (e) { hataGoster(e); }
+      };
+    </script>
+  </body>
+</html>

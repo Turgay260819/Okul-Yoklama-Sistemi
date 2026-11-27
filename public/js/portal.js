@@ -81,6 +81,7 @@ window.sayfaYukle = (id) => {
   else if (id === "ogrenci-profil") _iframeYukle("ogrenci-profil", "/ogrenci-profil.html");
   else if (id === "veri-import")    _iframeYukle("veri-import",    "/import.html");
   else if (id === "geziler")        _iframeYukle("geziler",        "/gezi.html");
+  else if (id === "kulupler")       _iframeYukle("kulupler",       "/kulup.html");
   else if (id === "gezi-kayit")    _iframeYukle("gezi-kayit",    "/gezi-kayit.html");
 };
 
